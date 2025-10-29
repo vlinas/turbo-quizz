@@ -1,0 +1,85 @@
+{% comment %}
+  Quiz Widget Block
+  Displays an interactive quiz on the storefront
+{% endcomment %}
+
+<div
+  class="turbo-quiz-widget"
+  data-quiz-id="{{ block.settings.quiz_id }}"
+  data-app-url="{{ block.settings.app_url }}"
+  id="turbo-quiz-{{ block.id }}"
+>
+  <div class="turbo-quiz-loading">
+    <div class="turbo-quiz-spinner"></div>
+    <p>Loading quiz...</p>
+  </div>
+
+  <div class="turbo-quiz-error" style="display: none;">
+    <p class="turbo-quiz-error-message"></p>
+    <button class="turbo-quiz-retry-btn">Try Again</button>
+  </div>
+
+  <div class="turbo-quiz-container" style="display: none;">
+    <!-- Quiz Header -->
+    <div class="turbo-quiz-header">
+      <h2 class="turbo-quiz-title"></h2>
+      <p class="turbo-quiz-description"></p>
+      <div class="turbo-quiz-progress">
+        <div class="turbo-quiz-progress-bar">
+          <div class="turbo-quiz-progress-fill" style="width: 0%"></div>
+        </div>
+        <p class="turbo-quiz-progress-text">Question <span class="current">1</span> of <span class="total">0</span></p>
+      </div>
+    </div>
+
+    <!-- Quiz Question -->
+    <div class="turbo-quiz-question">
+      <h3 class="turbo-quiz-question-text"></h3>
+      <div class="turbo-quiz-answers"></div>
+    </div>
+
+    <!-- Quiz Result -->
+    <div class="turbo-quiz-result" style="display: none;">
+      <div class="turbo-quiz-result-content"></div>
+      <div class="turbo-quiz-result-actions">
+        <button class="turbo-quiz-restart-btn">Take Quiz Again</button>
+      </div>
+    </div>
+
+    <!-- Quiz Navigation -->
+    <div class="turbo-quiz-navigation">
+      <button class="turbo-quiz-back-btn" style="display: none;">Back</button>
+      <button class="turbo-quiz-next-btn" disabled>Next</button>
+    </div>
+  </div>
+</div>
+
+{{ 'quiz-widget.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'quiz-widget.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Quiz Widget",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "quiz_id",
+      "label": "Quiz ID",
+      "info": "Enter the Quiz ID from your Turbo Quiz app dashboard"
+    },
+    {
+      "type": "text",
+      "id": "app_url",
+      "label": "App URL",
+      "default": "https://turbo-quizz-1660bbe41f52.herokuapp.com",
+      "info": "Your app's URL (leave as default unless you have a custom domain)"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Quiz Widget"
+    }
+  ]
+}
+{% endschema %}
