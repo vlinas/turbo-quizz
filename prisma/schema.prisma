@@ -1,0 +1,123 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id          String    @id
+  shop        String
+  state       String
+  isOnline    Boolean   @default(false)
+  scope       String?
+  expires     DateTime?
+  accessToken String
+  userId      Int?
+}
+
+model Quiz {
+  id             Int           @id @default(autoincrement())
+  shop           String
+  quiz_id        String        @unique @default(uuid())
+  title          String
+  description    String?
+  status         String        @default("draft")
+  display_on_pages String[]
+  theme_settings Json?
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+  deleted_at     DateTime?
+  questions      Question[]
+  quiz_sessions  QuizSession[]
+
+  @@index([shop])
+  @@index([status])
+}
+
+model Question {
+  id            Int      @id @default(autoincrement())
+  quiz_id       String
+  question_id   String   @unique @default(uuid())
+  question_text String
+  order         Int
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  quiz          Quiz     @relation(fields: [quiz_id], references: [quiz_id], onDelete: Cascade)
+  answers       Answer[]
+
+  @@index([quiz_id])
+}
+
+model Answer {
+  id                Int               @id @default(autoincrement())
+  question_id       String
+  answer_id         String            @unique @default(uuid())
+  answer_text       String
+  order             Int
+  action_type       String
+  action_data       Json
+  created_at        DateTime          @default(now())
+  updated_at        DateTime          @updatedAt
+  question          Question          @relation(fields: [question_id], references: [question_id], onDelete: Cascade)
+  answer_selections AnswerSelection[]
+
+  @@index([question_id])
+}
+
+model QuizSession {
+  id                Int               @id @default(autoincrement())
+  session_id        String            @unique @default(uuid())
+  quiz_id           String
+  shop              String
+  started_at        DateTime          @default(now())
+  completed_at      DateTime?
+  is_completed      Boolean           @default(false)
+  customer_id       String?
+  page_url          String?
+  user_agent        String?
+  quiz              Quiz              @relation(fields: [quiz_id], references: [quiz_id], onDelete: Cascade)
+  answer_selections AnswerSelection[]
+
+  @@index([quiz_id])
+  @@index([shop])
+  @@index([started_at])
+}
+
+model AnswerSelection {
+  id          Int         @id @default(autoincrement())
+  session_id  String
+  answer_id   String
+  question_id String
+  quiz_id     String
+  shop        String
+  selected_at DateTime    @default(now())
+  session     QuizSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
+  answer      Answer      @relation(fields: [answer_id], references: [answer_id], onDelete: Cascade)
+
+  @@index([session_id])
+  @@index([answer_id])
+  @@index([quiz_id, selected_at])
+  @@index([shop, selected_at])
+}
+
+model QuizAnalyticsSummary {
+  id          Int      @id @default(autoincrement())
+  quiz_id     String
+  shop        String
+  date        DateTime @db.Date
+  impressions Int      @default(0)
+  starts      Int      @default(0)
+  completions Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@unique([quiz_id, shop, date])
+  @@index([shop, date])
+  @@index([quiz_id, date])
+}
