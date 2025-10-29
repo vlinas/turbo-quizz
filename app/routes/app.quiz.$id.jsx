@@ -66,37 +66,64 @@ export const action = async ({ request, params }) => {
   const formData = await request.formData();
   const actionType = formData.get("_action");
 
+  // Verify quiz exists and belongs to this shop
+  const quiz = await prisma.quiz.findFirst({
+    where: {
+      quiz_id: id,
+      shop: session.shop,
+      deleted_at: null,
+    },
+  });
+
+  if (!quiz) {
+    return json({
+      success: false,
+      error: "Quiz not found",
+    }, { status: 404 });
+  }
+
   if (actionType === "update_quiz") {
     const title = formData.get("title");
     const description = formData.get("description");
     const status = formData.get("status");
 
-    const response = await fetch(`${process.env.SHOPIFY_APP_URL}/api/quizzes/${id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title,
-        description,
-        status,
-      }),
-    });
+    try {
+      await prisma.quiz.update({
+        where: { id: quiz.id },
+        data: {
+          title,
+          description,
+          status,
+        },
+      });
 
-    const result = await response.json();
-    return json(result);
+      return json({ success: true });
+    } catch (error) {
+      console.error("Error updating quiz:", error);
+      return json({
+        success: false,
+        error: "Failed to update quiz",
+      }, { status: 500 });
+    }
   }
 
   if (actionType === "delete_quiz") {
-    const response = await fetch(`${process.env.SHOPIFY_APP_URL}/api/quizzes/${id}`, {
-      method: "DELETE",
-    });
+    try {
+      await prisma.quiz.update({
+        where: { id: quiz.id },
+        data: {
+          deleted_at: new Date(),
+        },
+      });
 
-    if (response.ok) {
       return redirect("/app");
+    } catch (error) {
+      console.error("Error deleting quiz:", error);
+      return json({
+        success: false,
+        error: "Failed to delete quiz",
+      }, { status: 500 });
     }
-
-    return json({ success: false, error: "Failed to delete quiz" });
   }
 
   return json({ success: false, error: "Invalid action" });

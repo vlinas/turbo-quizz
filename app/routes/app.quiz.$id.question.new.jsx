@@ -59,6 +59,22 @@ export const action = async ({ request, params }) => {
     }, { status: 400 });
   }
 
+  // Verify quiz exists and belongs to this shop
+  const quiz = await prisma.quiz.findFirst({
+    where: {
+      quiz_id: id,
+      shop: session.shop,
+      deleted_at: null,
+    },
+  });
+
+  if (!quiz) {
+    return json({
+      success: false,
+      error: "Quiz not found",
+    }, { status: 404 });
+  }
+
   // Build action data objects
   const answer1Data = {
     type: answer1_action_type,
@@ -90,40 +106,45 @@ export const action = async ({ request, params }) => {
     }),
   };
 
-  // Call API to create question with answers
-  const response = await fetch(`${process.env.SHOPIFY_APP_URL}/api/questions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      quiz_id: id,
-      question_text,
-      answers: [
-        {
-          answer_text: answer1_text,
-          action_type: answer1_action_type,
-          action_data: answer1Data,
-        },
-        {
-          answer_text: answer2_text,
-          action_type: answer2_action_type,
-          action_data: answer2Data,
-        },
-      ],
-    }),
-  });
+  try {
+    // Get current question count for ordering
+    const questionCount = await prisma.question.count({
+      where: { quiz_id: id },
+    });
 
-  const result = await response.json();
+    // Create question with answers in a single transaction
+    const question = await prisma.question.create({
+      data: {
+        quiz_id: id,
+        question_text,
+        order: questionCount + 1,
+        answers: {
+          create: [
+            {
+              answer_text: answer1_text,
+              action_type: answer1_action_type,
+              action_data: answer1Data,
+              order: 1,
+            },
+            {
+              answer_text: answer2_text,
+              action_type: answer2_action_type,
+              action_data: answer2Data,
+              order: 2,
+            },
+          ],
+        },
+      },
+    });
 
-  if (result.success) {
     return redirect(`/app/quiz/${id}`);
+  } catch (error) {
+    console.error("Error creating question:", error);
+    return json({
+      success: false,
+      error: "Failed to create question. Please try again.",
+    }, { status: 500 });
   }
-
-  return json({
-    success: false,
-    error: result.error || "Failed to create question",
-  });
 };
 
 export default function NewQuestion() {

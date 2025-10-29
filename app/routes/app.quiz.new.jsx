@@ -13,6 +13,7 @@ import {
   InlineStack,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
 
 export const action = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -27,30 +28,26 @@ export const action = async ({ request }) => {
     }, { status: 400 });
   }
 
-  // Call API to create quiz
-  const response = await fetch(`${process.env.SHOPIFY_APP_URL}/api/quizzes`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      title,
-      description,
-      status: "draft",
-    }),
-  });
+  try {
+    // Create quiz directly in database
+    const quiz = await prisma.quiz.create({
+      data: {
+        shop: session.shop,
+        title,
+        description: description || "",
+        status: "draft",
+      },
+    });
 
-  const result = await response.json();
-
-  if (result.success) {
     // Redirect to quiz builder
-    return redirect(`/app/quiz/${result.quiz.quiz_id}`);
+    return redirect(`/app/quiz/${quiz.quiz_id}`);
+  } catch (error) {
+    console.error("Error creating quiz:", error);
+    return json({
+      success: false,
+      error: "Failed to create quiz. Please try again.",
+    }, { status: 500 });
   }
-
-  return json({
-    success: false,
-    error: result.error || "Failed to create quiz",
-  });
 };
 
 export default function NewQuiz() {
