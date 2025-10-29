@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:20-slim
 
 EXPOSE 3000
 
@@ -6,6 +6,9 @@ WORKDIR /app
 COPY . .
 
 ENV NODE_ENV=production
+
+# Install OpenSSL and other required dependencies for Prisma
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 RUN npm install --omit=dev
 # Remove CLI packages since we don't need them in production by default.
