@@ -17,30 +17,24 @@ import {
   ProgressBar,
   IndexTable,
   useIndexResourceState,
-  Thumbnail,
   Icon,
   TextField,
   ChoiceList,
   Filters,
   useSetIndexFiltersMode,
-  Tooltip,
   SkeletonBodyText,
   SkeletonDisplayText,
   Box,
 } from "@shopify/polaris";
 import {
-  CashDollarIcon,
-  DiscountIcon,
-  EyeCheckMarkIcon,
+  QuestionCircleIcon,
+  PlayIcon,
+  CheckCircleIcon,
   ChartVerticalIcon,
-  SearchIcon,
 } from "@shopify/polaris-icons";
 
-import barImage from "../../public/clickx-bar.svg";
-import emptystateimage from "../../public/clickx-main.svg";
-import { getDiscounts } from "../discount_server";
 import { authenticate, PRO_PLAN } from "../shopify.server";
-import { getCurrentDateTimeEST } from "../helper/helper";
+import prisma from "../db.server";
 
 export const action = async ({ request }) => {
   const { billing, admin } = await authenticate.admin(request);
@@ -89,12 +83,11 @@ export const action = async ({ request }) => {
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
+
+  // Get subscription info
   const result = await admin.graphql(
     `#graphql
     query Shop {
-      shop {
-        currencyCode
-      }
       app {
         installation {
           launchUrl
@@ -114,9 +107,8 @@ export const loader = async ({ request }) => {
   );
   const resultJson = await result.json();
   const { activeSubscriptions } = resultJson.data.app.installation;
-  const { currencyCode } = resultJson.data.shop;
 
-  let limit = 1;
+  let limit = 3;
   let status = false;
   let planid = null;
 
@@ -132,218 +124,153 @@ export const loader = async ({ request }) => {
     }
   }
 
-  let data = await getDiscounts(session.shop);
-  let response = {
-    data: data,
+  // Fetch quizzes with stats
+  const quizzes = await prisma.quiz.findMany({
+    where: {
+      shop: session.shop,
+      deleted_at: null,
+    },
+    include: {
+      questions: {
+        include: {
+          answers: true,
+        },
+        orderBy: {
+          order: 'asc',
+        },
+      },
+      _count: {
+        select: {
+          quiz_sessions: true,
+        },
+      },
+    },
+    orderBy: {
+      created_at: 'desc',
+    },
+  });
+
+  // Calculate stats for each quiz
+  const quizzesWithStats = await Promise.all(
+    quizzes.map(async (quiz) => {
+      const sessions = await prisma.quizSession.findMany({
+        where: { quiz_id: quiz.quiz_id },
+        select: { is_completed: true },
+      });
+
+      const totalSessions = sessions.length;
+      const completedSessions = sessions.filter((s) => s.is_completed).length;
+      const completionRate = totalSessions > 0
+        ? Math.round((completedSessions / totalSessions) * 100)
+        : 0;
+
+      return {
+        ...quiz,
+        stats: {
+          totalSessions,
+          completedSessions,
+          completionRate,
+        },
+      };
+    })
+  );
+
+  return {
+    quizzes: quizzesWithStats,
     limit: limit,
     plan: activeSubscriptions.length > 0 ? activeSubscriptions : [],
     planid: planid,
-    currencyCode: currencyCode,
   };
-  return response;
 };
 
 export default function Index() {
   const submit = useSubmit();
   const navigate = useNavigate();
-  const { data, limit, planid, currencyCode } = useLoaderData();
-  const discounts = data || [];
+  const { quizzes, limit, planid } = useLoaderData();
 
   // State
   const [modalActive, setModalActive] = useState(false);
   const [queryValue, setQueryValue] = useState("");
   const [statusFilter, setStatusFilter] = useState([]);
-  const [isLoading] = useState(false);
 
   const { mode, setMode } = useSetIndexFiltersMode();
 
-  const totalCount = discounts.length;
+  const totalCount = quizzes.length;
   const totalSet = limit;
   const percentage = totalSet > 0 ? (totalCount / totalSet) * 100 : 0;
 
-  // Helper functions
-  const formatCurrency = (amount, code) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: code,
-      currencyDisplay: "symbol",
-    }).format(amount);
-  };
-
-  const estDateTimeISOString = getCurrentDateTimeEST();
-  const currentDate = new Date(estDateTimeISOString).toISOString();
-
   // Calculate metrics
   const metrics = useMemo(() => {
-    const totalRevenue = discounts.reduce(
-      (sum, d) => sum + parseFloat(d.revenue || 0),
-      0
-    );
-    const totalCodesRevealed = discounts.reduce((sum, d) => {
-      return (
-        sum +
-        d.discount_coupons_codes.reduce(
-          (codeSum, code) => codeSum + (code.revealed || 0),
-          0
-        )
-      );
-    }, 0);
-    const totalCodesAvailable = discounts.reduce(
-      (sum, d) => sum + (d.quantity || 0),
-      0
-    );
-    const activeDiscounts = discounts.filter((d) => {
-      let startDate = new Date(getCurrentDateTimeEST(d.starts_at));
-      if (d.starts_time) {
-        startDate = new Date(
-          startDate.toISOString().slice(0, 10) + "T" + d.starts_time + ":00.000Z"
-        );
-      }
-      let expiryDate = new Date(getCurrentDateTimeEST(d.expires));
-      if (d.expires_time) {
-        expiryDate = new Date(
-          expiryDate.toISOString().slice(0, 10) + "T" + d.expires_time + ":00.000Z"
-        );
-      }
-      const isActive =
-        expiryDate.toISOString() !== "1970-01-01T00:00:00.000Z"
-          ? currentDate >= startDate.toISOString() &&
-            currentDate <= expiryDate.toISOString()
-          : currentDate >= startDate.toISOString();
-      return d.isActive && isActive;
-    }).length;
+    const totalQuizzes = quizzes.length;
+    const activeQuizzes = quizzes.filter((q) => q.status === "active").length;
+    const totalSessions = quizzes.reduce((sum, q) => sum + q.stats.totalSessions, 0);
+    const totalCompletions = quizzes.reduce((sum, q) => sum + q.stats.completedSessions, 0);
+    const avgCompletionRate = totalSessions > 0
+      ? Math.round((totalCompletions / totalSessions) * 100)
+      : 0;
 
     return {
-      totalRevenue,
-      totalCodesRevealed,
-      totalCodesAvailable,
-      activeDiscounts,
-      conversionRate:
-        totalCodesAvailable > 0
-          ? ((totalCodesRevealed / totalCodesAvailable) * 100).toFixed(1)
-          : 0,
+      totalQuizzes,
+      activeQuizzes,
+      totalSessions,
+      totalCompletions,
+      avgCompletionRate,
     };
-  }, [discounts, currentDate]);
+  }, [quizzes]);
 
-  // Process discounts for table
-  const processedDiscounts = useMemo(() => {
-    return discounts.map((discount) => {
-      let startDate = new Date(getCurrentDateTimeEST(discount.starts_at));
-      if (discount.starts_time) {
-        startDate = new Date(
-          startDate.toISOString().slice(0, 10) +
-            "T" +
-            discount.starts_time +
-            ":00.000Z"
-        );
-      }
-
-      let expiryDate = new Date(getCurrentDateTimeEST(discount.expires));
-      if (discount.expires_time) {
-        expiryDate = new Date(
-          expiryDate.toISOString().slice(0, 10) +
-            "T" +
-            discount.expires_time +
-            ":00.000Z"
-        );
-      }
-
-      const isActive =
-        expiryDate.toISOString() !== "1970-01-01T00:00:00.000Z"
-          ? currentDate >= startDate.toISOString() &&
-            currentDate <= expiryDate.toISOString()
-          : currentDate >= startDate.toISOString();
-      const isScheduled = currentDate < startDate.toISOString();
-
-      const usedCodesSum = discount.discount_coupons_codes.reduce(
-        (sum, code) => sum + (code.revealed || 0),
-        0
-      );
-
-      const options = {
-        timeZone: "America/New_York",
+  // Process quizzes for table
+  const processedQuizzes = useMemo(() => {
+    return quizzes.map((quiz) => {
+      const formattedDate = new Intl.DateTimeFormat("en-US", {
         month: "short",
         day: "numeric",
-        hour: "numeric",
-        minute: "numeric",
-      };
-      const formattedDate = new Intl.DateTimeFormat("en-US", options).format(
-        new Date(discount.starts_at)
-      );
-
-      let minreq = "";
-      if (discount.min_requirement_info === "Minimum Purchase Of") {
-        minreq = discount.min_requirement_info + " $" + discount.minimum_req;
-      } else if (discount.min_requirement_info == "Minimum Quantity Of") {
-        minreq =
-          discount.min_requirement_info +
-          " " +
-          discount.minimum_quantity_req +
-          " Items";
-      } else {
-        minreq = discount.min_requirement_info;
-      }
-
-      const status = discount.isActive
-        ? isActive
-          ? "Active"
-          : isScheduled
-          ? "Scheduled"
-          : "Expired"
-        : "Inactive";
+        year: "numeric",
+      }).format(new Date(quiz.created_at));
 
       return {
-        id: discount.id,
-        title: discount.title,
-        description: `${
-          discount.discount_type == "percentage"
-            ? `${Math.abs(discount.discount_value)}% off`
-            : `${formatCurrency(
-                Math.abs(discount.discount_value),
-                currencyCode
-              )} off`
-        } ${minreq} ${
-          discount.applied_to != "All" ? "Selected Collection/Products" : ""
-        }`,
+        id: quiz.id,
+        quiz_id: quiz.quiz_id,
+        title: quiz.title,
+        description: quiz.description || "No description",
+        questionCount: quiz.questions.length,
         date: formattedDate,
-        codesUsed: usedCodesSum,
-        codesTotal: discount.quantity,
-        revenue: discount.revenue || 0,
-        status: status,
-        couponId: discount.coupon_id,
+        sessions: quiz.stats.totalSessions,
+        completions: quiz.stats.completedSessions,
+        completionRate: quiz.stats.completionRate,
+        status: quiz.status,
       };
     });
-  }, [discounts, currentDate, currencyCode]);
+  }, [quizzes]);
 
   // Filtering
-  const filteredDiscounts = useMemo(() => {
-    let filtered = [...processedDiscounts];
+  const filteredQuizzes = useMemo(() => {
+    let filtered = [...processedQuizzes];
 
     // Text search
     if (queryValue) {
-      filtered = filtered.filter((discount) =>
-        discount.title.toLowerCase().includes(queryValue.toLowerCase())
+      filtered = filtered.filter((quiz) =>
+        quiz.title.toLowerCase().includes(queryValue.toLowerCase())
       );
     }
 
     // Status filter
     if (statusFilter.length > 0) {
-      filtered = filtered.filter((discount) =>
-        statusFilter.includes(discount.status)
+      filtered = filtered.filter((quiz) =>
+        statusFilter.includes(quiz.status)
       );
     }
 
     return filtered;
-  }, [processedDiscounts, queryValue, statusFilter]);
+  }, [processedQuizzes, queryValue, statusFilter]);
 
   // IndexTable setup
   const resourceName = {
-    singular: "discount set",
-    plural: "discount sets",
+    singular: "quiz",
+    plural: "quizzes",
   };
 
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
-    useIndexResourceState(filteredDiscounts);
+    useIndexResourceState(filteredQuizzes);
 
   // Handlers
   const handleQueryChange = useCallback((value) => setQueryValue(value), []);
@@ -374,10 +301,9 @@ export default function Index() {
           title="Status"
           titleHidden
           choices={[
-            { label: "Active", value: "Active" },
-            { label: "Scheduled", value: "Scheduled" },
-            { label: "Expired", value: "Expired" },
-            { label: "Inactive", value: "Inactive" },
+            { label: "Active", value: "active" },
+            { label: "Draft", value: "draft" },
+            { label: "Inactive", value: "inactive" },
           ]}
           selected={statusFilter}
           onChange={handleStatusFilterChange}
@@ -398,18 +324,19 @@ export default function Index() {
   }
 
   // Row markup
-  const rowMarkup = filteredDiscounts.map(
+  const rowMarkup = filteredQuizzes.map(
     (
       {
         id,
+        quiz_id,
         title,
         description,
+        questionCount,
         date,
-        codesUsed,
-        codesTotal,
-        revenue,
+        sessions,
+        completions,
+        completionRate,
         status,
-        couponId,
       },
       index
     ) => (
@@ -418,7 +345,7 @@ export default function Index() {
         key={id}
         selected={selectedResources.includes(id)}
         position={index}
-        onClick={() => navigate(`/app/updatediscount/${id}`)}
+        onClick={() => navigate(`/app/quiz/${quiz_id}`)}
       >
         <IndexTable.Cell>
           <BlockStack gap="100">
@@ -426,7 +353,7 @@ export default function Index() {
               {title}
             </Text>
             <Text variant="bodySm" as="span" tone="subdued">
-              {description}
+              {questionCount} {questionCount === 1 ? "question" : "questions"}
             </Text>
           </BlockStack>
         </IndexTable.Cell>
@@ -436,28 +363,35 @@ export default function Index() {
           </Text>
         </IndexTable.Cell>
         <IndexTable.Cell>
-          <Text as="span">
-            {codesUsed} / {codesTotal}
-          </Text>
+          <Text as="span">{sessions}</Text>
         </IndexTable.Cell>
         <IndexTable.Cell>
-          <Text as="span" fontWeight="semibold">
-            {formatCurrency(revenue, currencyCode)}
-          </Text>
+          <Text as="span">{completions}</Text>
         </IndexTable.Cell>
         <IndexTable.Cell>
           <Badge
             tone={
-              status === "Active"
+              completionRate >= 70
                 ? "success"
-                : status === "Scheduled"
+                : completionRate >= 40
                 ? "info"
-                : status === "Expired"
-                ? "critical"
+                : "attention"
+            }
+          >
+            {completionRate}%
+          </Badge>
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          <Badge
+            tone={
+              status === "active"
+                ? "success"
+                : status === "draft"
+                ? "info"
                 : "default"
             }
           >
-            {status}
+            {status.charAt(0).toUpperCase() + status.slice(1)}
           </Badge>
         </IndexTable.Cell>
       </IndexTable.Row>
@@ -467,16 +401,15 @@ export default function Index() {
   // Empty state
   const emptyStateMarkup = (
     <EmptyState
-      heading="Welcome to ClickX!"
+      heading="Create your first quiz"
       action={{
-        content: "Create your first discount set",
-        onAction: () => navigate("/app/creatediscount"),
+        content: "Create quiz",
+        onAction: () => navigate("/app/quiz/new"),
       }}
-      image={emptystateimage}
+      image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
     >
       <p>
-        Start by creating your first discount code set to offer exclusive deals
-        to your customers.
+        Build interactive quizzes to engage customers and guide them to the perfect products.
       </p>
     </EmptyState>
   );
@@ -488,17 +421,17 @@ export default function Index() {
         <BlockStack gap="200" inlineAlign="start">
           <InlineStack gap="200" blockAlign="center">
             <Box paddingInlineEnd="200">
-              <Icon source={CashDollarIcon} tone="success" />
+              <Icon source={QuestionCircleIcon} tone="info" />
             </Box>
             <Text as="h3" variant="headingSm" tone="subdued">
-              Total Revenues
+              Total Quizzes
             </Text>
           </InlineStack>
           <Text as="p" variant="heading2xl">
-            {formatCurrency(metrics.totalRevenue, currencyCode)}
+            {metrics.totalQuizzes}
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
-            From all discount sets
+            {metrics.activeQuizzes} active
           </Text>
         </BlockStack>
       </Card>
@@ -507,17 +440,17 @@ export default function Index() {
         <BlockStack gap="200" inlineAlign="start">
           <InlineStack gap="200" blockAlign="center">
             <Box paddingInlineEnd="200">
-              <Icon source={DiscountIcon} tone="info" />
+              <Icon source={PlayIcon} tone="warning" />
             </Box>
             <Text as="h3" variant="headingSm" tone="subdued">
-              Active Discounts
+              Total Sessions
             </Text>
           </InlineStack>
           <Text as="p" variant="heading2xl">
-            {metrics.activeDiscounts}
+            {metrics.totalSessions}
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
-            Currently running
+            Quizzes started
           </Text>
         </BlockStack>
       </Card>
@@ -526,17 +459,17 @@ export default function Index() {
         <BlockStack gap="200" inlineAlign="start">
           <InlineStack gap="200" blockAlign="center">
             <Box paddingInlineEnd="200">
-              <Icon source={EyeCheckMarkIcon} tone="warning" />
+              <Icon source={CheckCircleIcon} tone="success" />
             </Box>
             <Text as="h3" variant="headingSm" tone="subdued">
-              Codes Revealed
+              Completions
             </Text>
           </InlineStack>
           <Text as="p" variant="heading2xl">
-            {metrics.totalCodesRevealed}
+            {metrics.totalCompletions}
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
-            Out of {metrics.totalCodesAvailable} total codes
+            Quizzes finished
           </Text>
         </BlockStack>
       </Card>
@@ -548,38 +481,18 @@ export default function Index() {
               <Icon source={ChartVerticalIcon} tone="magic" />
             </Box>
             <Text as="h3" variant="headingSm" tone="subdued">
-              Conversion Rate
+              Completion Rate
             </Text>
           </InlineStack>
           <Text as="p" variant="heading2xl">
-            {metrics.conversionRate}%
+            {metrics.avgCompletionRate}%
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
-            Codes revealed vs available
+            Average across all quizzes
           </Text>
         </BlockStack>
       </Card>
     </InlineGrid>
-  );
-
-  // Loading skeleton
-  const loadingMarkup = (
-    <BlockStack gap="400">
-      <InlineGrid columns={{ xs: 1, sm: 2, md: 2, lg: 4 }} gap="400">
-        {[...Array(4)].map((_, i) => (
-          <Card key={i}>
-            <BlockStack gap="200">
-              <SkeletonDisplayText size="small" />
-              <SkeletonDisplayText size="large" />
-              <SkeletonBodyText lines={1} />
-            </BlockStack>
-          </Card>
-        ))}
-      </InlineGrid>
-      <Card>
-        <SkeletonBodyText lines={10} />
-      </Card>
-    </BlockStack>
   );
 
   return (
@@ -588,8 +501,8 @@ export default function Index() {
         {/* Trial callout */}
         {planid == null && (
           <CalloutCard
-            title="You're on the trial plan"
-            illustration={barImage}
+            title="You're on the free plan"
+            illustration="https://cdn.shopify.com/s/assets/admin/checkout/settings-customizecart-705f57c725ac05be5a34ec20c05b94298cb8afd10aac7bd9c7ad02030f48cfa0.svg"
             primaryAction={{
               content: "Upgrade to Pro",
               onAction: handleUpgradePlan,
@@ -597,9 +510,9 @@ export default function Index() {
           >
             <BlockStack gap="300">
               <Text as="p" variant="bodyMd">
-                {`${totalCount} of ${totalSet} trial discount ${
-                  totalSet === 1 ? "set has" : "sets have"
-                } been used.`}
+                {`${totalCount} of ${totalSet} free ${
+                  totalSet === 1 ? "quiz has" : "quizzes have"
+                } been created.`}
               </Text>
               <ProgressBar
                 progress={percentage}
@@ -610,34 +523,32 @@ export default function Index() {
           </CalloutCard>
         )}
 
-        {isLoading ? (
-          loadingMarkup
-        ) : totalCount === 0 ? (
+        {totalCount === 0 ? (
           <Card>{emptyStateMarkup}</Card>
         ) : (
           <>
             {/* Metrics */}
             {metricsMarkup}
 
-            {/* Discount table */}
+            {/* Quiz table */}
             <Card padding="0">
               <BlockStack gap="0">
                 <Box padding="400" paddingBlockEnd="200">
                   <InlineStack align="space-between" blockAlign="center">
                     <Text variant="headingLg" as="h2">
-                      Discount code sets
+                      Quizzes
                     </Text>
                     <Button
                       variant="primary"
                       onClick={
                         totalSet == -1
-                          ? () => navigate("/app/creatediscount")
+                          ? () => navigate("/app/quiz/new")
                           : totalCount < totalSet
-                          ? () => navigate("/app/creatediscount")
+                          ? () => navigate("/app/quiz/new")
                           : handleUpgradePlan
                       }
                     >
-                      Create discount set
+                      Create quiz
                     </Button>
                   </InlineStack>
                 </Box>
@@ -649,21 +560,22 @@ export default function Index() {
                   onQueryChange={handleQueryChange}
                   onQueryClear={handleQueryClear}
                   onClearAll={handleFiltersClearAll}
-                  queryPlaceholder="Search discount sets..."
+                  queryPlaceholder="Search quizzes..."
                 />
 
                 <IndexTable
                   resourceName={resourceName}
-                  itemCount={filteredDiscounts.length}
+                  itemCount={filteredQuizzes.length}
                   selectedItemsCount={
                     allResourcesSelected ? "All" : selectedResources.length
                   }
                   onSelectionChange={handleSelectionChange}
                   headings={[
-                    { title: "Discount set" },
+                    { title: "Quiz" },
                     { title: "Date created" },
-                    { title: "Codes activated" },
-                    { title: "Revenue" },
+                    { title: "Sessions" },
+                    { title: "Completions" },
+                    { title: "Completion rate" },
                     { title: "Status" },
                   ]}
                   selectable={false}
@@ -695,18 +607,18 @@ export default function Index() {
         <Modal.Section>
           <BlockStack gap="400">
             <Text variant="bodyMd" as="p">
-              You've reached the limit of your trial plan. Upgrade to Pro to
-              create unlimited discount code sets and unlock all features.
+              You've reached the limit of your free plan. Upgrade to Pro to
+              create unlimited quizzes and unlock all features.
             </Text>
             <BlockStack gap="200">
               <Text variant="headingMd" as="h3">
                 Pro Plan includes:
               </Text>
               <ul>
-                <li>Unlimited discount code sets</li>
+                <li>Unlimited quizzes</li>
                 <li>Advanced analytics and reporting</li>
                 <li>Priority support</li>
-                <li>Custom button styling</li>
+                <li>Custom quiz styling</li>
               </ul>
             </BlockStack>
             <Text variant="bodyMd" as="p" fontWeight="semibold">
