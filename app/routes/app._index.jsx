@@ -496,7 +496,15 @@ export default function Index() {
   );
 
   return (
-    <Page fullWidth>
+    <Page
+      fullWidth
+      secondaryActions={[
+        {
+          content: "Settings",
+          onAction: () => navigate("/app/settings"),
+        },
+      ]}
+    >
       <BlockStack gap="500">
         {/* Trial callout */}
         {planid == null && (

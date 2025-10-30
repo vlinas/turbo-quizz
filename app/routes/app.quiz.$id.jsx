@@ -17,6 +17,7 @@ import {
   Badge,
   Icon,
   ButtonGroup,
+  Modal,
 } from "@shopify/polaris";
 import {
   DeleteIcon,
@@ -370,7 +371,34 @@ export default function QuizBuilder() {
         </Layout.Section>
       </Layout>
 
-      {/* Delete Confirmation Modal - TODO: Implement with Modal component */}
+      {/* Delete Confirmation Modal */}
+      <Modal
+        open={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="Delete quiz?"
+        primaryAction={{
+          content: "Delete",
+          destructive: true,
+          onAction: handleDelete,
+        }}
+        secondaryActions={[
+          {
+            content: "Cancel",
+            onAction: () => setShowDeleteModal(false),
+          },
+        ]}
+      >
+        <Modal.Section>
+          <BlockStack gap="400">
+            <Text as="p">
+              Are you sure you want to delete this quiz? This action cannot be undone.
+            </Text>
+            <Text as="p" tone="subdued">
+              All questions, answers, and analytics data associated with this quiz will be permanently deleted.
+            </Text>
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
     </Page>
   );
 }
