@@ -8,6 +8,13 @@ import prisma from "../db.server";
  * POST /api/quiz-sessions/complete - Mark session as completed
  */
 
+// CORS headers
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
 export async function action({ request }) {
   const { method } = request;
 
@@ -19,7 +26,10 @@ export async function action({ request }) {
       return json({
         success: false,
         error: "Method not allowed"
-      }, { status: 405 });
+      }, {
+        status: 405,
+        headers: corsHeaders
+      });
     }
 
     switch (actionType) {
@@ -33,15 +43,29 @@ export async function action({ request }) {
         return json({
           success: false,
           error: "Invalid action type"
-        }, { status: 400 });
+        }, {
+          status: 400,
+          headers: corsHeaders
+        });
     }
   } catch (error) {
     console.error("Error in quiz-sessions:", error);
     return json({
       success: false,
       error: "Internal server error"
-    }, { status: 500 });
+    }, {
+      status: 500,
+      headers: corsHeaders
+    });
   }
+}
+
+// Handle OPTIONS requests for CORS preflight
+export async function options() {
+  return new Response(null, {
+    status: 204,
+    headers: corsHeaders
+  });
 }
 
 /**
@@ -54,14 +78,16 @@ async function handleStart(data) {
     return json({
       success: false,
       error: "quiz_id is required"
-    }, { status: 400 });
+    }, {
+      status: 400,
+      headers: corsHeaders
+    });
   }
 
-  // Verify quiz exists and is active
+  // Verify quiz exists (allow both active and draft for testing)
   const quiz = await prisma.quiz.findFirst({
     where: {
       quiz_id,
-      status: "active",
       deleted_at: null,
     },
   });
@@ -69,8 +95,11 @@ async function handleStart(data) {
   if (!quiz) {
     return json({
       success: false,
-      error: "Quiz not found or not active"
-    }, { status: 404 });
+      error: "Quiz not found"
+    }, {
+      status: 404,
+      headers: corsHeaders
+    });
   }
 
   // Create session
@@ -92,7 +121,10 @@ async function handleStart(data) {
     success: true,
     session_id: session.session_id,
     message: "Quiz session started"
-  }, { status: 201 });
+  }, {
+    status: 201,
+    headers: corsHeaders
+  });
 }
 
 /**
@@ -105,7 +137,10 @@ async function handleAnswer(data) {
     return json({
       success: false,
       error: "session_id, answer_id, question_id, and quiz_id are required"
-    }, { status: 400 });
+    }, {
+      status: 400,
+      headers: corsHeaders
+    });
   }
 
   // Verify session exists
@@ -117,7 +152,10 @@ async function handleAnswer(data) {
     return json({
       success: false,
       error: "Session not found"
-    }, { status: 404 });
+    }, {
+      status: 404,
+      headers: corsHeaders
+    });
   }
 
   // Verify answer exists
@@ -132,7 +170,10 @@ async function handleAnswer(data) {
     return json({
       success: false,
       error: "Answer not found"
-    }, { status: 404 });
+    }, {
+      status: 404,
+      headers: corsHeaders
+    });
   }
 
   // Check if answer already recorded for this question in this session
@@ -169,6 +210,8 @@ async function handleAnswer(data) {
     success: true,
     action_data: answer.action_data,
     message: "Answer recorded"
+  }, {
+    headers: corsHeaders
   });
 }
 
@@ -182,7 +225,10 @@ async function handleComplete(data) {
     return json({
       success: false,
       error: "session_id is required"
-    }, { status: 400 });
+    }, {
+      status: 400,
+      headers: corsHeaders
+    });
   }
 
   // Update session
@@ -200,6 +246,8 @@ async function handleComplete(data) {
   return json({
     success: true,
     message: "Quiz session completed"
+  }, {
+    headers: corsHeaders
   });
 }
 
