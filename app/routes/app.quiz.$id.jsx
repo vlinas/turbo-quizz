@@ -338,6 +338,36 @@ export default function QuizBuilder() {
             </Banner>
           )}
 
+          {/* Quiz ID Card */}
+          <Card>
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingMd">
+                Quiz ID
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Use this ID to embed the quiz in your theme using the Quiz Widget app block
+              </Text>
+              <Box
+                background="bg-surface-secondary"
+                padding="400"
+                borderRadius="200"
+              >
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="p" variant="headingLg" fontWeight="bold">
+                    {quiz.quiz_id}
+                  </Text>
+                  <Button
+                    onClick={() => {
+                      navigator.clipboard.writeText(quiz.quiz_id);
+                    }}
+                  >
+                    Copy ID
+                  </Button>
+                </InlineStack>
+              </Box>
+            </BlockStack>
+          </Card>
+
           {/* Quiz Details */}
           <Card>
             <BlockStack gap="400">
