@@ -127,6 +127,90 @@ export const action = async ({ request, params }) => {
     }
   }
 
+  if (actionType === "add_question") {
+    const question_text = formData.get("question_text");
+    const answer1_text = formData.get("answer1_text");
+    const answer1_action_type = formData.get("answer1_action_type");
+    const answer1_action_data = formData.get("answer1_action_data");
+    const answer2_text = formData.get("answer2_text");
+    const answer2_action_type = formData.get("answer2_action_type");
+    const answer2_action_data = formData.get("answer2_action_data");
+
+    if (!question_text || !answer1_text || !answer2_text) {
+      return json({
+        success: false,
+        error: "Question and both answers are required",
+      }, { status: 400 });
+    }
+
+    try {
+      // Get current question count for ordering
+      const questionCount = await prisma.question.count({
+        where: { quiz_id: id },
+      });
+
+      // Build action data objects
+      const answer1Data = {
+        type: answer1_action_type,
+        ...(answer1_action_type === "show_text" && { text: answer1_action_data }),
+        ...(answer1_action_type === "show_products" && {
+          product_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
+          display_style: "grid"
+        }),
+        ...(answer1_action_type === "show_collections" && {
+          collection_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
+          display_style: "grid"
+        }),
+      };
+
+      const answer2Data = {
+        type: answer2_action_type,
+        ...(answer2_action_type === "show_text" && { text: answer2_action_data }),
+        ...(answer2_action_type === "show_products" && {
+          product_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
+          display_style: "grid"
+        }),
+        ...(answer2_action_type === "show_collections" && {
+          collection_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
+          display_style: "grid"
+        }),
+      };
+
+      // Create question with answers
+      await prisma.question.create({
+        data: {
+          quiz_id: id,
+          question_text,
+          order: questionCount + 1,
+          answers: {
+            create: [
+              {
+                answer_text: answer1_text,
+                action_type: answer1_action_type,
+                action_data: answer1Data,
+                order: 1,
+              },
+              {
+                answer_text: answer2_text,
+                action_type: answer2_action_type,
+                action_data: answer2Data,
+                order: 2,
+              },
+            ],
+          },
+        },
+      });
+
+      return json({ success: true, message: "Question added successfully" });
+    } catch (error) {
+      console.error("Error adding question:", error);
+      return json({
+        success: false,
+        error: "Failed to add question",
+      }, { status: 500 });
+    }
+  }
+
   return json({ success: false, error: "Invalid action" });
 };
 
@@ -141,6 +225,16 @@ export default function QuizBuilder() {
   const [status, setStatus] = useState(quiz.status);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showAddQuestion, setShowAddQuestion] = useState(false);
+
+  // New question form state
+  const [newQuestionText, setNewQuestionText] = useState("");
+  const [newAnswer1Text, setNewAnswer1Text] = useState("");
+  const [newAnswer1ActionType, setNewAnswer1ActionType] = useState("show_text");
+  const [newAnswer1ActionData, setNewAnswer1ActionData] = useState("");
+  const [newAnswer2Text, setNewAnswer2Text] = useState("");
+  const [newAnswer2ActionType, setNewAnswer2ActionType] = useState("show_text");
+  const [newAnswer2ActionData, setNewAnswer2ActionData] = useState("");
 
   const handleSave = () => {
     setIsSubmitting(true);
@@ -160,7 +254,41 @@ export default function QuizBuilder() {
   };
 
   const handleAddQuestion = () => {
-    navigate(`/app/quiz/${quiz.quiz_id}/question/new`);
+    setShowAddQuestion(true);
+  };
+
+  const handleSaveNewQuestion = () => {
+    const formData = new FormData();
+    formData.append("_action", "add_question");
+    formData.append("question_text", newQuestionText);
+    formData.append("answer1_text", newAnswer1Text);
+    formData.append("answer1_action_type", newAnswer1ActionType);
+    formData.append("answer1_action_data", newAnswer1ActionData);
+    formData.append("answer2_text", newAnswer2Text);
+    formData.append("answer2_action_type", newAnswer2ActionType);
+    formData.append("answer2_action_data", newAnswer2ActionData);
+    submit(formData, { method: "post" });
+
+    // Reset form
+    setNewQuestionText("");
+    setNewAnswer1Text("");
+    setNewAnswer1ActionType("show_text");
+    setNewAnswer1ActionData("");
+    setNewAnswer2Text("");
+    setNewAnswer2ActionType("show_text");
+    setNewAnswer2ActionData("");
+    setShowAddQuestion(false);
+  };
+
+  const handleCancelNewQuestion = () => {
+    setShowAddQuestion(false);
+    setNewQuestionText("");
+    setNewAnswer1Text("");
+    setNewAnswer1ActionType("show_text");
+    setNewAnswer1ActionData("");
+    setNewAnswer2Text("");
+    setNewAnswer2ActionType("show_text");
+    setNewAnswer2ActionData("");
   };
 
   const statusOptions = [
@@ -260,7 +388,114 @@ export default function QuizBuilder() {
                 </Button>
               </InlineStack>
 
-              {quiz.questions.length === 0 ? (
+              {/* Inline Add Question Form */}
+              {showAddQuestion && (
+                <Card background="bg-surface-warning-subdued">
+                  <BlockStack gap="400">
+                    <Text as="h3" variant="headingMd">
+                      New Question
+                    </Text>
+
+                    <TextField
+                      label="Question text"
+                      value={newQuestionText}
+                      onChange={setNewQuestionText}
+                      placeholder="e.g., What's your preferred style?"
+                      autoComplete="off"
+                      requiredIndicator
+                    />
+
+                    <Divider />
+
+                    <BlockStack gap="300">
+                      <Text as="h4" variant="headingSm">
+                        Answer 1
+                      </Text>
+                      <TextField
+                        label="Answer text"
+                        value={newAnswer1Text}
+                        onChange={setNewAnswer1Text}
+                        placeholder="e.g., Modern & Minimalist"
+                        autoComplete="off"
+                      />
+                      <Select
+                        label="Action type"
+                        options={[
+                          { label: "Show text message", value: "show_text" },
+                          { label: "Show products", value: "show_products" },
+                          { label: "Show collections", value: "show_collections" },
+                        ]}
+                        value={newAnswer1ActionType}
+                        onChange={setNewAnswer1ActionType}
+                      />
+                      <TextField
+                        label={newAnswer1ActionType === "show_text" ? "Message" : "IDs"}
+                        value={newAnswer1ActionData}
+                        onChange={setNewAnswer1ActionData}
+                        placeholder={
+                          newAnswer1ActionType === "show_text"
+                            ? "Great choice!"
+                            : "gid://shopify/Product/123"
+                        }
+                        multiline={newAnswer1ActionType === "show_text"}
+                        autoComplete="off"
+                      />
+                    </BlockStack>
+
+                    <Divider />
+
+                    <BlockStack gap="300">
+                      <Text as="h4" variant="headingSm">
+                        Answer 2
+                      </Text>
+                      <TextField
+                        label="Answer text"
+                        value={newAnswer2Text}
+                        onChange={setNewAnswer2Text}
+                        placeholder="e.g., Bold & Colorful"
+                        autoComplete="off"
+                      />
+                      <Select
+                        label="Action type"
+                        options={[
+                          { label: "Show text message", value: "show_text" },
+                          { label: "Show products", value: "show_products" },
+                          { label: "Show collections", value: "show_collections" },
+                        ]}
+                        value={newAnswer2ActionType}
+                        onChange={setNewAnswer2ActionType}
+                      />
+                      <TextField
+                        label={newAnswer2ActionType === "show_text" ? "Message" : "IDs"}
+                        value={newAnswer2ActionData}
+                        onChange={setNewAnswer2ActionData}
+                        placeholder={
+                          newAnswer2ActionType === "show_text"
+                            ? "Excellent choice!"
+                            : "gid://shopify/Product/456"
+                        }
+                        multiline={newAnswer2ActionType === "show_text"}
+                        autoComplete="off"
+                      />
+                    </BlockStack>
+
+                    <InlineStack gap="200">
+                      <Button
+                        variant="primary"
+                        onClick={handleSaveNewQuestion}
+                        disabled={!newQuestionText || !newAnswer1Text || !newAnswer2Text || !newAnswer1ActionData || !newAnswer2ActionData}
+                      >
+                        Save question
+                      </Button>
+                      <Button onClick={handleCancelNewQuestion}>
+                        Cancel
+                      </Button>
+                    </InlineStack>
+                  </BlockStack>
+                </Card>
+              )}
+
+              {quiz.questions.length === 0 && !showAddQuestion ? (
                 <Box padding="400">
                   <BlockStack gap="200" inlineAlign="center">
                     <Text as="p" tone="subdued" alignment="center">
@@ -271,7 +506,7 @@ export default function QuizBuilder() {
                     </Button>
                   </BlockStack>
                 </Box>
-              ) : (
+              ) : !showAddQuestion ? (
                 <BlockStack gap="400">
                   {quiz.questions.map((question, index) => (
                     <Card key={question.id} background="bg-surface-secondary">
@@ -324,7 +559,7 @@ export default function QuizBuilder() {
                     </Card>
                   ))}
                 </BlockStack>
-              )}
+              ) : null}
             </BlockStack>
           </Card>
         </Layout.Section>
