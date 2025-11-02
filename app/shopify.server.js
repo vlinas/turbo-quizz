@@ -9,8 +9,8 @@ import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prism
 import { restResources } from "@shopify/shopify-api/rest/admin/2023-10";
 import prisma from "./db.server";
 import { BillingInterval } from "@shopify/shopify-api";
-export const BASIC_PLAN = "BASIC PLAN Discounts";
-export const PRO_PLAN = "PRO Plan"
+export const BASIC_PLAN = "Quiz Builder - Free";
+export const PRO_PLAN = "Quiz Builder - Pro"
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,

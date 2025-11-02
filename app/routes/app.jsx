@@ -5,11 +5,9 @@ import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { authenticate } from "../shopify.server";
 import { Frame } from "@shopify/polaris";
-import TawkToScript from "./tawkto";
 
 export const links = () => [
-  { rel: "stylesheet", href: polarisStyles },
-  { rel: "script", href: "/tawkto.jsx" }
+  { rel: "stylesheet", href: polarisStyles }
 ];
 
 export const loader = async ({ request }) => {
@@ -25,13 +23,11 @@ export default function App() {
       <Frame>
       <ui-nav-menu>
         <Link to="/app" rel="home">
-          Home
+          Quizzes
         </Link>
-        <Link to="/app/creatediscount">Create Discount</Link>
-        <Link to="/app/billing">Billing</Link>
+        <Link to="/app/settings">Settings</Link>
       </ui-nav-menu>
       <Outlet />
-      <TawkToScript />
       </Frame>
     </AppProvider>
   );
