@@ -24,7 +24,6 @@ import {
   PlusIcon,
   EditIcon,
 } from "@shopify/polaris-icons";
-import { useResourcePicker } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
@@ -287,44 +286,10 @@ export default function QuizBuilder() {
   const [newAnswer1Text, setNewAnswer1Text] = useState("");
   const [newAnswer1ActionType, setNewAnswer1ActionType] = useState("show_text");
   const [newAnswer1ActionData, setNewAnswer1ActionData] = useState("");
-  const [newAnswer1SelectedProducts, setNewAnswer1SelectedProducts] = useState([]);
-  const [newAnswer1SelectedCollections, setNewAnswer1SelectedCollections] = useState([]);
 
   const [newAnswer2Text, setNewAnswer2Text] = useState("");
   const [newAnswer2ActionType, setNewAnswer2ActionType] = useState("show_text");
   const [newAnswer2ActionData, setNewAnswer2ActionData] = useState("");
-  const [newAnswer2SelectedProducts, setNewAnswer2SelectedProducts] = useState([]);
-  const [newAnswer2SelectedCollections, setNewAnswer2SelectedCollections] = useState([]);
-
-  // Resource picker hooks for Answer 1
-  const answer1ProductPicker = useResourcePicker({
-    resourceType: "Product",
-    options: {
-      selectMultiple: 3,
-    },
-  });
-
-  const answer1CollectionPicker = useResourcePicker({
-    resourceType: "Collection",
-    options: {
-      selectMultiple: 3,
-    },
-  });
-
-  // Resource picker hooks for Answer 2
-  const answer2ProductPicker = useResourcePicker({
-    resourceType: "Product",
-    options: {
-      selectMultiple: 3,
-    },
-  });
-
-  const answer2CollectionPicker = useResourcePicker({
-    resourceType: "Collection",
-    options: {
-      selectMultiple: 3,
-    },
-  });
 
   const handleSave = () => {
     setIsSubmitting(true);
@@ -353,27 +318,11 @@ export default function QuizBuilder() {
     formData.append("question_text", newQuestionText);
     formData.append("answer1_text", newAnswer1Text);
     formData.append("answer1_action_type", newAnswer1ActionType);
-
-    // For answer 1, use selected products/collections if applicable
-    if (newAnswer1ActionType === "show_products") {
-      formData.append("answer1_action_data", newAnswer1SelectedProducts.map(p => p.id).join(","));
-    } else if (newAnswer1ActionType === "show_collections") {
-      formData.append("answer1_action_data", newAnswer1SelectedCollections.map(c => c.id).join(","));
-    } else {
-      formData.append("answer1_action_data", newAnswer1ActionData);
-    }
+    formData.append("answer1_action_data", newAnswer1ActionData);
 
     formData.append("answer2_text", newAnswer2Text);
     formData.append("answer2_action_type", newAnswer2ActionType);
-
-    // For answer 2, use selected products/collections if applicable
-    if (newAnswer2ActionType === "show_products") {
-      formData.append("answer2_action_data", newAnswer2SelectedProducts.map(p => p.id).join(","));
-    } else if (newAnswer2ActionType === "show_collections") {
-      formData.append("answer2_action_data", newAnswer2SelectedCollections.map(c => c.id).join(","));
-    } else {
-      formData.append("answer2_action_data", newAnswer2ActionData);
-    }
+    formData.append("answer2_action_data", newAnswer2ActionData);
 
     submit(formData, { method: "post" });
 
@@ -382,13 +331,9 @@ export default function QuizBuilder() {
     setNewAnswer1Text("");
     setNewAnswer1ActionType("show_text");
     setNewAnswer1ActionData("");
-    setNewAnswer1SelectedProducts([]);
-    setNewAnswer1SelectedCollections([]);
     setNewAnswer2Text("");
     setNewAnswer2ActionType("show_text");
     setNewAnswer2ActionData("");
-    setNewAnswer2SelectedProducts([]);
-    setNewAnswer2SelectedCollections([]);
     setShowAddQuestion(false);
   };
 
@@ -398,13 +343,9 @@ export default function QuizBuilder() {
     setNewAnswer1Text("");
     setNewAnswer1ActionType("show_text");
     setNewAnswer1ActionData("");
-    setNewAnswer1SelectedProducts([]);
-    setNewAnswer1SelectedCollections([]);
     setNewAnswer2Text("");
     setNewAnswer2ActionType("show_text");
     setNewAnswer2ActionData("");
-    setNewAnswer2SelectedProducts([]);
-    setNewAnswer2SelectedCollections([]);
   };
 
   const handleDeleteQuestion = (questionId) => {
@@ -610,47 +551,27 @@ export default function QuizBuilder() {
                       )}
 
                       {newAnswer1ActionType === "show_products" && (
-                        <BlockStack gap="200">
-                          <Button onClick={async () => {
-                            const result = await answer1ProductPicker.open();
-                            if (result && result.selection) {
-                              setNewAnswer1SelectedProducts(result.selection);
-                            }
-                          }}>
-                            {newAnswer1SelectedProducts.length > 0
-                              ? `${newAnswer1SelectedProducts.length} product(s) selected`
-                              : "Select products (max 3)"}
-                          </Button>
-                          {newAnswer1SelectedProducts.length > 0 && (
-                            <Box>
-                              <Text as="p" variant="bodySm" tone="subdued">
-                                Selected: {newAnswer1SelectedProducts.map(p => p.title).join(", ")}
-                              </Text>
-                            </Box>
-                          )}
-                        </BlockStack>
+                        <TextField
+                          label="Product IDs"
+                          value={newAnswer1ActionData}
+                          onChange={setNewAnswer1ActionData}
+                          placeholder="gid://shopify/Product/123,gid://shopify/Product/456"
+                          multiline={3}
+                          autoComplete="off"
+                          helpText="Enter product GIDs separated by commas (max 3). Example: gid://shopify/Product/123"
+                        />
                       )}
 
                       {newAnswer1ActionType === "show_collections" && (
-                        <BlockStack gap="200">
-                          <Button onClick={async () => {
-                            const result = await answer1CollectionPicker.open();
-                            if (result && result.selection) {
-                              setNewAnswer1SelectedCollections(result.selection);
-                            }
-                          }}>
-                            {newAnswer1SelectedCollections.length > 0
-                              ? `${newAnswer1SelectedCollections.length} collection(s) selected`
-                              : "Select collections (max 3)"}
-                          </Button>
-                          {newAnswer1SelectedCollections.length > 0 && (
-                            <Box>
-                              <Text as="p" variant="bodySm" tone="subdued">
-                                Selected: {newAnswer1SelectedCollections.map(c => c.title).join(", ")}
-                              </Text>
-                            </Box>
-                          )}
-                        </BlockStack>
+                        <TextField
+                          label="Collection IDs"
+                          value={newAnswer1ActionData}
+                          onChange={setNewAnswer1ActionData}
+                          placeholder="gid://shopify/Collection/123,gid://shopify/Collection/456"
+                          multiline={3}
+                          autoComplete="off"
+                          helpText="Enter collection GIDs separated by commas (max 3). Example: gid://shopify/Collection/123"
+                        />
                       )}
                     </BlockStack>
 
@@ -704,47 +625,27 @@ export default function QuizBuilder() {
                       )}
 
                       {newAnswer2ActionType === "show_products" && (
-                        <BlockStack gap="200">
-                          <Button onClick={async () => {
-                            const result = await answer2ProductPicker.open();
-                            if (result && result.selection) {
-                              setNewAnswer2SelectedProducts(result.selection);
-                            }
-                          }}>
-                            {newAnswer2SelectedProducts.length > 0
-                              ? `${newAnswer2SelectedProducts.length} product(s) selected`
-                              : "Select products (max 3)"}
-                          </Button>
-                          {newAnswer2SelectedProducts.length > 0 && (
-                            <Box>
-                              <Text as="p" variant="bodySm" tone="subdued">
-                                Selected: {newAnswer2SelectedProducts.map(p => p.title).join(", ")}
-                              </Text>
-                            </Box>
-                          )}
-                        </BlockStack>
+                        <TextField
+                          label="Product IDs"
+                          value={newAnswer2ActionData}
+                          onChange={setNewAnswer2ActionData}
+                          placeholder="gid://shopify/Product/123,gid://shopify/Product/456"
+                          multiline={3}
+                          autoComplete="off"
+                          helpText="Enter product GIDs separated by commas (max 3). Example: gid://shopify/Product/123"
+                        />
                       )}
 
                       {newAnswer2ActionType === "show_collections" && (
-                        <BlockStack gap="200">
-                          <Button onClick={async () => {
-                            const result = await answer2CollectionPicker.open();
-                            if (result && result.selection) {
-                              setNewAnswer2SelectedCollections(result.selection);
-                            }
-                          }}>
-                            {newAnswer2SelectedCollections.length > 0
-                              ? `${newAnswer2SelectedCollections.length} collection(s) selected`
-                              : "Select collections (max 3)"}
-                          </Button>
-                          {newAnswer2SelectedCollections.length > 0 && (
-                            <Box>
-                              <Text as="p" variant="bodySm" tone="subdued">
-                                Selected: {newAnswer2SelectedCollections.map(c => c.title).join(", ")}
-                              </Text>
-                            </Box>
-                          )}
-                        </BlockStack>
+                        <TextField
+                          label="Collection IDs"
+                          value={newAnswer2ActionData}
+                          onChange={setNewAnswer2ActionData}
+                          placeholder="gid://shopify/Collection/123,gid://shopify/Collection/456"
+                          multiline={3}
+                          autoComplete="off"
+                          helpText="Enter collection GIDs separated by commas (max 3). Example: gid://shopify/Collection/123"
+                        />
                       )}
                     </BlockStack>
 
@@ -756,18 +657,8 @@ export default function QuizBuilder() {
                           !newQuestionText ||
                           !newAnswer1Text ||
                           !newAnswer2Text ||
-                          // Check if answer 1 has required data
-                          (
-                            (newAnswer1ActionType === "show_text" || newAnswer1ActionType === "show_html") && !newAnswer1ActionData ||
-                            newAnswer1ActionType === "show_products" && newAnswer1SelectedProducts.length === 0 ||
-                            newAnswer1ActionType === "show_collections" && newAnswer1SelectedCollections.length === 0
-                          ) ||
-                          // Check if answer 2 has required data
-                          (
-                            (newAnswer2ActionType === "show_text" || newAnswer2ActionType === "show_html") && !newAnswer2ActionData ||
-                            newAnswer2ActionType === "show_products" && newAnswer2SelectedProducts.length === 0 ||
-                            newAnswer2ActionType === "show_collections" && newAnswer2SelectedCollections.length === 0
-                          )
+                          !newAnswer1ActionData ||
+                          !newAnswer2ActionData
                         }
                       >
                         Save question
