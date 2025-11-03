@@ -874,12 +874,6 @@ export default function QuizBuilder() {
                   <Text as="span" tone="subdued">Questions</Text>
                   <Text as="span" fontWeight="semibold">{quiz.questions.length}</Text>
                 </InlineStack>
-                <InlineStack align="space-between">
-                  <Text as="span" tone="subdued">Status</Text>
-                  <Badge tone={status === "active" ? "success" : status === "draft" ? "info" : "default"}>
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </Badge>
-                </InlineStack>
               </BlockStack>
             </BlockStack>
           </Card>
@@ -895,9 +889,6 @@ export default function QuizBuilder() {
               </Text>
               <Text as="p" variant="bodySm" tone="subdued">
                 • Configure actions to show products, collections, or custom text based on answers
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                • Set status to "Active" when ready to publish
               </Text>
             </BlockStack>
           </Card>
