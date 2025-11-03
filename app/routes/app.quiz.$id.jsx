@@ -22,6 +22,7 @@ import {
 import {
   DeleteIcon,
   PlusIcon,
+  EditIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -238,6 +239,103 @@ export const action = async ({ request, params }) => {
     }
   }
 
+  if (actionType === "update_question") {
+    const question_id = formData.get("question_id");
+    const question_text = formData.get("question_text");
+    const answer1_text = formData.get("answer1_text");
+    const answer1_action_type = formData.get("answer1_action_type");
+    const answer1_action_data = formData.get("answer1_action_data");
+    const answer2_text = formData.get("answer2_text");
+    const answer2_action_type = formData.get("answer2_action_type");
+    const answer2_action_data = formData.get("answer2_action_data");
+
+    if (!question_id || !question_text || !answer1_text || !answer2_text) {
+      return json({
+        success: false,
+        error: "All fields are required",
+      }, { status: 400 });
+    }
+
+    try {
+      // Get existing question to update
+      const existingQuestion = await prisma.question.findUnique({
+        where: { question_id },
+        include: { answers: true },
+      });
+
+      if (!existingQuestion) {
+        return json({
+          success: false,
+          error: "Question not found",
+        }, { status: 404 });
+      }
+
+      // Build action data objects
+      const answer1Data = {
+        type: answer1_action_type,
+        ...(answer1_action_type === "show_text" && { text: answer1_action_data }),
+        ...(answer1_action_type === "show_html" && { html: answer1_action_data }),
+        ...(answer1_action_type === "show_products" && {
+          product_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
+          display_style: "grid"
+        }),
+        ...(answer1_action_type === "show_collections" && {
+          collection_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
+          display_style: "grid"
+        }),
+      };
+
+      const answer2Data = {
+        type: answer2_action_type,
+        ...(answer2_action_type === "show_text" && { text: answer2_action_data }),
+        ...(answer2_action_type === "show_html" && { html: answer2_action_data }),
+        ...(answer2_action_type === "show_products" && {
+          product_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
+          display_style: "grid"
+        }),
+        ...(answer2_action_type === "show_collections" && {
+          collection_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
+          display_style: "grid"
+        }),
+      };
+
+      // Update question and answers in a transaction
+      await prisma.$transaction([
+        // Update question text
+        prisma.question.update({
+          where: { question_id },
+          data: { question_text },
+        }),
+        // Update answer 1
+        prisma.answer.update({
+          where: { answer_id: existingQuestion.answers[0].answer_id },
+          data: {
+            answer_text: answer1_text,
+            action_type: answer1_action_type,
+            action_data: answer1Data,
+          },
+        }),
+        // Update answer 2
+        prisma.answer.update({
+          where: { answer_id: existingQuestion.answers[1].answer_id },
+          data: {
+            answer_text: answer2_text,
+            action_type: answer2_action_type,
+            action_data: answer2Data,
+          },
+        }),
+      ]);
+
+      return json({ success: true, message: "Question updated successfully" });
+    } catch (error) {
+      console.error("Error updating question:", error);
+      return json({
+        success: false,
+        error: "Failed to update question",
+      }, { status: 500 });
+    }
+  }
+
   if (actionType === "delete_question") {
     const question_id = formData.get("question_id");
 
@@ -279,8 +377,9 @@ export default function QuizBuilder() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAddQuestion, setShowAddQuestion] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState(null);
 
-  // New question form state
+  // New/Edit question form state
   const [newQuestionText, setNewQuestionText] = useState("");
   const [newAnswer1Text, setNewAnswer1Text] = useState("");
   const [newAnswer1ActionType, setNewAnswer1ActionType] = useState("show_text");
@@ -313,7 +412,16 @@ export default function QuizBuilder() {
 
   const handleSaveNewQuestion = () => {
     const formData = new FormData();
-    formData.append("_action", "add_question");
+
+    if (editingQuestionId) {
+      // Editing existing question - delete old and create new
+      formData.append("_action", "update_question");
+      formData.append("question_id", editingQuestionId);
+    } else {
+      // Adding new question
+      formData.append("_action", "add_question");
+    }
+
     formData.append("question_text", newQuestionText);
     formData.append("answer1_text", newAnswer1Text);
     formData.append("answer1_action_type", newAnswer1ActionType);
@@ -334,6 +442,7 @@ export default function QuizBuilder() {
     setNewAnswer2ActionType("show_text");
     setNewAnswer2ActionData("");
     setShowAddQuestion(false);
+    setEditingQuestionId(null);
   };
 
   const handleCancelNewQuestion = () => {
@@ -345,6 +454,7 @@ export default function QuizBuilder() {
     setNewAnswer2Text("");
     setNewAnswer2ActionType("show_text");
     setNewAnswer2ActionData("");
+    setEditingQuestionId(null);
   };
 
   const handleDeleteQuestion = (questionId) => {
@@ -354,6 +464,46 @@ export default function QuizBuilder() {
       formData.append("question_id", questionId);
       submit(formData, { method: "post" });
     }
+  };
+
+  const handleEditQuestion = (question) => {
+    // Populate form with existing question data
+    setNewQuestionText(question.question_text);
+
+    // Answer 1
+    const answer1 = question.answers[0];
+    setNewAnswer1Text(answer1.answer_text);
+    setNewAnswer1ActionType(answer1.action_type);
+
+    // Set answer 1 action data based on type
+    if (answer1.action_type === "show_text") {
+      setNewAnswer1ActionData(answer1.action_data.text || "");
+    } else if (answer1.action_type === "show_html") {
+      setNewAnswer1ActionData(answer1.action_data.html || "");
+    } else if (answer1.action_type === "show_products") {
+      setNewAnswer1ActionData(answer1.action_data.product_ids ? answer1.action_data.product_ids.join(",") : "");
+    } else if (answer1.action_type === "show_collections") {
+      setNewAnswer1ActionData(answer1.action_data.collection_ids ? answer1.action_data.collection_ids.join(",") : "");
+    }
+
+    // Answer 2
+    const answer2 = question.answers[1];
+    setNewAnswer2Text(answer2.answer_text);
+    setNewAnswer2ActionType(answer2.action_type);
+
+    // Set answer 2 action data based on type
+    if (answer2.action_type === "show_text") {
+      setNewAnswer2ActionData(answer2.action_data.text || "");
+    } else if (answer2.action_type === "show_html") {
+      setNewAnswer2ActionData(answer2.action_data.html || "");
+    } else if (answer2.action_type === "show_products") {
+      setNewAnswer2ActionData(answer2.action_data.product_ids ? answer2.action_data.product_ids.join(",") : "");
+    } else if (answer2.action_type === "show_collections") {
+      setNewAnswer2ActionData(answer2.action_data.collection_ids ? answer2.action_data.collection_ids.join(",") : "");
+    }
+
+    setEditingQuestionId(question.question_id);
+    setShowAddQuestion(true);
   };
 
   const statusOptions = [
@@ -485,12 +635,12 @@ export default function QuizBuilder() {
                 )}
               </InlineStack>
 
-              {/* Inline Add Question Form */}
+              {/* Inline Add/Edit Question Form */}
               {showAddQuestion && (
                 <Card background="bg-surface-warning-subdued">
                   <BlockStack gap="400">
                     <Text as="h3" variant="headingMd">
-                      New Question
+                      {editingQuestionId ? "Edit Question" : "New Question"}
                     </Text>
 
                     <TextField
@@ -695,11 +845,17 @@ export default function QuizBuilder() {
                             </Text>
                             <Text as="p">{question.question_text}</Text>
                           </BlockStack>
-                          <Button
-                            icon={DeleteIcon}
-                            tone="critical"
-                            onClick={() => handleDeleteQuestion(question.question_id)}
-                          />
+                          <ButtonGroup>
+                            <Button
+                              icon={EditIcon}
+                              onClick={() => handleEditQuestion(question)}
+                            />
+                            <Button
+                              icon={DeleteIcon}
+                              tone="critical"
+                              onClick={() => handleDeleteQuestion(question.question_id)}
+                            />
+                          </ButtonGroup>
                         </InlineStack>
 
                         <Divider />
