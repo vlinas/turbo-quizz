@@ -847,7 +847,7 @@ export default function QuizBuilder() {
                                   </Text>
                                 </InlineStack>
                                 <Text as="p" variant="bodySm" tone="subdued">
-                                  Action: {answer.action_type === "show_text" ? "Show text" : answer.action_type === "show_products" ? "Show products" : "Show collections"}
+                                  Action: {answer.action_type === "show_text" ? "Show text" : answer.action_type === "show_html" ? "Show HTML" : answer.action_type === "show_products" ? "Show products" : "Show collections"}
                                 </Text>
                               </BlockStack>
                             </Box>
