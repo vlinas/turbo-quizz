@@ -22,7 +22,6 @@ import {
 import {
   DeleteIcon,
   PlusIcon,
-  EditIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -476,12 +475,14 @@ export default function QuizBuilder() {
                 <Text as="h2" variant="headingMd">
                   Questions
                 </Text>
-                <Button
-                  icon={PlusIcon}
-                  onClick={handleAddQuestion}
-                >
-                  Add question
-                </Button>
+                {quiz.questions.length === 0 && (
+                  <Button
+                    icon={PlusIcon}
+                    onClick={handleAddQuestion}
+                  >
+                    Add question
+                  </Button>
+                )}
               </InlineStack>
 
               {/* Inline Add Question Form */}
@@ -694,17 +695,11 @@ export default function QuizBuilder() {
                             </Text>
                             <Text as="p">{question.question_text}</Text>
                           </BlockStack>
-                          <ButtonGroup>
-                            <Button
-                              icon={EditIcon}
-                              onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/question/${question.question_id}`)}
-                            />
-                            <Button
-                              icon={DeleteIcon}
-                              tone="critical"
-                              onClick={() => handleDeleteQuestion(question.question_id)}
-                            />
-                          </ButtonGroup>
+                          <Button
+                            icon={DeleteIcon}
+                            tone="critical"
+                            onClick={() => handleDeleteQuestion(question.question_id)}
+                          />
                         </InlineStack>
 
                         <Divider />
