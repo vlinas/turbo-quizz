@@ -100,24 +100,14 @@
       this.hideError();
       this.containerEl.style.display = 'block';
 
-      // Set quiz header
-      this.titleEl.textContent = this.quiz.title;
-      this.descriptionEl.textContent = this.quiz.description || '';
-      this.progressTotalEl.textContent = this.quiz.questions.length;
-
-      // Show first question
+      // Show first question (title and progress bar removed)
       this.renderQuestion();
     }
 
     renderQuestion() {
       const question = this.quiz.questions[this.currentQuestionIndex];
 
-      // Update progress
-      const progress = ((this.currentQuestionIndex + 1) / this.quiz.questions.length) * 100;
-      this.progressFillEl.style.width = `${progress}%`;
-      this.progressCurrentEl.textContent = this.currentQuestionIndex + 1;
-
-      // Update question
+      // Update question (progress bar removed)
       this.questionTextEl.textContent = question.question_text;
 
       // Clear and render answers
@@ -135,9 +125,9 @@
         this.answersEl.appendChild(button);
       });
 
-      // Update navigation
-      this.backBtn.style.display = this.currentQuestionIndex > 0 ? 'inline-block' : 'none';
-      this.nextBtn.disabled = true;
+      // Hide navigation buttons (removed - auto-advance on answer selection)
+      this.backBtn.style.display = 'none';
+      this.nextBtn.style.display = 'none';
       this.selectedAnswerId = null;
 
       // Show question, hide result
@@ -154,13 +144,15 @@
       // Mark as selected
       button.classList.add('selected');
       this.selectedAnswerId = answer.answer_id;
-      this.nextBtn.disabled = false;
 
       // Store answer for this question
       this.answers[this.currentQuestionIndex] = answer;
 
       // Record answer in backend
       this.recordAnswer(answer);
+
+      // Auto-advance to next question after a short delay
+      setTimeout(() => this.handleNext(), 300);
     }
 
     async recordAnswer(answer) {
@@ -239,11 +231,12 @@
       // Render result based on action type
       this.resultContentEl.innerHTML = this.renderActionResult(finalAnswer.action_type, actionData);
 
-      // Hide question, show result
+      // Hide question, show result, hide restart button
       this.questionEl.style.display = 'none';
       this.resultEl.style.display = 'block';
       this.backBtn.style.display = 'none';
       this.nextBtn.style.display = 'none';
+      if (this.restartBtn) this.restartBtn.style.display = 'none';
     }
 
     renderActionResult(actionType, actionData) {

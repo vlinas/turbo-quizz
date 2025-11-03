@@ -20,8 +20,8 @@
   </div>
 
   <div class="turbo-quiz-container" style="display: none;">
-    <!-- Quiz Header -->
-    <div class="turbo-quiz-header">
+    <!-- Quiz Header (hidden - minimal theme-friendly design) -->
+    <div class="turbo-quiz-header" style="display: none;">
       <h2 class="turbo-quiz-title"></h2>
       <p class="turbo-quiz-description"></p>
       <div class="turbo-quiz-progress">
@@ -41,13 +41,13 @@
     <!-- Quiz Result -->
     <div class="turbo-quiz-result" style="display: none;">
       <div class="turbo-quiz-result-content"></div>
-      <div class="turbo-quiz-result-actions">
+      <div class="turbo-quiz-result-actions" style="display: none;">
         <button class="turbo-quiz-restart-btn">Take Quiz Again</button>
       </div>
     </div>
 
-    <!-- Quiz Navigation -->
-    <div class="turbo-quiz-navigation">
+    <!-- Quiz Navigation (hidden - auto-advance on answer selection) -->
+    <div class="turbo-quiz-navigation" style="display: none;">
       <button class="turbo-quiz-back-btn" style="display: none;">Back</button>
       <button class="turbo-quiz-next-btn" disabled>Next</button>
     </div>

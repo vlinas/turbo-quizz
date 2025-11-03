@@ -84,10 +84,22 @@ async function handleStart(data) {
     });
   }
 
+  // Convert quiz_id to integer
+  const parsedQuizId = parseInt(quiz_id, 10);
+  if (isNaN(parsedQuizId)) {
+    return json({
+      success: false,
+      error: "Invalid quiz_id format"
+    }, {
+      status: 400,
+      headers: corsHeaders
+    });
+  }
+
   // Verify quiz exists (allow both active and draft for testing)
   const quiz = await prisma.quiz.findFirst({
     where: {
-      quiz_id,
+      quiz_id: parsedQuizId,
       deleted_at: null,
     },
   });
@@ -106,7 +118,7 @@ async function handleStart(data) {
   const session = await prisma.quizSession.create({
     data: {
       session_id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      quiz_id,
+      quiz_id: parsedQuizId,
       shop: quiz.shop,
       customer_id: customer_id || null,
       page_url: page_url || null,
@@ -115,7 +127,7 @@ async function handleStart(data) {
   });
 
   // Update daily analytics (impressions/starts)
-  await updateDailyAnalytics(quiz_id, quiz.shop, 'start');
+  await updateDailyAnalytics(parsedQuizId, quiz.shop, 'start');
 
   return json({
     success: true,

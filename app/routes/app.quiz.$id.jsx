@@ -31,10 +31,16 @@ export const loader = async ({ request, params }) => {
   const { session } = await authenticate.admin(request);
   const { id } = params;
 
+  // Convert id to integer
+  const quizId = parseInt(id, 10);
+  if (isNaN(quizId)) {
+    throw new Response("Invalid quiz ID", { status: 400 });
+  }
+
   // Fetch quiz with questions and answers
   const quiz = await prisma.quiz.findFirst({
     where: {
-      quiz_id: id,
+      quiz_id: quizId,
       shop: session.shop,
       deleted_at: null,
     },
@@ -67,10 +73,19 @@ export const action = async ({ request, params }) => {
   const formData = await request.formData();
   const actionType = formData.get("_action");
 
+  // Convert id to integer
+  const quizId = parseInt(id, 10);
+  if (isNaN(quizId)) {
+    return json({
+      success: false,
+      error: "Invalid quiz ID",
+    }, { status: 400 });
+  }
+
   // Verify quiz exists and belongs to this shop
   const quiz = await prisma.quiz.findFirst({
     where: {
-      quiz_id: id,
+      quiz_id: quizId,
       shop: session.shop,
       deleted_at: null,
     },
@@ -144,10 +159,20 @@ export const action = async ({ request, params }) => {
     }
 
     try {
-      // Get current question count for ordering
+      // Enforce one-question-per-quiz rule
       const questionCount = await prisma.question.count({
-        where: { quiz_id: id },
+        where: {
+          quiz_id: quizId,
+          shop: session.shop,
+        },
       });
+
+      if (questionCount >= 1) {
+        return json({
+          success: false,
+          error: "Only one question is allowed per quiz. Please edit or delete the existing question.",
+        }, { status: 400 });
+      }
 
       // Build action data objects
       const answer1Data = {
@@ -179,9 +204,10 @@ export const action = async ({ request, params }) => {
       // Create question with answers
       await prisma.question.create({
         data: {
-          quiz_id: id,
+          quiz_id: quizId,
+          shop: session.shop,
           question_text,
-          order: questionCount + 1,
+          order: 1,
           answers: {
             create: [
               {
@@ -207,6 +233,32 @@ export const action = async ({ request, params }) => {
       return json({
         success: false,
         error: "Failed to add question",
+      }, { status: 500 });
+    }
+  }
+
+  if (actionType === "delete_question") {
+    const question_id = formData.get("question_id");
+
+    if (!question_id) {
+      return json({
+        success: false,
+        error: "Question ID is required",
+      }, { status: 400 });
+    }
+
+    try {
+      // Delete question (answers will be deleted automatically via cascade)
+      await prisma.question.delete({
+        where: { question_id },
+      });
+
+      return json({ success: true, message: "Question deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting question:", error);
+      return json({
+        success: false,
+        error: "Failed to delete question",
       }, { status: 500 });
     }
   }
@@ -289,6 +341,15 @@ export default function QuizBuilder() {
     setNewAnswer2Text("");
     setNewAnswer2ActionType("show_text");
     setNewAnswer2ActionData("");
+  };
+
+  const handleDeleteQuestion = (questionId) => {
+    if (confirm("Are you sure you want to delete this question? This cannot be undone.")) {
+      const formData = new FormData();
+      formData.append("_action", "delete_question");
+      formData.append("question_id", questionId);
+      submit(formData, { method: "post" });
+    }
   };
 
   const statusOptions = [
@@ -556,9 +617,7 @@ export default function QuizBuilder() {
                             <Button
                               icon={DeleteIcon}
                               tone="critical"
-                              onClick={() => {
-                                // TODO: Add delete confirmation
-                              }}
+                              onClick={() => handleDeleteQuestion(question.question_id)}
                             />
                           </ButtonGroup>
                         </InlineStack>

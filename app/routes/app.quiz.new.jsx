@@ -29,13 +29,24 @@ export const action = async ({ request }) => {
   }
 
   try {
-    // Create quiz directly in database
+    // Get the next quiz_id for this shop
+    const lastQuiz = await prisma.quiz.findFirst({
+      where: { shop: session.shop },
+      orderBy: { quiz_id: 'desc' },
+      select: { quiz_id: true },
+    });
+
+    const nextQuizId = lastQuiz ? lastQuiz.quiz_id + 1 : 1;
+
+    // Create quiz directly in database with integer ID
     const quiz = await prisma.quiz.create({
       data: {
         shop: session.shop,
+        quiz_id: nextQuizId,
         title,
         description: description || "",
         status: "draft",
+        display_on_pages: [],
       },
     });
 

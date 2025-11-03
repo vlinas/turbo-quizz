@@ -26,12 +26,31 @@ export async function loader({ params, request }) {
     );
   }
 
+  // Convert quizId to integer
+  const parsedQuizId = parseInt(quizId, 10);
+  if (isNaN(parsedQuizId)) {
+    return json(
+      {
+        success: false,
+        error: "Invalid quiz ID",
+      },
+      {
+        status: 400,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        }
+      }
+    );
+  }
+
   try {
     // Fetch quiz with questions and answers
     // Allow both active and draft status for testing
     const quiz = await prisma.quiz.findFirst({
       where: {
-        quiz_id: quizId,
+        quiz_id: parsedQuizId,
         deleted_at: null,
       },
       include: {

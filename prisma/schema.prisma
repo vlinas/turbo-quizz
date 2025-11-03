@@ -24,7 +24,7 @@ model Session {
 model Quiz {
   id             Int           @id @default(autoincrement())
   shop           String
-  quiz_id        String        @unique @default(uuid())
+  quiz_id        Int
   title          String
   description    String?
   status         String        @default("draft")
@@ -36,22 +36,24 @@ model Quiz {
   questions      Question[]
   quiz_sessions  QuizSession[]
 
+  @@unique([shop, quiz_id])
   @@index([shop])
   @@index([status])
 }
 
 model Question {
   id            Int      @id @default(autoincrement())
-  quiz_id       String
+  quiz_id       Int
+  shop          String
   question_id   String   @unique @default(uuid())
   question_text String
   order         Int
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
-  quiz          Quiz     @relation(fields: [quiz_id], references: [quiz_id], onDelete: Cascade)
+  quiz          Quiz     @relation(fields: [shop, quiz_id], references: [shop, quiz_id], onDelete: Cascade)
   answers       Answer[]
 
-  @@index([quiz_id])
+  @@index([quiz_id, shop])
 }
 
 model Answer {
@@ -73,7 +75,7 @@ model Answer {
 model QuizSession {
   id                Int               @id @default(autoincrement())
   session_id        String            @unique @default(uuid())
-  quiz_id           String
+  quiz_id           Int
   shop              String
   started_at        DateTime          @default(now())
   completed_at      DateTime?
@@ -81,10 +83,10 @@ model QuizSession {
   customer_id       String?
   page_url          String?
   user_agent        String?
-  quiz              Quiz              @relation(fields: [quiz_id], references: [quiz_id], onDelete: Cascade)
+  quiz              Quiz              @relation(fields: [shop, quiz_id], references: [shop, quiz_id], onDelete: Cascade)
   answer_selections AnswerSelection[]
 
-  @@index([quiz_id])
+  @@index([quiz_id, shop])
   @@index([shop])
   @@index([started_at])
 }
@@ -94,7 +96,7 @@ model AnswerSelection {
   session_id  String
   answer_id   String
   question_id String
-  quiz_id     String
+  quiz_id     Int
   shop        String
   selected_at DateTime    @default(now())
   session     QuizSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
@@ -102,13 +104,13 @@ model AnswerSelection {
 
   @@index([session_id])
   @@index([answer_id])
-  @@index([quiz_id, selected_at])
+  @@index([quiz_id, shop, selected_at])
   @@index([shop, selected_at])
 }
 
 model QuizAnalyticsSummary {
   id          Int      @id @default(autoincrement())
-  quiz_id     String
+  quiz_id     Int
   shop        String
   date        DateTime @db.Date
   impressions Int      @default(0)
@@ -119,5 +121,5 @@ model QuizAnalyticsSummary {
 
   @@unique([quiz_id, shop, date])
   @@index([shop, date])
-  @@index([quiz_id, date])
+  @@index([quiz_id, shop, date])
 }
