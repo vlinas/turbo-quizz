@@ -18,6 +18,7 @@ import {
   Icon,
   ButtonGroup,
   Modal,
+  ResourcePicker,
 } from "@shopify/polaris";
 import {
   DeleteIcon,
@@ -178,6 +179,7 @@ export const action = async ({ request, params }) => {
       const answer1Data = {
         type: answer1_action_type,
         ...(answer1_action_type === "show_text" && { text: answer1_action_data }),
+        ...(answer1_action_type === "show_html" && { html: answer1_action_data }),
         ...(answer1_action_type === "show_products" && {
           product_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
           display_style: "grid"
@@ -191,6 +193,7 @@ export const action = async ({ request, params }) => {
       const answer2Data = {
         type: answer2_action_type,
         ...(answer2_action_type === "show_text" && { text: answer2_action_data }),
+        ...(answer2_action_type === "show_html" && { html: answer2_action_data }),
         ...(answer2_action_type === "show_products" && {
           product_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
           display_style: "grid"
@@ -284,9 +287,18 @@ export default function QuizBuilder() {
   const [newAnswer1Text, setNewAnswer1Text] = useState("");
   const [newAnswer1ActionType, setNewAnswer1ActionType] = useState("show_text");
   const [newAnswer1ActionData, setNewAnswer1ActionData] = useState("");
+  const [newAnswer1SelectedProducts, setNewAnswer1SelectedProducts] = useState([]);
+  const [newAnswer1SelectedCollections, setNewAnswer1SelectedCollections] = useState([]);
+  const [showAnswer1ProductPicker, setShowAnswer1ProductPicker] = useState(false);
+  const [showAnswer1CollectionPicker, setShowAnswer1CollectionPicker] = useState(false);
+
   const [newAnswer2Text, setNewAnswer2Text] = useState("");
   const [newAnswer2ActionType, setNewAnswer2ActionType] = useState("show_text");
   const [newAnswer2ActionData, setNewAnswer2ActionData] = useState("");
+  const [newAnswer2SelectedProducts, setNewAnswer2SelectedProducts] = useState([]);
+  const [newAnswer2SelectedCollections, setNewAnswer2SelectedCollections] = useState([]);
+  const [showAnswer2ProductPicker, setShowAnswer2ProductPicker] = useState(false);
+  const [showAnswer2CollectionPicker, setShowAnswer2CollectionPicker] = useState(false);
 
   const handleSave = () => {
     setIsSubmitting(true);
@@ -315,10 +327,28 @@ export default function QuizBuilder() {
     formData.append("question_text", newQuestionText);
     formData.append("answer1_text", newAnswer1Text);
     formData.append("answer1_action_type", newAnswer1ActionType);
-    formData.append("answer1_action_data", newAnswer1ActionData);
+
+    // For answer 1, use selected products/collections if applicable
+    if (newAnswer1ActionType === "show_products") {
+      formData.append("answer1_action_data", newAnswer1SelectedProducts.map(p => p.id).join(","));
+    } else if (newAnswer1ActionType === "show_collections") {
+      formData.append("answer1_action_data", newAnswer1SelectedCollections.map(c => c.id).join(","));
+    } else {
+      formData.append("answer1_action_data", newAnswer1ActionData);
+    }
+
     formData.append("answer2_text", newAnswer2Text);
     formData.append("answer2_action_type", newAnswer2ActionType);
-    formData.append("answer2_action_data", newAnswer2ActionData);
+
+    // For answer 2, use selected products/collections if applicable
+    if (newAnswer2ActionType === "show_products") {
+      formData.append("answer2_action_data", newAnswer2SelectedProducts.map(p => p.id).join(","));
+    } else if (newAnswer2ActionType === "show_collections") {
+      formData.append("answer2_action_data", newAnswer2SelectedCollections.map(c => c.id).join(","));
+    } else {
+      formData.append("answer2_action_data", newAnswer2ActionData);
+    }
+
     submit(formData, { method: "post" });
 
     // Reset form
@@ -326,9 +356,13 @@ export default function QuizBuilder() {
     setNewAnswer1Text("");
     setNewAnswer1ActionType("show_text");
     setNewAnswer1ActionData("");
+    setNewAnswer1SelectedProducts([]);
+    setNewAnswer1SelectedCollections([]);
     setNewAnswer2Text("");
     setNewAnswer2ActionType("show_text");
     setNewAnswer2ActionData("");
+    setNewAnswer2SelectedProducts([]);
+    setNewAnswer2SelectedCollections([]);
     setShowAddQuestion(false);
   };
 
@@ -338,9 +372,13 @@ export default function QuizBuilder() {
     setNewAnswer1Text("");
     setNewAnswer1ActionType("show_text");
     setNewAnswer1ActionData("");
+    setNewAnswer1SelectedProducts([]);
+    setNewAnswer1SelectedCollections([]);
     setNewAnswer2Text("");
     setNewAnswer2ActionType("show_text");
     setNewAnswer2ActionData("");
+    setNewAnswer2SelectedProducts([]);
+    setNewAnswer2SelectedCollections([]);
   };
 
   const handleDeleteQuestion = (questionId) => {
@@ -513,24 +551,71 @@ export default function QuizBuilder() {
                         label="Action type"
                         options={[
                           { label: "Show text message", value: "show_text" },
+                          { label: "Show HTML", value: "show_html" },
                           { label: "Show products", value: "show_products" },
                           { label: "Show collections", value: "show_collections" },
                         ]}
                         value={newAnswer1ActionType}
                         onChange={setNewAnswer1ActionType}
                       />
-                      <TextField
-                        label={newAnswer1ActionType === "show_text" ? "Message" : "IDs"}
-                        value={newAnswer1ActionData}
-                        onChange={setNewAnswer1ActionData}
-                        placeholder={
-                          newAnswer1ActionType === "show_text"
-                            ? "Great choice!"
-                            : "gid://shopify/Product/123"
-                        }
-                        multiline={newAnswer1ActionType === "show_text"}
-                        autoComplete="off"
-                      />
+
+                      {newAnswer1ActionType === "show_text" && (
+                        <TextField
+                          label="Message"
+                          value={newAnswer1ActionData}
+                          onChange={setNewAnswer1ActionData}
+                          placeholder="Great choice!"
+                          multiline={4}
+                          autoComplete="off"
+                          helpText="Plain text message to show"
+                        />
+                      )}
+
+                      {newAnswer1ActionType === "show_html" && (
+                        <TextField
+                          label="HTML Content"
+                          value={newAnswer1ActionData}
+                          onChange={setNewAnswer1ActionData}
+                          placeholder='<div class="result"><h2>Great choice!</h2><p>Perfect for your style.</p></div>'
+                          multiline={6}
+                          autoComplete="off"
+                          helpText="HTML content to display (supports all HTML tags)"
+                        />
+                      )}
+
+                      {newAnswer1ActionType === "show_products" && (
+                        <BlockStack gap="200">
+                          <Button onClick={() => setShowAnswer1ProductPicker(true)}>
+                            {newAnswer1SelectedProducts.length > 0
+                              ? `${newAnswer1SelectedProducts.length} product(s) selected`
+                              : "Select products"}
+                          </Button>
+                          {newAnswer1SelectedProducts.length > 0 && (
+                            <Box>
+                              <Text as="p" variant="bodySm" tone="subdued">
+                                Selected: {newAnswer1SelectedProducts.map(p => p.title).join(", ")}
+                              </Text>
+                            </Box>
+                          )}
+                        </BlockStack>
+                      )}
+
+                      {newAnswer1ActionType === "show_collections" && (
+                        <BlockStack gap="200">
+                          <Button onClick={() => setShowAnswer1CollectionPicker(true)}>
+                            {newAnswer1SelectedCollections.length > 0
+                              ? `${newAnswer1SelectedCollections.length} collection(s) selected`
+                              : "Select collections"}
+                          </Button>
+                          {newAnswer1SelectedCollections.length > 0 && (
+                            <Box>
+                              <Text as="p" variant="bodySm" tone="subdued">
+                                Selected: {newAnswer1SelectedCollections.map(c => c.title).join(", ")}
+                              </Text>
+                            </Box>
+                          )}
+                        </BlockStack>
+                      )}
                     </BlockStack>
 
                     <Divider />
@@ -550,31 +635,94 @@ export default function QuizBuilder() {
                         label="Action type"
                         options={[
                           { label: "Show text message", value: "show_text" },
+                          { label: "Show HTML", value: "show_html" },
                           { label: "Show products", value: "show_products" },
                           { label: "Show collections", value: "show_collections" },
                         ]}
                         value={newAnswer2ActionType}
                         onChange={setNewAnswer2ActionType}
                       />
-                      <TextField
-                        label={newAnswer2ActionType === "show_text" ? "Message" : "IDs"}
-                        value={newAnswer2ActionData}
-                        onChange={setNewAnswer2ActionData}
-                        placeholder={
-                          newAnswer2ActionType === "show_text"
-                            ? "Excellent choice!"
-                            : "gid://shopify/Product/456"
-                        }
-                        multiline={newAnswer2ActionType === "show_text"}
-                        autoComplete="off"
-                      />
+
+                      {newAnswer2ActionType === "show_text" && (
+                        <TextField
+                          label="Message"
+                          value={newAnswer2ActionData}
+                          onChange={setNewAnswer2ActionData}
+                          placeholder="Excellent choice!"
+                          multiline={4}
+                          autoComplete="off"
+                          helpText="Plain text message to show"
+                        />
+                      )}
+
+                      {newAnswer2ActionType === "show_html" && (
+                        <TextField
+                          label="HTML Content"
+                          value={newAnswer2ActionData}
+                          onChange={setNewAnswer2ActionData}
+                          placeholder='<div class="result"><h2>Excellent choice!</h2><p>Bold and beautiful.</p></div>'
+                          multiline={6}
+                          autoComplete="off"
+                          helpText="HTML content to display (supports all HTML tags)"
+                        />
+                      )}
+
+                      {newAnswer2ActionType === "show_products" && (
+                        <BlockStack gap="200">
+                          <Button onClick={() => setShowAnswer2ProductPicker(true)}>
+                            {newAnswer2SelectedProducts.length > 0
+                              ? `${newAnswer2SelectedProducts.length} product(s) selected`
+                              : "Select products"}
+                          </Button>
+                          {newAnswer2SelectedProducts.length > 0 && (
+                            <Box>
+                              <Text as="p" variant="bodySm" tone="subdued">
+                                Selected: {newAnswer2SelectedProducts.map(p => p.title).join(", ")}
+                              </Text>
+                            </Box>
+                          )}
+                        </BlockStack>
+                      )}
+
+                      {newAnswer2ActionType === "show_collections" && (
+                        <BlockStack gap="200">
+                          <Button onClick={() => setShowAnswer2CollectionPicker(true)}>
+                            {newAnswer2SelectedCollections.length > 0
+                              ? `${newAnswer2SelectedCollections.length} collection(s) selected`
+                              : "Select collections"}
+                          </Button>
+                          {newAnswer2SelectedCollections.length > 0 && (
+                            <Box>
+                              <Text as="p" variant="bodySm" tone="subdued">
+                                Selected: {newAnswer2SelectedCollections.map(c => c.title).join(", ")}
+                              </Text>
+                            </Box>
+                          )}
+                        </BlockStack>
+                      )}
                     </BlockStack>
 
                     <InlineStack gap="200">
                       <Button
                         variant="primary"
                         onClick={handleSaveNewQuestion}
-                        disabled={!newQuestionText || !newAnswer1Text || !newAnswer2Text || !newAnswer1ActionData || !newAnswer2ActionData}
+                        disabled={
+                          !newQuestionText ||
+                          !newAnswer1Text ||
+                          !newAnswer2Text ||
+                          // Check if answer 1 has required data
+                          (
+                            (newAnswer1ActionType === "show_text" || newAnswer1ActionType === "show_html") && !newAnswer1ActionData ||
+                            newAnswer1ActionType === "show_products" && newAnswer1SelectedProducts.length === 0 ||
+                            newAnswer1ActionType === "show_collections" && newAnswer1SelectedCollections.length === 0
+                          ) ||
+                          // Check if answer 2 has required data
+                          (
+                            (newAnswer2ActionType === "show_text" || newAnswer2ActionType === "show_html") && !newAnswer2ActionData ||
+                            newAnswer2ActionType === "show_products" && newAnswer2SelectedProducts.length === 0 ||
+                            newAnswer2ActionType === "show_collections" && newAnswer2SelectedCollections.length === 0
+                          )
+                        }
                       >
                         Save question
                       </Button>
@@ -694,6 +842,60 @@ export default function QuizBuilder() {
           </Card>
         </Layout.Section>
       </Layout>
+
+      {/* Resource Pickers for Answer 1 */}
+      <ResourcePicker
+        resourceType="Product"
+        open={showAnswer1ProductPicker}
+        onCancel={() => setShowAnswer1ProductPicker(false)}
+        onSelection={(resources) => {
+          const selectedResources = resources.selection.slice(0, 3); // Limit to 3
+          setNewAnswer1SelectedProducts(selectedResources);
+          setShowAnswer1ProductPicker(false);
+        }}
+        selectMultiple={true}
+        actionVerb="select"
+      />
+
+      <ResourcePicker
+        resourceType="Collection"
+        open={showAnswer1CollectionPicker}
+        onCancel={() => setShowAnswer1CollectionPicker(false)}
+        onSelection={(resources) => {
+          const selectedResources = resources.selection.slice(0, 3); // Limit to 3
+          setNewAnswer1SelectedCollections(selectedResources);
+          setShowAnswer1CollectionPicker(false);
+        }}
+        selectMultiple={true}
+        actionVerb="select"
+      />
+
+      {/* Resource Pickers for Answer 2 */}
+      <ResourcePicker
+        resourceType="Product"
+        open={showAnswer2ProductPicker}
+        onCancel={() => setShowAnswer2ProductPicker(false)}
+        onSelection={(resources) => {
+          const selectedResources = resources.selection.slice(0, 3); // Limit to 3
+          setNewAnswer2SelectedProducts(selectedResources);
+          setShowAnswer2ProductPicker(false);
+        }}
+        selectMultiple={true}
+        actionVerb="select"
+      />
+
+      <ResourcePicker
+        resourceType="Collection"
+        open={showAnswer2CollectionPicker}
+        onCancel={() => setShowAnswer2CollectionPicker(false)}
+        onSelection={(resources) => {
+          const selectedResources = resources.selection.slice(0, 3); // Limit to 3
+          setNewAnswer2SelectedCollections(selectedResources);
+          setShowAnswer2CollectionPicker(false);
+        }}
+        selectMultiple={true}
+        actionVerb="select"
+      />
 
       {/* Delete Confirmation Modal */}
       <Modal

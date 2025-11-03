@@ -243,6 +243,8 @@
       switch (actionType) {
         case 'show_text':
           return this.renderTextResult(actionData);
+        case 'show_html':
+          return this.renderHtmlResult(actionData);
         case 'show_products':
           return this.renderProductsResult(actionData);
         case 'show_collections':
@@ -260,6 +262,15 @@
       return `
         <div class="turbo-quiz-text-result" style="background-color: ${backgroundColor}; color: ${textColor};">
           ${actionData.html || `<p>${actionData.text}</p>`}
+        </div>
+      `;
+    }
+
+    renderHtmlResult(actionData) {
+      // Render raw HTML content
+      return `
+        <div class="turbo-quiz-html-result">
+          ${actionData.html || ''}
         </div>
       `;
     }
