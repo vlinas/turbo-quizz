@@ -228,6 +228,11 @@
       const finalAnswer = this.answers[this.currentQuestionIndex];
       const actionData = finalAnswer.action_data;
 
+      // Debug logging
+      console.log('Final Answer:', finalAnswer);
+      console.log('Action Type:', finalAnswer.action_type);
+      console.log('Action Data:', actionData);
+
       // Render result based on action type
       this.resultContentEl.innerHTML = this.renderActionResult(finalAnswer.action_type, actionData);
 
