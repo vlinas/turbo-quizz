@@ -18,13 +18,13 @@ import {
   Icon,
   ButtonGroup,
   Modal,
-  ResourcePicker,
 } from "@shopify/polaris";
 import {
   DeleteIcon,
   PlusIcon,
   EditIcon,
 } from "@shopify/polaris-icons";
+import { useResourcePicker } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
@@ -289,16 +289,42 @@ export default function QuizBuilder() {
   const [newAnswer1ActionData, setNewAnswer1ActionData] = useState("");
   const [newAnswer1SelectedProducts, setNewAnswer1SelectedProducts] = useState([]);
   const [newAnswer1SelectedCollections, setNewAnswer1SelectedCollections] = useState([]);
-  const [showAnswer1ProductPicker, setShowAnswer1ProductPicker] = useState(false);
-  const [showAnswer1CollectionPicker, setShowAnswer1CollectionPicker] = useState(false);
 
   const [newAnswer2Text, setNewAnswer2Text] = useState("");
   const [newAnswer2ActionType, setNewAnswer2ActionType] = useState("show_text");
   const [newAnswer2ActionData, setNewAnswer2ActionData] = useState("");
   const [newAnswer2SelectedProducts, setNewAnswer2SelectedProducts] = useState([]);
   const [newAnswer2SelectedCollections, setNewAnswer2SelectedCollections] = useState([]);
-  const [showAnswer2ProductPicker, setShowAnswer2ProductPicker] = useState(false);
-  const [showAnswer2CollectionPicker, setShowAnswer2CollectionPicker] = useState(false);
+
+  // Resource picker hooks for Answer 1
+  const answer1ProductPicker = useResourcePicker({
+    resourceType: "Product",
+    options: {
+      selectMultiple: 3,
+    },
+  });
+
+  const answer1CollectionPicker = useResourcePicker({
+    resourceType: "Collection",
+    options: {
+      selectMultiple: 3,
+    },
+  });
+
+  // Resource picker hooks for Answer 2
+  const answer2ProductPicker = useResourcePicker({
+    resourceType: "Product",
+    options: {
+      selectMultiple: 3,
+    },
+  });
+
+  const answer2CollectionPicker = useResourcePicker({
+    resourceType: "Collection",
+    options: {
+      selectMultiple: 3,
+    },
+  });
 
   const handleSave = () => {
     setIsSubmitting(true);
@@ -585,10 +611,15 @@ export default function QuizBuilder() {
 
                       {newAnswer1ActionType === "show_products" && (
                         <BlockStack gap="200">
-                          <Button onClick={() => setShowAnswer1ProductPicker(true)}>
+                          <Button onClick={async () => {
+                            const result = await answer1ProductPicker.open();
+                            if (result && result.selection) {
+                              setNewAnswer1SelectedProducts(result.selection);
+                            }
+                          }}>
                             {newAnswer1SelectedProducts.length > 0
                               ? `${newAnswer1SelectedProducts.length} product(s) selected`
-                              : "Select products"}
+                              : "Select products (max 3)"}
                           </Button>
                           {newAnswer1SelectedProducts.length > 0 && (
                             <Box>
@@ -602,10 +633,15 @@ export default function QuizBuilder() {
 
                       {newAnswer1ActionType === "show_collections" && (
                         <BlockStack gap="200">
-                          <Button onClick={() => setShowAnswer1CollectionPicker(true)}>
+                          <Button onClick={async () => {
+                            const result = await answer1CollectionPicker.open();
+                            if (result && result.selection) {
+                              setNewAnswer1SelectedCollections(result.selection);
+                            }
+                          }}>
                             {newAnswer1SelectedCollections.length > 0
                               ? `${newAnswer1SelectedCollections.length} collection(s) selected`
-                              : "Select collections"}
+                              : "Select collections (max 3)"}
                           </Button>
                           {newAnswer1SelectedCollections.length > 0 && (
                             <Box>
@@ -669,10 +705,15 @@ export default function QuizBuilder() {
 
                       {newAnswer2ActionType === "show_products" && (
                         <BlockStack gap="200">
-                          <Button onClick={() => setShowAnswer2ProductPicker(true)}>
+                          <Button onClick={async () => {
+                            const result = await answer2ProductPicker.open();
+                            if (result && result.selection) {
+                              setNewAnswer2SelectedProducts(result.selection);
+                            }
+                          }}>
                             {newAnswer2SelectedProducts.length > 0
                               ? `${newAnswer2SelectedProducts.length} product(s) selected`
-                              : "Select products"}
+                              : "Select products (max 3)"}
                           </Button>
                           {newAnswer2SelectedProducts.length > 0 && (
                             <Box>
@@ -686,10 +727,15 @@ export default function QuizBuilder() {
 
                       {newAnswer2ActionType === "show_collections" && (
                         <BlockStack gap="200">
-                          <Button onClick={() => setShowAnswer2CollectionPicker(true)}>
+                          <Button onClick={async () => {
+                            const result = await answer2CollectionPicker.open();
+                            if (result && result.selection) {
+                              setNewAnswer2SelectedCollections(result.selection);
+                            }
+                          }}>
                             {newAnswer2SelectedCollections.length > 0
                               ? `${newAnswer2SelectedCollections.length} collection(s) selected`
-                              : "Select collections"}
+                              : "Select collections (max 3)"}
                           </Button>
                           {newAnswer2SelectedCollections.length > 0 && (
                             <Box>
@@ -842,60 +888,6 @@ export default function QuizBuilder() {
           </Card>
         </Layout.Section>
       </Layout>
-
-      {/* Resource Pickers for Answer 1 */}
-      <ResourcePicker
-        resourceType="Product"
-        open={showAnswer1ProductPicker}
-        onCancel={() => setShowAnswer1ProductPicker(false)}
-        onSelection={(resources) => {
-          const selectedResources = resources.selection.slice(0, 3); // Limit to 3
-          setNewAnswer1SelectedProducts(selectedResources);
-          setShowAnswer1ProductPicker(false);
-        }}
-        selectMultiple={true}
-        actionVerb="select"
-      />
-
-      <ResourcePicker
-        resourceType="Collection"
-        open={showAnswer1CollectionPicker}
-        onCancel={() => setShowAnswer1CollectionPicker(false)}
-        onSelection={(resources) => {
-          const selectedResources = resources.selection.slice(0, 3); // Limit to 3
-          setNewAnswer1SelectedCollections(selectedResources);
-          setShowAnswer1CollectionPicker(false);
-        }}
-        selectMultiple={true}
-        actionVerb="select"
-      />
-
-      {/* Resource Pickers for Answer 2 */}
-      <ResourcePicker
-        resourceType="Product"
-        open={showAnswer2ProductPicker}
-        onCancel={() => setShowAnswer2ProductPicker(false)}
-        onSelection={(resources) => {
-          const selectedResources = resources.selection.slice(0, 3); // Limit to 3
-          setNewAnswer2SelectedProducts(selectedResources);
-          setShowAnswer2ProductPicker(false);
-        }}
-        selectMultiple={true}
-        actionVerb="select"
-      />
-
-      <ResourcePicker
-        resourceType="Collection"
-        open={showAnswer2CollectionPicker}
-        onCancel={() => setShowAnswer2CollectionPicker(false)}
-        onSelection={(resources) => {
-          const selectedResources = resources.selection.slice(0, 3); // Limit to 3
-          setNewAnswer2SelectedCollections(selectedResources);
-          setShowAnswer2CollectionPicker(false);
-        }}
-        selectMultiple={true}
-        actionVerb="select"
-      />
 
       {/* Delete Confirmation Modal */}
       <Modal
