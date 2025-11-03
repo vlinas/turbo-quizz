@@ -18,6 +18,9 @@ import {
   Icon,
   ButtonGroup,
   Modal,
+  ResourceList,
+  ResourceItem,
+  Thumbnail,
 } from "@shopify/polaris";
 import {
   DeleteIcon,
@@ -101,7 +104,6 @@ export const action = async ({ request, params }) => {
   if (actionType === "update_quiz") {
     const title = formData.get("title");
     const description = formData.get("description");
-    const status = formData.get("status");
 
     try {
       await prisma.quiz.update({
@@ -109,7 +111,6 @@ export const action = async ({ request, params }) => {
         data: {
           title,
           description,
-          status,
         },
       });
 
@@ -175,33 +176,27 @@ export const action = async ({ request, params }) => {
       }
 
       // Build action data objects
-      const answer1Data = {
-        type: answer1_action_type,
-        ...(answer1_action_type === "show_text" && { text: answer1_action_data }),
-        ...(answer1_action_type === "show_html" && { html: answer1_action_data }),
-        ...(answer1_action_type === "show_products" && {
+      const answer1Data = answer1_action_type === "show_text" ? { text: answer1_action_data } :
+        answer1_action_type === "show_html" ? { html: answer1_action_data } :
+        answer1_action_type === "show_products" ? {
           product_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
           display_style: "grid"
-        }),
-        ...(answer1_action_type === "show_collections" && {
+        } :
+        answer1_action_type === "show_collections" ? {
           collection_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
           display_style: "grid"
-        }),
-      };
+        } : {};
 
-      const answer2Data = {
-        type: answer2_action_type,
-        ...(answer2_action_type === "show_text" && { text: answer2_action_data }),
-        ...(answer2_action_type === "show_html" && { html: answer2_action_data }),
-        ...(answer2_action_type === "show_products" && {
+      const answer2Data = answer2_action_type === "show_text" ? { text: answer2_action_data } :
+        answer2_action_type === "show_html" ? { html: answer2_action_data } :
+        answer2_action_type === "show_products" ? {
           product_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
           display_style: "grid"
-        }),
-        ...(answer2_action_type === "show_collections" && {
+        } :
+        answer2_action_type === "show_collections" ? {
           collection_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
           display_style: "grid"
-        }),
-      };
+        } : {};
 
       // Create question with answers
       await prisma.question.create({
@@ -271,33 +266,27 @@ export const action = async ({ request, params }) => {
       }
 
       // Build action data objects
-      const answer1Data = {
-        type: answer1_action_type,
-        ...(answer1_action_type === "show_text" && { text: answer1_action_data }),
-        ...(answer1_action_type === "show_html" && { html: answer1_action_data }),
-        ...(answer1_action_type === "show_products" && {
+      const answer1Data = answer1_action_type === "show_text" ? { text: answer1_action_data } :
+        answer1_action_type === "show_html" ? { html: answer1_action_data } :
+        answer1_action_type === "show_products" ? {
           product_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
           display_style: "grid"
-        }),
-        ...(answer1_action_type === "show_collections" && {
+        } :
+        answer1_action_type === "show_collections" ? {
           collection_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
           display_style: "grid"
-        }),
-      };
+        } : {};
 
-      const answer2Data = {
-        type: answer2_action_type,
-        ...(answer2_action_type === "show_text" && { text: answer2_action_data }),
-        ...(answer2_action_type === "show_html" && { html: answer2_action_data }),
-        ...(answer2_action_type === "show_products" && {
+      const answer2Data = answer2_action_type === "show_text" ? { text: answer2_action_data } :
+        answer2_action_type === "show_html" ? { html: answer2_action_data } :
+        answer2_action_type === "show_products" ? {
           product_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
           display_style: "grid"
-        }),
-        ...(answer2_action_type === "show_collections" && {
+        } :
+        answer2_action_type === "show_collections" ? {
           collection_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
           display_style: "grid"
-        }),
-      };
+        } : {};
 
       // Update question and answers in a transaction
       await prisma.$transaction([
@@ -373,7 +362,6 @@ export default function QuizBuilder() {
 
   const [title, setTitle] = useState(quiz.title);
   const [description, setDescription] = useState(quiz.description || "");
-  const [status, setStatus] = useState(quiz.status);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAddQuestion, setShowAddQuestion] = useState(false);
@@ -395,7 +383,6 @@ export default function QuizBuilder() {
     formData.append("_action", "update_quiz");
     formData.append("title", title);
     formData.append("description", description);
-    formData.append("status", status);
     submit(formData, { method: "post" });
     setTimeout(() => setIsSubmitting(false), 1000);
   };
@@ -506,12 +493,6 @@ export default function QuizBuilder() {
     setShowAddQuestion(true);
   };
 
-  const statusOptions = [
-    { label: "Draft", value: "draft" },
-    { label: "Active", value: "active" },
-    { label: "Inactive", value: "inactive" },
-  ];
-
   return (
     <Page
       title={quiz.title}
@@ -608,13 +589,6 @@ export default function QuizBuilder() {
                 autoComplete="off"
               />
 
-              <Select
-                label="Status"
-                options={statusOptions}
-                value={status}
-                onChange={setStatus}
-                helpText="Active quizzes are visible to customers"
-              />
             </BlockStack>
           </Card>
 
