@@ -61,7 +61,7 @@ CREATE INDEX "AnswerSelection_quiz_id_shop_selected_at_idx" ON "AnswerSelection"
 
 -- Alter QuizAnalyticsSummary table
 ALTER TABLE "QuizAnalyticsSummary" DROP CONSTRAINT IF EXISTS "QuizAnalyticsSummary_quiz_id_shop_date_key";
-ALTER TABLE "QuizAnalyticsSummary" DROP INDEX IF EXISTS "QuizAnalyticsSummary_quiz_id_date_idx";
+DROP INDEX IF EXISTS "QuizAnalyticsSummary_quiz_id_date_idx";
 
 ALTER TABLE "QuizAnalyticsSummary" DROP COLUMN IF EXISTS "quiz_id";
 ALTER TABLE "QuizAnalyticsSummary" ADD COLUMN "quiz_id" INTEGER NOT NULL DEFAULT 1;
