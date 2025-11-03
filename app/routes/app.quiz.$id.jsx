@@ -845,17 +845,21 @@ export default function QuizBuilder() {
                             </Text>
                             <Text as="p">{question.question_text}</Text>
                           </BlockStack>
-                          <ButtonGroup>
+                          <InlineStack gap="200">
                             <Button
                               icon={EditIcon}
                               onClick={() => handleEditQuestion(question)}
-                            />
+                            >
+                              Edit
+                            </Button>
                             <Button
                               icon={DeleteIcon}
                               tone="critical"
                               onClick={() => handleDeleteQuestion(question.question_id)}
-                            />
-                          </ButtonGroup>
+                            >
+                              Delete
+                            </Button>
+                          </InlineStack>
                         </InlineStack>
 
                         <Divider />
