@@ -497,11 +497,6 @@ export default function QuizBuilder() {
     <Page
       title={quiz.title}
       backAction={{ content: "Quizzes", onAction: () => navigate("/app") }}
-      titleMetadata={
-        <Badge tone={status === "active" ? "success" : status === "draft" ? "info" : "default"}>
-          {status.charAt(0).toUpperCase() + status.slice(1)}
-        </Badge>
-      }
       primaryAction={{
         content: "Save",
         onAction: handleSave,
