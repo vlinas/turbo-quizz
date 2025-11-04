@@ -73,18 +73,19 @@ model Answer {
 }
 
 model QuizSession {
-  id                Int               @id @default(autoincrement())
-  session_id        String            @unique @default(uuid())
-  quiz_id           Int
-  shop              String
-  started_at        DateTime          @default(now())
-  completed_at      DateTime?
-  is_completed      Boolean           @default(false)
-  customer_id       String?
-  page_url          String?
-  user_agent        String?
-  quiz              Quiz              @relation(fields: [shop, quiz_id], references: [shop, quiz_id], onDelete: Cascade)
-  answer_selections AnswerSelection[]
+  id                   Int                     @id @default(autoincrement())
+  session_id           String                  @unique @default(uuid())
+  quiz_id              Int
+  shop                 String
+  started_at           DateTime                @default(now())
+  completed_at         DateTime?
+  is_completed         Boolean                 @default(false)
+  customer_id          String?
+  page_url             String?
+  user_agent           String?
+  quiz                 Quiz                    @relation(fields: [shop, quiz_id], references: [shop, quiz_id], onDelete: Cascade)
+  answer_selections    AnswerSelection[]
+  order_attributions   QuizOrderAttribution[]
 
   @@index([quiz_id, shop])
   @@index([shop])
@@ -122,4 +123,26 @@ model QuizAnalyticsSummary {
   @@unique([quiz_id, shop, date])
   @@index([shop, date])
   @@index([quiz_id, shop, date])
+}
+
+model QuizOrderAttribution {
+  id               Int         @id @default(autoincrement())
+  order_id         String
+  order_number     String?
+  session_id       String
+  quiz_id          Int
+  shop             String
+  customer_id      String?
+  customer_email   String?
+  total_price      Decimal     @db.Decimal(10, 2)
+  currency         String      @default("USD")
+  line_items_count Int         @default(0)
+  order_created_at DateTime
+  attributed_at    DateTime    @default(now())
+  session          QuizSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
+
+  @@unique([order_id, shop])
+  @@index([session_id])
+  @@index([quiz_id, shop])
+  @@index([shop, order_created_at])
 }

@@ -35,6 +35,25 @@
       this.init();
     }
 
+    // Cookie helper functions
+    getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+      return null;
+    }
+
+    setCookie(name, value, days = 30) {
+      const date = new Date();
+      date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+      const expires = `expires=${date.toUTCString()}`;
+      document.cookie = `${name}=${value};${expires};path=/;SameSite=Lax`;
+    }
+
+    deleteCookie(name) {
+      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+    }
+
     async init() {
       if (!this.quizId || !this.appUrl) {
         this.showError('Quiz ID or App URL not configured');
@@ -71,13 +90,20 @@
     }
 
     async startSession() {
+      // Clear any existing session cookie when starting new quiz
+      this.deleteCookie('turbo_quiz_session');
+
       try {
+        // Get customer ID from Shopify if available
+        const customerId = window.Shopify?.customerId || window.meta?.page?.customerId;
+
         const response = await fetch(`${this.appUrl}/api/quiz-sessions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'start',
             quiz_id: this.quizId,
+            customer_id: customerId ? String(customerId) : null,
             page_url: window.location.href,
             user_agent: navigator.userAgent,
           }),
@@ -87,6 +113,9 @@
 
         if (data.success && data.session_id) {
           this.sessionId = data.session_id;
+          // Store session ID in cookie for order attribution
+          this.setCookie('turbo_quiz_session', this.sessionId, 30);
+          console.log('[TurboQuiz] Session started:', this.sessionId);
         } else {
           console.error('Failed to start session:', data.error);
         }

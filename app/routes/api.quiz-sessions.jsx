@@ -11,9 +11,19 @@ import prisma from "../db.server";
 // CORS headers
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
+
+export async function loader() {
+  return json(
+    { error: "Method not allowed. Use POST for actions." },
+    {
+      status: 405,
+      headers: corsHeaders,
+    }
+  );
+}
 
 export async function action({ request }) {
   const { method } = request;
