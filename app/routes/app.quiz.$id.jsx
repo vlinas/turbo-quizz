@@ -53,7 +53,7 @@ function toCollectionGids(ids) {
 async function fetchNodesByIds(gids, admin) {
   if (!gids || gids.length === 0) return [];
 
-  const query = `
+  const query = `#graphql
     query getNodes($ids: [ID!]!) {
       nodes(ids: $ids) {
         ... on Product {
@@ -88,7 +88,9 @@ async function fetchNodesByIds(gids, admin) {
   `;
 
   try {
-    const response = await admin.graphql(query, { variables: { ids: gids } });
+    const response = await admin.graphql(query, {
+      variables: { ids: gids },
+    });
     const result = await response.json();
 
     if (result.errors) {
