@@ -280,16 +280,23 @@ export const action = async ({ request, params }) => {
         // Resolve IDs to full nodes and cap to 3
         try {
           const parsed = JSON.parse(answer1_action_data || "{}");
+          console.log("[Answer 1] Parsed data:", parsed);
           if (answer1_action_type === "show_products") {
             const ids = (parsed.products || []).map((p) => p.id || p).slice(0, 3);
+            console.log("[Answer 1] Product IDs to fetch:", ids);
             const nodes = await fetchNodesByIds(toGids(ids), admin);
+            console.log("[Answer 1] Fetched product nodes:", nodes);
             answer1Data = { products: nodes, custom_text: (formData.get("answer1_custom_text") || parsed.custom_text || "Based on your answers, we recommend these products:") };
           } else {
             const ids = (parsed.collections || []).map((c) => c.id || c).slice(0, 3);
+            console.log("[Answer 1] Collection IDs to fetch:", ids);
             const nodes = await fetchNodesByIds(toCollectionGids(ids), admin);
+            console.log("[Answer 1] Fetched collection nodes:", nodes);
             answer1Data = { collections: nodes, custom_text: (formData.get("answer1_custom_text") || parsed.custom_text || "Based on your answers, check out these collections:") };
           }
+          console.log("[Answer 1] Final answer1Data:", answer1Data);
         } catch (e) {
+          console.error("[Answer 1] Error parsing/fetching:", e);
           answer1Data = answer1_action_type === "show_products" ? {
             products: [],
             custom_text: "Based on your answers, we recommend these products:"
@@ -532,6 +539,21 @@ export default function QuizBuilder() {
   const [answer2PreviewItems, setAnswer2PreviewItems] = useState([]);
   const [answer1CustomText, setAnswer1CustomText] = useState("");
   const [answer2CustomText, setAnswer2CustomText] = useState("");
+
+  // Clear preview items when action type changes
+  const handleAnswer1ActionTypeChange = (newType) => {
+    setNewAnswer1ActionType(newType);
+    setAnswer1PreviewItems([]);
+    setNewAnswer1ActionData("");
+    setAnswer1CustomText("");
+  };
+
+  const handleAnswer2ActionTypeChange = (newType) => {
+    setNewAnswer2ActionType(newType);
+    setAnswer2PreviewItems([]);
+    setNewAnswer2ActionData("");
+    setAnswer2CustomText("");
+  };
 
   // Resource pickers (uses App Bridge picker if available)
   const openResourcePicker = async (type, multiple = true, initialSelection = []) => {
@@ -934,7 +956,7 @@ export default function QuizBuilder() {
                           { label: "Show collections", value: "show_collections" },
                         ]}
                         value={newAnswer1ActionType}
-                        onChange={setNewAnswer1ActionType}
+                        onChange={handleAnswer1ActionTypeChange}
                       />
 
                       {newAnswer1ActionType === "show_text" && (
@@ -1064,7 +1086,7 @@ export default function QuizBuilder() {
                           { label: "Show collections", value: "show_collections" },
                         ]}
                         value={newAnswer2ActionType}
-                        onChange={setNewAnswer2ActionType}
+                        onChange={handleAnswer2ActionTypeChange}
                       />
 
                       {newAnswer2ActionType === "show_text" && (
