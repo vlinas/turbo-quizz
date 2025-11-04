@@ -418,6 +418,62 @@ export default function QuizBuilder() {
   const [newAnswer2Text, setNewAnswer2Text] = useState("");
   const [newAnswer2ActionType, setNewAnswer2ActionType] = useState("show_text");
   const [newAnswer2ActionData, setNewAnswer2ActionData] = useState("");
+  const [showAdvancedJson1, setShowAdvancedJson1] = useState(false);
+  const [showAdvancedJson2, setShowAdvancedJson2] = useState(false);
+  const [answer1PreviewItems, setAnswer1PreviewItems] = useState([]);
+  const [answer2PreviewItems, setAnswer2PreviewItems] = useState([]);
+
+  // Resource pickers (uses App Bridge picker if available)
+  const openResourcePicker = async (type, multiple = true, initialSelection = []) => {
+    try {
+      // App Bridge v3 global picker (guarded)
+      if (typeof window !== "undefined" && window.shopify && typeof window.shopify.resourcePicker === "function") {
+        const result = await window.shopify.resourcePicker({ type, multiple, selectionIds: initialSelection });
+        return result && Array.isArray(result.selection) ? result.selection : [];
+      }
+    } catch (e) {
+      console.error("Resource picker error:", e);
+    }
+    return [];
+  };
+
+  const handlePickProductsForAnswer = async (which) => {
+    const selection = await openResourcePicker("product", true);
+    if (!selection.length) return;
+    // For the builder screen we store JSON in textarea
+    const products = selection.map((s) => ({ id: s.id }));
+    const defaultText = "Based on your answers, we recommend these products:";
+    const jsonString = JSON.stringify({ products, custom_text: defaultText }, null, 2);
+    if (which === 1) setNewAnswer1ActionData(jsonString);
+    if (which === 2) setNewAnswer2ActionData(jsonString);
+    const items = selection.map((s) => ({ id: s.id, title: s.title, image: s?.images?.[0]?.originalSrc || s?.image?.originalSrc }));
+    if (which === 1) setAnswer1PreviewItems(items);
+    if (which === 2) setAnswer2PreviewItems(items);
+  };
+
+  const handlePickCollectionsForAnswer = async (which) => {
+    const selection = await openResourcePicker("collection", true);
+    if (!selection.length) return;
+    const collections = selection.map((s) => ({ id: s.id }));
+    const defaultText = "Based on your answers, check out these collections:";
+    const jsonString = JSON.stringify({ collections, custom_text: defaultText }, null, 2);
+    if (which === 1) setNewAnswer1ActionData(jsonString);
+    if (which === 2) setNewAnswer2ActionData(jsonString);
+    const items = selection.map((s) => ({ id: s.id, title: s.title, image: s?.image?.originalSrc }));
+    if (which === 1) setAnswer1PreviewItems(items);
+    if (which === 2) setAnswer2PreviewItems(items);
+  };
+
+  const parsePreview = (jsonString, type) => {
+    try {
+      const parsed = JSON.parse(jsonString || "{}");
+      if (type === "show_products") return (parsed.products || []).map((p) => (p.id || p));
+      if (type === "show_collections") return (parsed.collections || []).map((c) => (c.id || c));
+      return [];
+    } catch (_) {
+      return [];
+    }
+  };
 
   const handleSave = () => {
     setIsSubmitting(true);
@@ -709,27 +765,85 @@ export default function QuizBuilder() {
                       )}
 
                       {newAnswer1ActionType === "show_products" && (
-                        <TextField
-                          label="Products JSON Data"
-                          value={newAnswer1ActionData}
-                          onChange={setNewAnswer1ActionData}
-                          placeholder='{"products": [/* product GIDs */], "custom_text": "Based on your answers..."}'
-                          multiline={8}
-                          autoComplete="off"
-                          helpText='Enter JSON with "products" array and "custom_text". Products will be fetched from Shopify.'
-                        />
+                        <BlockStack gap="200">
+                          <InlineStack gap="200" blockAlign="center">
+                            <Button onClick={() => handlePickProductsForAnswer(1)}>Pick products</Button>
+                            <Text as="span" tone="subdued">
+                              {parsePreview(newAnswer1ActionData, "show_products").length} selected
+                            </Text>
+                            <Button plain onClick={() => setShowAdvancedJson1((v) => !v)}>
+                              {showAdvancedJson1 ? "Hide Advanced JSON" : "Advanced JSON"}
+                            </Button>
+                          </InlineStack>
+                          {answer1PreviewItems?.length ? (
+                            <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
+                              {answer1PreviewItems.map((p) => (
+                                <Box key={p.id} padding="150" background="bg-surface-secondary" borderRadius="100">
+                                  <BlockStack gap="100" inlineAlign="center">
+                                    {p.image ? (
+                                      <img src={p.image} alt={p.title || p.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }} />
+                                    ) : null}
+                                    <Text as="span" variant="bodySm" truncate>
+                                      {p.title || p.id}
+                                    </Text>
+                                  </BlockStack>
+                                </Box>
+                              ))}
+                            </InlineGrid>
+                          ) : null}
+                          {!showAdvancedJson1 ? null : (
+                            <TextField
+                              label="Products JSON Data"
+                              value={newAnswer1ActionData}
+                              onChange={setNewAnswer1ActionData}
+                              placeholder='{"products": [/* product GIDs */], "custom_text": "Based on your answers..."}'
+                              multiline={8}
+                              autoComplete="off"
+                              helpText='Use the picker or enter JSON with "products" array and "custom_text".'
+                            />
+                          )}
+                        </BlockStack>
                       )}
 
                       {newAnswer1ActionType === "show_collections" && (
-                        <TextField
-                          label="Collections JSON Data"
-                          value={newAnswer1ActionData}
-                          onChange={setNewAnswer1ActionData}
-                          placeholder='{"collections": [/* collection GIDs */], "custom_text": "Check out these collections..."}'
-                          multiline={8}
-                          autoComplete="off"
-                          helpText='Enter JSON with "collections" array and "custom_text". Collections will be fetched from Shopify.'
-                        />
+                        <BlockStack gap="200">
+                          <InlineStack gap="200" blockAlign="center">
+                            <Button onClick={() => handlePickCollectionsForAnswer(1)}>Pick collections</Button>
+                            <Text as="span" tone="subdued">
+                              {parsePreview(newAnswer1ActionData, "show_collections").length} selected
+                            </Text>
+                            <Button plain onClick={() => setShowAdvancedJson1((v) => !v)}>
+                              {showAdvancedJson1 ? "Hide Advanced JSON" : "Advanced JSON"}
+                            </Button>
+                          </InlineStack>
+                          {answer1PreviewItems?.length ? (
+                            <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
+                              {answer1PreviewItems.map((c) => (
+                                <Box key={c.id} padding="150" background="bg-surface-secondary" borderRadius="100">
+                                  <BlockStack gap="100" inlineAlign="center">
+                                    {c.image ? (
+                                      <img src={c.image} alt={c.title || c.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }} />
+                                    ) : null}
+                                    <Text as="span" variant="bodySm" truncate>
+                                      {c.title || c.id}
+                                    </Text>
+                                  </BlockStack>
+                                </Box>
+                              ))}
+                            </InlineGrid>
+                          ) : null}
+                          {!showAdvancedJson1 ? null : (
+                            <TextField
+                              label="Collections JSON Data"
+                              value={newAnswer1ActionData}
+                              onChange={setNewAnswer1ActionData}
+                              placeholder='{"collections": [/* collection GIDs */], "custom_text": "Check out these collections..."}'
+                              multiline={8}
+                              autoComplete="off"
+                              helpText='Use the picker or enter JSON with "collections" array and "custom_text".'
+                            />
+                          )}
+                        </BlockStack>
                       )}
                     </BlockStack>
 
@@ -783,27 +897,85 @@ export default function QuizBuilder() {
                       )}
 
                       {newAnswer2ActionType === "show_products" && (
-                        <TextField
-                          label="Products JSON Data"
-                          value={newAnswer2ActionData}
-                          onChange={setNewAnswer2ActionData}
-                          placeholder='{"products": [/* product GIDs */], "custom_text": "Based on your answers..."}'
-                          multiline={8}
-                          autoComplete="off"
-                          helpText='Enter JSON with "products" array and "custom_text". Products will be fetched from Shopify.'
-                        />
+                        <BlockStack gap="200">
+                          <InlineStack gap="200" blockAlign="center">
+                            <Button onClick={() => handlePickProductsForAnswer(2)}>Pick products</Button>
+                            <Text as="span" tone="subdued">
+                              {parsePreview(newAnswer2ActionData, "show_products").length} selected
+                            </Text>
+                            <Button plain onClick={() => setShowAdvancedJson2((v) => !v)}>
+                              {showAdvancedJson2 ? "Hide Advanced JSON" : "Advanced JSON"}
+                            </Button>
+                          </InlineStack>
+                          {answer2PreviewItems?.length ? (
+                            <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
+                              {answer2PreviewItems.map((p) => (
+                                <Box key={p.id} padding="150" background="bg-surface-secondary" borderRadius="100">
+                                  <BlockStack gap="100" inlineAlign="center">
+                                    {p.image ? (
+                                      <img src={p.image} alt={p.title || p.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }} />
+                                    ) : null}
+                                    <Text as="span" variant="bodySm" truncate>
+                                      {p.title || p.id}
+                                    </Text>
+                                  </BlockStack>
+                                </Box>
+                              ))}
+                            </InlineGrid>
+                          ) : null}
+                          {!showAdvancedJson2 ? null : (
+                            <TextField
+                              label="Products JSON Data"
+                              value={newAnswer2ActionData}
+                              onChange={setNewAnswer2ActionData}
+                              placeholder='{"products": [/* product GIDs */], "custom_text": "Based on your answers..."}'
+                              multiline={8}
+                              autoComplete="off"
+                              helpText='Use the picker or enter JSON with "products" array and "custom_text".'
+                            />
+                          )}
+                        </BlockStack>
                       )}
 
                       {newAnswer2ActionType === "show_collections" && (
-                        <TextField
-                          label="Collections JSON Data"
-                          value={newAnswer2ActionData}
-                          onChange={setNewAnswer2ActionData}
-                          placeholder='{"collections": [/* collection GIDs */], "custom_text": "Check out these collections..."}'
-                          multiline={8}
-                          autoComplete="off"
-                          helpText='Enter JSON with "collections" array and "custom_text". Collections will be fetched from Shopify.'
-                        />
+                        <BlockStack gap="200">
+                          <InlineStack gap="200" blockAlign="center">
+                            <Button onClick={() => handlePickCollectionsForAnswer(2)}>Pick collections</Button>
+                            <Text as="span" tone="subdued">
+                              {parsePreview(newAnswer2ActionData, "show_collections").length} selected
+                            </Text>
+                            <Button plain onClick={() => setShowAdvancedJson2((v) => !v)}>
+                              {showAdvancedJson2 ? "Hide Advanced JSON" : "Advanced JSON"}
+                            </Button>
+                          </InlineStack>
+                          {answer2PreviewItems?.length ? (
+                            <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
+                              {answer2PreviewItems.map((c) => (
+                                <Box key={c.id} padding="150" background="bg-surface-secondary" borderRadius="100">
+                                  <BlockStack gap="100" inlineAlign="center">
+                                    {c.image ? (
+                                      <img src={c.image} alt={c.title || c.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }} />
+                                    ) : null}
+                                    <Text as="span" variant="bodySm" truncate>
+                                      {c.title || c.id}
+                                    </Text>
+                                  </BlockStack>
+                                </Box>
+                              ))}
+                            </InlineGrid>
+                          ) : null}
+                          {!showAdvancedJson2 ? null : (
+                            <TextField
+                              label="Collections JSON Data"
+                              value={newAnswer2ActionData}
+                              onChange={setNewAnswer2ActionData}
+                              placeholder='{"collections": [/* collection GIDs */], "custom_text": "Check out these collections..."}'
+                              multiline={8}
+                              autoComplete="off"
+                              helpText='Use the picker or enter JSON with "collections" array and "custom_text".'
+                            />
+                          )}
+                        </BlockStack>
                       )}
                     </BlockStack>
 

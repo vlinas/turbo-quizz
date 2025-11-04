@@ -183,6 +183,58 @@ export default function EditQuestion() {
   const [questionText, setQuestionText] = useState(question.question_text);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showAdvancedJson1, setShowAdvancedJson1] = useState(false);
+  const [showAdvancedJson2, setShowAdvancedJson2] = useState(false);
+  const [answer1PreviewItems, setAnswer1PreviewItems] = useState([]);
+  const [answer2PreviewItems, setAnswer2PreviewItems] = useState([]);
+
+  // Resource pickers (uses App Bridge picker if available)
+  const openResourcePicker = async (type, multiple = true, initialSelection = []) => {
+    try {
+      if (typeof window !== "undefined" && window.shopify && typeof window.shopify.resourcePicker === "function") {
+        const result = await window.shopify.resourcePicker({ type, multiple, selectionIds: initialSelection });
+        return result && Array.isArray(result.selection) ? result.selection : [];
+      }
+    } catch (e) {
+      console.error("Resource picker error:", e);
+    }
+    return [];
+  };
+
+  const handlePickProducts = async (which) => {
+    const selection = await openResourcePicker("product", true);
+    if (!selection.length) return;
+    const idsCsv = selection.map((s) => s.id).join(",");
+    if (which === 1) setAnswer1ActionData(idsCsv);
+    if (which === 2) setAnswer2ActionData(idsCsv);
+    const items = selection.map((s) => ({ id: s.id, title: s.title, image: s?.images?.[0]?.originalSrc || s?.image?.originalSrc }));
+    if (which === 1) setAnswer1PreviewItems(items);
+    if (which === 2) setAnswer2PreviewItems(items);
+  };
+
+  const handlePickCollections = async (which) => {
+    const selection = await openResourcePicker("collection", true);
+    if (!selection.length) return;
+    const idsCsv = selection.map((s) => s.id).join(",");
+    if (which === 1) setAnswer1ActionData(idsCsv);
+    if (which === 2) setAnswer2ActionData(idsCsv);
+    const items = selection.map((s) => ({ id: s.id, title: s.title, image: s?.image?.originalSrc }));
+    if (which === 1) setAnswer1PreviewItems(items);
+    if (which === 2) setAnswer2PreviewItems(items);
+  };
+
+  const parseCount = (raw, type) => {
+    try {
+      const parsed = JSON.parse(raw || "{}");
+      if (type === "show_products") return (parsed.products || []).length;
+      if (type === "show_collections") return (parsed.collections || []).length;
+      // CSV fallback
+      if (type === "show_products" || type === "show_collections") return (raw || "").split(",").filter(Boolean).length;
+      return 0;
+    } catch (_) {
+      return (raw || "").split(",").filter(Boolean).length;
+    }
+  };
 
   // Answer 1
   const [answer1Text, setAnswer1Text] = useState(question.answers[0].answer_text);
@@ -328,15 +380,71 @@ export default function EditQuestion() {
                 helpText="What happens when customer selects this answer"
               />
 
-              <TextField
-                label="Action Data"
-                value={answer1ActionData}
-                onChange={setAnswer1ActionData}
-                placeholder={getActionDataPlaceholder(answer1ActionType)}
-                autoComplete="off"
-                multiline={answer1ActionType === "show_text" ? 3 : false}
-                helpText={getActionDataHelpText(answer1ActionType)}
-              />
+              {answer1ActionType === "show_products" && (
+                <InlineStack gap="200" blockAlign="center">
+                  <Button onClick={() => handlePickProducts(1)}>Pick products</Button>
+                  <Text as="span" tone="subdued">{parseCount(answer1ActionData, "show_products")} selected</Text>
+                  <Button plain onClick={() => setShowAdvancedJson1((v) => !v)}>
+                    {showAdvancedJson1 ? "Hide Advanced JSON" : "Advanced JSON"}
+                  </Button>
+                </InlineStack>
+              )}
+
+              {answer1ActionType === "show_products" && answer1PreviewItems?.length ? (
+                <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
+                  {answer1PreviewItems.map((p) => (
+                    <Box key={p.id} padding="150" background="bg-surface-secondary" borderRadius="100">
+                      <BlockStack gap="100" inlineAlign="center">
+                        {p.image ? (
+                          <img src={p.image} alt={p.title || p.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }} />
+                        ) : null}
+                        <Text as="span" variant="bodySm" truncate>
+                          {p.title || p.id}
+                        </Text>
+                      </BlockStack>
+                    </Box>
+                  ))}
+                </InlineGrid>
+              ) : null}
+
+              {answer1ActionType === "show_collections" && (
+                <InlineStack gap="200" blockAlign="center">
+                  <Button onClick={() => handlePickCollections(1)}>Pick collections</Button>
+                  <Text as="span" tone="subdued">{parseCount(answer1ActionData, "show_collections")} selected</Text>
+                  <Button plain onClick={() => setShowAdvancedJson1((v) => !v)}>
+                    {showAdvancedJson1 ? "Hide Advanced JSON" : "Advanced JSON"}
+                  </Button>
+                </InlineStack>
+              )}
+
+              {answer1ActionType === "show_collections" && answer1PreviewItems?.length ? (
+                <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
+                  {answer1PreviewItems.map((c) => (
+                    <Box key={c.id} padding="150" background="bg-surface-secondary" borderRadius="100">
+                      <BlockStack gap="100" inlineAlign="center">
+                        {c.image ? (
+                          <img src={c.image} alt={c.title || c.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }} />
+                        ) : null}
+                        <Text as="span" variant="bodySm" truncate>
+                          {c.title || c.id}
+                        </Text>
+                      </BlockStack>
+                    </Box>
+                  ))}
+                </InlineGrid>
+              ) : null}
+
+              {showAdvancedJson1 || answer1ActionType === "show_text" ? (
+                <TextField
+                  label="Action Data"
+                  value={answer1ActionData}
+                  onChange={setAnswer1ActionData}
+                  placeholder={getActionDataPlaceholder(answer1ActionType)}
+                  autoComplete="off"
+                  multiline={answer1ActionType === "show_text" ? 3 : false}
+                  helpText={getActionDataHelpText(answer1ActionType)}
+                />
+              ) : null}
             </BlockStack>
           </Card>
 
@@ -368,15 +476,71 @@ export default function EditQuestion() {
                 helpText="What happens when customer selects this answer"
               />
 
-              <TextField
-                label="Action Data"
-                value={answer2ActionData}
-                onChange={setAnswer2ActionData}
-                placeholder={getActionDataPlaceholder(answer2ActionType)}
-                autoComplete="off"
-                multiline={answer2ActionType === "show_text" ? 3 : false}
-                helpText={getActionDataHelpText(answer2ActionType)}
-              />
+              {answer2ActionType === "show_products" && (
+                <InlineStack gap="200" blockAlign="center">
+                  <Button onClick={() => handlePickProducts(2)}>Pick products</Button>
+                  <Text as="span" tone="subdued">{parseCount(answer2ActionData, "show_products")} selected</Text>
+                  <Button plain onClick={() => setShowAdvancedJson2((v) => !v)}>
+                    {showAdvancedJson2 ? "Hide Advanced JSON" : "Advanced JSON"}
+                  </Button>
+                </InlineStack>
+              )}
+
+              {answer2ActionType === "show_products" && answer2PreviewItems?.length ? (
+                <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
+                  {answer2PreviewItems.map((p) => (
+                    <Box key={p.id} padding="150" background="bg-surface-secondary" borderRadius="100">
+                      <BlockStack gap="100" inlineAlign="center">
+                        {p.image ? (
+                          <img src={p.image} alt={p.title || p.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }} />
+                        ) : null}
+                        <Text as="span" variant="bodySm" truncate>
+                          {p.title || p.id}
+                        </Text>
+                      </BlockStack>
+                    </Box>
+                  ))}
+                </InlineGrid>
+              ) : null}
+
+              {answer2ActionType === "show_collections" && (
+                <InlineStack gap="200" blockAlign="center">
+                  <Button onClick={() => handlePickCollections(2)}>Pick collections</Button>
+                  <Text as="span" tone="subdued">{parseCount(answer2ActionData, "show_collections")} selected</Text>
+                  <Button plain onClick={() => setShowAdvancedJson2((v) => !v)}>
+                    {showAdvancedJson2 ? "Hide Advanced JSON" : "Advanced JSON"}
+                  </Button>
+                </InlineStack>
+              )}
+
+              {answer2ActionType === "show_collections" && answer2PreviewItems?.length ? (
+                <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
+                  {answer2PreviewItems.map((c) => (
+                    <Box key={c.id} padding="150" background="bg-surface-secondary" borderRadius="100">
+                      <BlockStack gap="100" inlineAlign="center">
+                        {c.image ? (
+                          <img src={c.image} alt={c.title || c.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }} />
+                        ) : null}
+                        <Text as="span" variant="bodySm" truncate>
+                          {c.title || c.id}
+                        </Text>
+                      </BlockStack>
+                    </Box>
+                  ))}
+                </InlineGrid>
+              ) : null}
+
+              {showAdvancedJson2 || answer2ActionType === "show_text" ? (
+                <TextField
+                  label="Action Data"
+                  value={answer2ActionData}
+                  onChange={setAnswer2ActionData}
+                  placeholder={getActionDataPlaceholder(answer2ActionType)}
+                  autoComplete="off"
+                  multiline={answer2ActionType === "show_text" ? 3 : false}
+                  helpText={getActionDataHelpText(answer2ActionType)}
+                />
+              ) : null}
             </BlockStack>
           </Card>
         </Layout.Section>
