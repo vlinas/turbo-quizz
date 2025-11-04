@@ -30,7 +30,7 @@ import {
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { useAppBridge } from "@shopify/app-bridge-react";
+import { useAppBridge } from "@shopify/shopify-app-remix/react";
 
 export const loader = async ({ request, params }) => {
   const { session } = await authenticate.admin(request);
