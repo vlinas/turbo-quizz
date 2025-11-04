@@ -30,7 +30,6 @@ import {
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { useAppBridge } from "@shopify/shopify-app-remix/react";
 
 export const loader = async ({ request, params }) => {
   const { session } = await authenticate.admin(request);
@@ -403,7 +402,6 @@ export default function QuizBuilder() {
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
-  const appBridge = useAppBridge();
 
   const [title, setTitle] = useState(quiz.title);
   const [description, setDescription] = useState(quiz.description || "");
@@ -596,72 +594,6 @@ export default function QuizBuilder() {
 
     setEditingQuestionId(question.question_id);
     setShowAddQuestion(true);
-  };
-
-  // Resource Picker handlers for Answer 1
-  const handleSelectAnswer1Products = async () => {
-    const selected = await appBridge.resourcePicker({
-      type: "product",
-      multiple: 3,
-      selectionIds: newAnswer1Products.map(p => ({ id: p.id })),
-    });
-
-    if (selected) {
-      setNewAnswer1Products(selected);
-    }
-  };
-
-  const handleSelectAnswer1Collections = async () => {
-    const selected = await appBridge.resourcePicker({
-      type: "collection",
-      multiple: 3,
-      selectionIds: newAnswer1Collections.map(c => ({ id: c.id })),
-    });
-
-    if (selected) {
-      setNewAnswer1Collections(selected);
-    }
-  };
-
-  const handleRemoveAnswer1Product = (productId) => {
-    setNewAnswer1Products(newAnswer1Products.filter(p => p.id !== productId));
-  };
-
-  const handleRemoveAnswer1Collection = (collectionId) => {
-    setNewAnswer1Collections(newAnswer1Collections.filter(c => c.id !== collectionId));
-  };
-
-  // Resource Picker handlers for Answer 2
-  const handleSelectAnswer2Products = async () => {
-    const selected = await appBridge.resourcePicker({
-      type: "product",
-      multiple: 3,
-      selectionIds: newAnswer2Products.map(p => ({ id: p.id })),
-    });
-
-    if (selected) {
-      setNewAnswer2Products(selected);
-    }
-  };
-
-  const handleSelectAnswer2Collections = async () => {
-    const selected = await appBridge.resourcePicker({
-      type: "collection",
-      multiple: 3,
-      selectionIds: newAnswer2Collections.map(c => ({ id: c.id })),
-    });
-
-    if (selected) {
-      setNewAnswer2Collections(selected);
-    }
-  };
-
-  const handleRemoveAnswer2Product = (productId) => {
-    setNewAnswer2Products(newAnswer2Products.filter(p => p.id !== productId));
-  };
-
-  const handleRemoveAnswer2Collection = (collectionId) => {
-    setNewAnswer2Collections(newAnswer2Collections.filter(c => c.id !== collectionId));
   };
 
   return (
