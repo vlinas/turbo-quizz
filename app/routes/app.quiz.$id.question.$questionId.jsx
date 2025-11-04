@@ -62,7 +62,7 @@ export const loader = async ({ request, params }) => {
 };
 
 export const action = async ({ request, params }) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const { id, questionId } = params;
   const formData = await request.formData();
   const actionType = formData.get("_action");
@@ -85,36 +85,37 @@ export const action = async ({ request, params }) => {
       }, { status: 400 });
     }
 
-    // Build action data objects
-    const answer1Data = {
-      type: answer1_action_type,
-      ...(answer1_action_type === "show_text" && {
-        text: answer1_action_data
-      }),
-      ...(answer1_action_type === "show_products" && {
-        product_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
-        display_style: "grid"
-      }),
-      ...(answer1_action_type === "show_collections" && {
-        collection_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
-        display_style: "grid"
-      }),
+    // Build normalized action_data with full objects and custom text
+    const toGids = (ids) => ids.map((id) => (String(id).startsWith("gid://") ? id : `gid://shopify/Product/${String(id)}`));
+    const toCollectionGids = (ids) => ids.map((id) => (String(id).startsWith("gid://") ? id : `gid://shopify/Collection/${String(id)}`));
+    const fetchNodesByIds = async (ids) => {
+      if (!ids || ids.length === 0) return [];
+      const query = `#graphql\n        query Nodes($ids: [ID!]!) {\n          nodes(ids: $ids) {\n            __typename\n            ... on Product { id title handle images(first: 1) { edges { node { originalSrc url } } } variants(first: 1) { edges { node { price } } } }\n            ... on Collection { id title handle image { originalSrc url } }\n          }\n        }`;
+      const res = await admin.graphql(query, { variables: { ids } });
+      const json = await res.json();
+      return Array.isArray(json?.data?.nodes) ? json.data.nodes.filter(Boolean) : [];
     };
 
-    const answer2Data = {
-      type: answer2_action_type,
-      ...(answer2_action_type === "show_text" && {
-        text: answer2_action_data
-      }),
-      ...(answer2_action_type === "show_products" && {
-        product_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
-        display_style: "grid"
-      }),
-      ...(answer2_action_type === "show_collections" && {
-        collection_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
-        display_style: "grid"
-      }),
+    const answer1_custom_text = formData.get("answer1_custom_text") || "";
+    const answer2_custom_text = formData.get("answer2_custom_text") || "";
+
+    const buildData = async (type, raw, customTextDefault) => {
+      if (type === "show_text") return { text: raw };
+      if (type === "show_products") {
+        const ids = (raw || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 3);
+        const nodes = await fetchNodesByIds(toGids(ids));
+        return { products: nodes, custom_text: customTextDefault || "Based on your answers, we recommend these products:" };
+      }
+      if (type === "show_collections") {
+        const ids = (raw || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 3);
+        const nodes = await fetchNodesByIds(toCollectionGids(ids));
+        return { collections: nodes, custom_text: customTextDefault || "Based on your answers, check out these collections:" };
+      }
+      return {};
     };
+
+    const answer1Data = await buildData(answer1_action_type, answer1_action_data, answer1_custom_text);
+    const answer2Data = await buildData(answer2_action_type, answer2_action_data, answer2_custom_text);
 
     try {
       // Update question and answers in transaction
@@ -205,10 +206,11 @@ export default function EditQuestion() {
   const handlePickProducts = async (which) => {
     const selection = await openResourcePicker("product", true);
     if (!selection.length) return;
-    const idsCsv = selection.map((s) => s.id).join(",");
+    const capped = selection.slice(0, 3);
+    const idsCsv = capped.map((s) => s.id).join(",");
     if (which === 1) setAnswer1ActionData(idsCsv);
     if (which === 2) setAnswer2ActionData(idsCsv);
-    const items = selection.map((s) => ({ id: s.id, title: s.title, image: s?.images?.[0]?.originalSrc || s?.image?.originalSrc }));
+    const items = capped.map((s) => ({ id: s.id, title: s.title, image: s?.images?.[0]?.originalSrc || s?.image?.originalSrc }));
     if (which === 1) setAnswer1PreviewItems(items);
     if (which === 2) setAnswer2PreviewItems(items);
   };
@@ -216,10 +218,11 @@ export default function EditQuestion() {
   const handlePickCollections = async (which) => {
     const selection = await openResourcePicker("collection", true);
     if (!selection.length) return;
-    const idsCsv = selection.map((s) => s.id).join(",");
+    const capped = selection.slice(0, 3);
+    const idsCsv = capped.map((s) => s.id).join(",");
     if (which === 1) setAnswer1ActionData(idsCsv);
     if (which === 2) setAnswer2ActionData(idsCsv);
-    const items = selection.map((s) => ({ id: s.id, title: s.title, image: s?.image?.originalSrc }));
+    const items = capped.map((s) => ({ id: s.id, title: s.title, image: s?.image?.originalSrc }));
     if (which === 1) setAnswer1PreviewItems(items);
     if (which === 2) setAnswer2PreviewItems(items);
   };
@@ -247,6 +250,7 @@ export default function EditQuestion() {
       ? question.answers[0].action_data.product_ids?.join(",") || ""
       : question.answers[0].action_data.collection_ids?.join(",") || ""
   );
+  const [answer1CustomText, setAnswer1CustomText] = useState("");
 
   // Answer 2
   const [answer2Text, setAnswer2Text] = useState(question.answers[1].answer_text);
@@ -258,6 +262,7 @@ export default function EditQuestion() {
       ? question.answers[1].action_data.product_ids?.join(",") || ""
       : question.answers[1].action_data.collection_ids?.join(",") || ""
   );
+  const [answer2CustomText, setAnswer2CustomText] = useState("");
 
   const actionTypeOptions = [
     { label: "Show Text Message", value: "show_text" },
@@ -274,10 +279,12 @@ export default function EditQuestion() {
     formData.append("answer1_text", answer1Text);
     formData.append("answer1_action_type", answer1ActionType);
     formData.append("answer1_action_data", answer1ActionData);
+    formData.append("answer1_custom_text", answer1CustomText);
     formData.append("answer2_id", question.answers[1].answer_id);
     formData.append("answer2_text", answer2Text);
     formData.append("answer2_action_type", answer2ActionType);
     formData.append("answer2_action_data", answer2ActionData);
+    formData.append("answer2_custom_text", answer2CustomText);
     submit(formData, { method: "post" });
   }, [questionText, answer1Text, answer1ActionType, answer1ActionData, answer2Text, answer2ActionType, answer2ActionData, question.answers, submit]);
 
@@ -385,10 +392,10 @@ export default function EditQuestion() {
                 <InlineStack gap="200" blockAlign="center">
                   <Button onClick={() => handlePickProducts(1)}>Pick products</Button>
                   <Text as="span" tone="subdued">{parseCount(answer1ActionData, "show_products")} selected</Text>
-                  <Button plain onClick={() => setShowAdvancedJson1((v) => !v)}>
-                    {showAdvancedJson1 ? "Hide Advanced JSON" : "Advanced JSON"}
-                  </Button>
                 </InlineStack>
+              )}
+              {answer1ActionType === "show_products" && (
+                <TextField label="Custom text" value={answer1CustomText} onChange={setAnswer1CustomText} placeholder="Based on your answers, we recommend these products:" />
               )}
 
               {answer1ActionType === "show_products" && answer1PreviewItems?.length ? (
@@ -412,10 +419,10 @@ export default function EditQuestion() {
                 <InlineStack gap="200" blockAlign="center">
                   <Button onClick={() => handlePickCollections(1)}>Pick collections</Button>
                   <Text as="span" tone="subdued">{parseCount(answer1ActionData, "show_collections")} selected</Text>
-                  <Button plain onClick={() => setShowAdvancedJson1((v) => !v)}>
-                    {showAdvancedJson1 ? "Hide Advanced JSON" : "Advanced JSON"}
-                  </Button>
                 </InlineStack>
+              )}
+              {answer1ActionType === "show_collections" && (
+                <TextField label="Custom text" value={answer1CustomText} onChange={setAnswer1CustomText} placeholder="Based on your answers, check out these collections:" />
               )}
 
               {answer1ActionType === "show_collections" && answer1PreviewItems?.length ? (
@@ -435,7 +442,7 @@ export default function EditQuestion() {
                 </InlineGrid>
               ) : null}
 
-              {showAdvancedJson1 || answer1ActionType === "show_text" ? (
+              {answer1ActionType === "show_text" ? (
                 <TextField
                   label="Action Data"
                   value={answer1ActionData}
@@ -481,10 +488,10 @@ export default function EditQuestion() {
                 <InlineStack gap="200" blockAlign="center">
                   <Button onClick={() => handlePickProducts(2)}>Pick products</Button>
                   <Text as="span" tone="subdued">{parseCount(answer2ActionData, "show_products")} selected</Text>
-                  <Button plain onClick={() => setShowAdvancedJson2((v) => !v)}>
-                    {showAdvancedJson2 ? "Hide Advanced JSON" : "Advanced JSON"}
-                  </Button>
                 </InlineStack>
+              )}
+              {answer2ActionType === "show_products" && (
+                <TextField label="Custom text" value={answer2CustomText} onChange={setAnswer2CustomText} placeholder="Based on your answers, we recommend these products:" />
               )}
 
               {answer2ActionType === "show_products" && answer2PreviewItems?.length ? (
@@ -508,10 +515,10 @@ export default function EditQuestion() {
                 <InlineStack gap="200" blockAlign="center">
                   <Button onClick={() => handlePickCollections(2)}>Pick collections</Button>
                   <Text as="span" tone="subdued">{parseCount(answer2ActionData, "show_collections")} selected</Text>
-                  <Button plain onClick={() => setShowAdvancedJson2((v) => !v)}>
-                    {showAdvancedJson2 ? "Hide Advanced JSON" : "Advanced JSON"}
-                  </Button>
                 </InlineStack>
+              )}
+              {answer2ActionType === "show_collections" && (
+                <TextField label="Custom text" value={answer2CustomText} onChange={setAnswer2CustomText} placeholder="Based on your answers, check out these collections:" />
               )}
 
               {answer2ActionType === "show_collections" && answer2PreviewItems?.length ? (
@@ -531,7 +538,7 @@ export default function EditQuestion() {
                 </InlineGrid>
               ) : null}
 
-              {showAdvancedJson2 || answer2ActionType === "show_text" ? (
+              {answer2ActionType === "show_text" ? (
                 <TextField
                   label="Action Data"
                   value={answer2ActionData}

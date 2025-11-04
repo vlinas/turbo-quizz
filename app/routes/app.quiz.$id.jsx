@@ -185,11 +185,19 @@ export const action = async ({ request, params }) => {
       } else if (answer1_action_type === "show_html") {
         answer1Data = { html: answer1_action_data };
       } else if (answer1_action_type === "show_products" || answer1_action_type === "show_collections") {
-        // Parse JSON data from form
+        // Resolve IDs to full nodes and cap to 3
         try {
-          answer1Data = JSON.parse(answer1_action_data || "{}");
+          const parsed = JSON.parse(answer1_action_data || "{}");
+          if (answer1_action_type === "show_products") {
+            const ids = (parsed.products || []).map((p) => p.id || p).slice(0, 3);
+            const nodes = await fetchNodesByIds(toGids(ids));
+            answer1Data = { products: nodes, custom_text: (formData.get("answer1_custom_text") || parsed.custom_text || "Based on your answers, we recommend these products:") };
+          } else {
+            const ids = (parsed.collections || []).map((c) => c.id || c).slice(0, 3);
+            const nodes = await fetchNodesByIds(toCollectionGids(ids));
+            answer1Data = { collections: nodes, custom_text: (formData.get("answer1_custom_text") || parsed.custom_text || "Based on your answers, check out these collections:") };
+          }
         } catch (e) {
-          // Fallback to old format if JSON parse fails
           answer1Data = answer1_action_type === "show_products" ? {
             products: [],
             custom_text: "Based on your answers, we recommend these products:"
@@ -205,11 +213,18 @@ export const action = async ({ request, params }) => {
       } else if (answer2_action_type === "show_html") {
         answer2Data = { html: answer2_action_data };
       } else if (answer2_action_type === "show_products" || answer2_action_type === "show_collections") {
-        // Parse JSON data from form
         try {
-          answer2Data = JSON.parse(answer2_action_data || "{}");
+          const parsed = JSON.parse(answer2_action_data || "{}");
+          if (answer2_action_type === "show_products") {
+            const ids = (parsed.products || []).map((p) => p.id || p).slice(0, 3);
+            const nodes = await fetchNodesByIds(toGids(ids));
+            answer2Data = { products: nodes, custom_text: (formData.get("answer2_custom_text") || parsed.custom_text || "Based on your answers, we recommend these products:") };
+          } else {
+            const ids = (parsed.collections || []).map((c) => c.id || c).slice(0, 3);
+            const nodes = await fetchNodesByIds(toCollectionGids(ids));
+            answer2Data = { collections: nodes, custom_text: (formData.get("answer2_custom_text") || parsed.custom_text || "Based on your answers, check out these collections:") };
+          }
         } catch (e) {
-          // Fallback to old format if JSON parse fails
           answer2Data = answer2_action_type === "show_products" ? {
             products: [],
             custom_text: "Based on your answers, we recommend these products:"
@@ -423,6 +438,8 @@ export default function QuizBuilder() {
   const [showAdvancedJson2, setShowAdvancedJson2] = useState(false);
   const [answer1PreviewItems, setAnswer1PreviewItems] = useState([]);
   const [answer2PreviewItems, setAnswer2PreviewItems] = useState([]);
+  const [answer1CustomText, setAnswer1CustomText] = useState("");
+  const [answer2CustomText, setAnswer2CustomText] = useState("");
 
   // Resource pickers (uses App Bridge picker if available)
   const openResourcePicker = async (type, multiple = true, initialSelection = []) => {
@@ -441,13 +458,13 @@ export default function QuizBuilder() {
   const handlePickProductsForAnswer = async (which) => {
     const selection = await openResourcePicker("product", true);
     if (!selection.length) return;
-    // For the builder screen we store JSON in textarea
-    const products = selection.map((s) => ({ id: s.id }));
+    const capped = selection.slice(0, 3);
+    const products = capped.map((s) => ({ id: s.id }));
     const defaultText = "Based on your answers, we recommend these products:";
-    const jsonString = JSON.stringify({ products, custom_text: defaultText }, null, 2);
+    const jsonString = JSON.stringify({ products, custom_text: which === 1 ? (answer1CustomText || defaultText) : (answer2CustomText || defaultText) }, null, 2);
     if (which === 1) setNewAnswer1ActionData(jsonString);
     if (which === 2) setNewAnswer2ActionData(jsonString);
-    const items = selection.map((s) => ({ id: s.id, title: s.title, image: s?.images?.[0]?.originalSrc || s?.image?.originalSrc }));
+    const items = capped.map((s) => ({ id: s.id, title: s.title, image: s?.images?.[0]?.originalSrc || s?.image?.originalSrc }));
     if (which === 1) setAnswer1PreviewItems(items);
     if (which === 2) setAnswer2PreviewItems(items);
   };
@@ -455,12 +472,13 @@ export default function QuizBuilder() {
   const handlePickCollectionsForAnswer = async (which) => {
     const selection = await openResourcePicker("collection", true);
     if (!selection.length) return;
-    const collections = selection.map((s) => ({ id: s.id }));
+    const capped = selection.slice(0, 3);
+    const collections = capped.map((s) => ({ id: s.id }));
     const defaultText = "Based on your answers, check out these collections:";
-    const jsonString = JSON.stringify({ collections, custom_text: defaultText }, null, 2);
+    const jsonString = JSON.stringify({ collections, custom_text: which === 1 ? (answer1CustomText || defaultText) : (answer2CustomText || defaultText) }, null, 2);
     if (which === 1) setNewAnswer1ActionData(jsonString);
     if (which === 2) setNewAnswer2ActionData(jsonString);
-    const items = selection.map((s) => ({ id: s.id, title: s.title, image: s?.image?.originalSrc }));
+    const items = capped.map((s) => ({ id: s.id, title: s.title, image: s?.image?.originalSrc }));
     if (which === 1) setAnswer1PreviewItems(items);
     if (which === 2) setAnswer2PreviewItems(items);
   };
@@ -512,10 +530,16 @@ export default function QuizBuilder() {
     formData.append("answer1_text", newAnswer1Text);
     formData.append("answer1_action_type", newAnswer1ActionType);
     formData.append("answer1_action_data", newAnswer1ActionData);
+    if (newAnswer1ActionType === "show_products" || newAnswer1ActionType === "show_collections") {
+      formData.append("answer1_custom_text", answer1CustomText);
+    }
 
     formData.append("answer2_text", newAnswer2Text);
     formData.append("answer2_action_type", newAnswer2ActionType);
     formData.append("answer2_action_data", newAnswer2ActionData);
+    if (newAnswer2ActionType === "show_products" || newAnswer2ActionType === "show_collections") {
+      formData.append("answer2_custom_text", answer2CustomText);
+    }
 
     submit(formData, { method: "post" });
 
@@ -772,10 +796,8 @@ export default function QuizBuilder() {
                             <Text as="span" tone="subdued">
                               {parsePreview(newAnswer1ActionData, "show_products").length} selected
                             </Text>
-                            <Button plain onClick={() => setShowAdvancedJson1((v) => !v)}>
-                              {showAdvancedJson1 ? "Hide Advanced JSON" : "Advanced JSON"}
-                            </Button>
                           </InlineStack>
+                          <TextField label="Custom text" value={answer1CustomText} onChange={setAnswer1CustomText} placeholder="Based on your answers, we recommend these products:" />
                           {answer1PreviewItems?.length ? (
                             <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
                               {answer1PreviewItems.map((p) => (
@@ -792,17 +814,6 @@ export default function QuizBuilder() {
                               ))}
                             </InlineGrid>
                           ) : null}
-                          {!showAdvancedJson1 ? null : (
-                            <TextField
-                              label="Products JSON Data"
-                              value={newAnswer1ActionData}
-                              onChange={setNewAnswer1ActionData}
-                              placeholder='{"products": [/* product GIDs */], "custom_text": "Based on your answers..."}'
-                              multiline={8}
-                              autoComplete="off"
-                              helpText='Use the picker or enter JSON with "products" array and "custom_text".'
-                            />
-                          )}
                         </BlockStack>
                       )}
 
@@ -813,10 +824,8 @@ export default function QuizBuilder() {
                             <Text as="span" tone="subdued">
                               {parsePreview(newAnswer1ActionData, "show_collections").length} selected
                             </Text>
-                            <Button plain onClick={() => setShowAdvancedJson1((v) => !v)}>
-                              {showAdvancedJson1 ? "Hide Advanced JSON" : "Advanced JSON"}
-                            </Button>
                           </InlineStack>
+                          <TextField label="Custom text" value={answer1CustomText} onChange={setAnswer1CustomText} placeholder="Based on your answers, check out these collections:" />
                           {answer1PreviewItems?.length ? (
                             <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
                               {answer1PreviewItems.map((c) => (
@@ -833,17 +842,6 @@ export default function QuizBuilder() {
                               ))}
                             </InlineGrid>
                           ) : null}
-                          {!showAdvancedJson1 ? null : (
-                            <TextField
-                              label="Collections JSON Data"
-                              value={newAnswer1ActionData}
-                              onChange={setNewAnswer1ActionData}
-                              placeholder='{"collections": [/* collection GIDs */], "custom_text": "Check out these collections..."}'
-                              multiline={8}
-                              autoComplete="off"
-                              helpText='Use the picker or enter JSON with "collections" array and "custom_text".'
-                            />
-                          )}
                         </BlockStack>
                       )}
                     </BlockStack>
@@ -904,10 +902,8 @@ export default function QuizBuilder() {
                             <Text as="span" tone="subdued">
                               {parsePreview(newAnswer2ActionData, "show_products").length} selected
                             </Text>
-                            <Button plain onClick={() => setShowAdvancedJson2((v) => !v)}>
-                              {showAdvancedJson2 ? "Hide Advanced JSON" : "Advanced JSON"}
-                            </Button>
                           </InlineStack>
+                          <TextField label="Custom text" value={answer2CustomText} onChange={setAnswer2CustomText} placeholder="Based on your answers, we recommend these products:" />
                           {answer2PreviewItems?.length ? (
                             <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
                               {answer2PreviewItems.map((p) => (
@@ -924,17 +920,6 @@ export default function QuizBuilder() {
                               ))}
                             </InlineGrid>
                           ) : null}
-                          {!showAdvancedJson2 ? null : (
-                            <TextField
-                              label="Products JSON Data"
-                              value={newAnswer2ActionData}
-                              onChange={setNewAnswer2ActionData}
-                              placeholder='{"products": [/* product GIDs */], "custom_text": "Based on your answers..."}'
-                              multiline={8}
-                              autoComplete="off"
-                              helpText='Use the picker or enter JSON with "products" array and "custom_text".'
-                            />
-                          )}
                         </BlockStack>
                       )}
 
@@ -945,10 +930,8 @@ export default function QuizBuilder() {
                             <Text as="span" tone="subdued">
                               {parsePreview(newAnswer2ActionData, "show_collections").length} selected
                             </Text>
-                            <Button plain onClick={() => setShowAdvancedJson2((v) => !v)}>
-                              {showAdvancedJson2 ? "Hide Advanced JSON" : "Advanced JSON"}
-                            </Button>
                           </InlineStack>
+                          <TextField label="Custom text" value={answer2CustomText} onChange={setAnswer2CustomText} placeholder="Based on your answers, check out these collections:" />
                           {answer2PreviewItems?.length ? (
                             <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
                               {answer2PreviewItems.map((c) => (
@@ -965,17 +948,6 @@ export default function QuizBuilder() {
                               ))}
                             </InlineGrid>
                           ) : null}
-                          {!showAdvancedJson2 ? null : (
-                            <TextField
-                              label="Collections JSON Data"
-                              value={newAnswer2ActionData}
-                              onChange={setNewAnswer2ActionData}
-                              placeholder='{"collections": [/* collection GIDs */], "custom_text": "Check out these collections..."}'
-                              multiline={8}
-                              autoComplete="off"
-                              helpText='Use the picker or enter JSON with "collections" array and "custom_text".'
-                            />
-                          )}
                         </BlockStack>
                       )}
                     </BlockStack>
