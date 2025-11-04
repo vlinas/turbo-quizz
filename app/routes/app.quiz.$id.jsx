@@ -410,11 +410,26 @@ export const action = async ({ request, params }) => {
       } else if (answer1_action_type === "show_html") {
         answer1Data = { html: answer1_action_data };
       } else if (answer1_action_type === "show_products" || answer1_action_type === "show_collections") {
-        // Parse JSON data from form
+        // Resolve IDs to full nodes and cap to 3 (same as add_question)
         try {
-          answer1Data = JSON.parse(answer1_action_data || "{}");
+          const parsed = JSON.parse(answer1_action_data || "{}");
+          console.log("[Update Answer 1] Parsed data:", parsed);
+          if (answer1_action_type === "show_products") {
+            const ids = (parsed.products || []).map((p) => p.id || p).slice(0, 3);
+            console.log("[Update Answer 1] Product IDs to fetch:", ids);
+            const nodes = await fetchNodesByIds(toGids(ids), admin);
+            console.log("[Update Answer 1] Fetched product nodes:", nodes);
+            answer1Data = { products: nodes, custom_text: (formData.get("answer1_custom_text") || parsed.custom_text || "Based on your answers, we recommend these products:") };
+          } else {
+            const ids = (parsed.collections || []).map((c) => c.id || c).slice(0, 3);
+            console.log("[Update Answer 1] Collection IDs to fetch:", ids);
+            const nodes = await fetchNodesByIds(toCollectionGids(ids), admin);
+            console.log("[Update Answer 1] Fetched collection nodes:", nodes);
+            answer1Data = { collections: nodes, custom_text: (formData.get("answer1_custom_text") || parsed.custom_text || "Based on your answers, check out these collections:") };
+          }
+          console.log("[Update Answer 1] Final answer1Data:", answer1Data);
         } catch (e) {
-          // Fallback to old format if JSON parse fails
+          console.error("[Update Answer 1] Error parsing/fetching:", e);
           answer1Data = answer1_action_type === "show_products" ? {
             products: [],
             custom_text: "Based on your answers, we recommend these products:"
@@ -430,11 +445,26 @@ export const action = async ({ request, params }) => {
       } else if (answer2_action_type === "show_html") {
         answer2Data = { html: answer2_action_data };
       } else if (answer2_action_type === "show_products" || answer2_action_type === "show_collections") {
-        // Parse JSON data from form
+        // Resolve IDs to full nodes and cap to 3 (same as add_question)
         try {
-          answer2Data = JSON.parse(answer2_action_data || "{}");
+          const parsed = JSON.parse(answer2_action_data || "{}");
+          console.log("[Update Answer 2] Parsed data:", parsed);
+          if (answer2_action_type === "show_products") {
+            const ids = (parsed.products || []).map((p) => p.id || p).slice(0, 3);
+            console.log("[Update Answer 2] Product IDs to fetch:", ids);
+            const nodes = await fetchNodesByIds(toGids(ids), admin);
+            console.log("[Update Answer 2] Fetched product nodes:", nodes);
+            answer2Data = { products: nodes, custom_text: (formData.get("answer2_custom_text") || parsed.custom_text || "Based on your answers, we recommend these products:") };
+          } else {
+            const ids = (parsed.collections || []).map((c) => c.id || c).slice(0, 3);
+            console.log("[Update Answer 2] Collection IDs to fetch:", ids);
+            const nodes = await fetchNodesByIds(toCollectionGids(ids), admin);
+            console.log("[Update Answer 2] Fetched collection nodes:", nodes);
+            answer2Data = { collections: nodes, custom_text: (formData.get("answer2_custom_text") || parsed.custom_text || "Based on your answers, check out these collections:") };
+          }
+          console.log("[Update Answer 2] Final answer2Data:", answer2Data);
         } catch (e) {
-          // Fallback to old format if JSON parse fails
+          console.error("[Update Answer 2] Error parsing/fetching:", e);
           answer2Data = answer2_action_type === "show_products" ? {
             products: [],
             custom_text: "Based on your answers, we recommend these products:"
