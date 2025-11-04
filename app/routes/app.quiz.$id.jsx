@@ -902,20 +902,21 @@ export default function QuizBuilder() {
     >
       <Layout>
         <Layout.Section>
-          {actionData?.success && (
-            <Banner tone="success" onDismiss={() => {}}>
-              <p>Quiz updated successfully!</p>
-            </Banner>
-          )}
+          <BlockStack gap="500">
+            {actionData?.success && (
+              <Banner tone="success" onDismiss={() => {}}>
+                <p>Quiz updated successfully!</p>
+              </Banner>
+            )}
 
-          {actionData?.error && (
-            <Banner tone="critical" onDismiss={() => {}}>
-              <p>{actionData.error}</p>
-            </Banner>
-          )}
+            {actionData?.error && (
+              <Banner tone="critical" onDismiss={() => {}}>
+                <p>{actionData.error}</p>
+              </Banner>
+            )}
 
-          {/* Analytics Section */}
-          <Card>
+            {/* Analytics Section */}
+            <Card>
             <BlockStack gap="400">
               <InlineStack align="space-between" blockAlign="center">
                 <Text as="h2" variant="headingMd">
@@ -1419,38 +1420,41 @@ export default function QuizBuilder() {
               ) : null}
             </BlockStack>
           </Card>
+          </BlockStack>
         </Layout.Section>
 
         <Layout.Section variant="oneThird">
-          {/* Quiz Stats */}
-          <Card>
-            <BlockStack gap="300">
-              <Text as="h3" variant="headingSm">
-                Quiz Stats
-              </Text>
-              <BlockStack gap="200">
-                <InlineStack align="space-between">
-                  <Text as="span" tone="subdued">Questions</Text>
-                  <Text as="span" fontWeight="semibold">{quiz.questions.length}</Text>
-                </InlineStack>
+          <BlockStack gap="500">
+            {/* Quiz Stats */}
+            <Card>
+              <BlockStack gap="300">
+                <Text as="h3" variant="headingSm">
+                  Quiz Stats
+                </Text>
+                <BlockStack gap="200">
+                  <InlineStack align="space-between">
+                    <Text as="span" tone="subdued">Questions</Text>
+                    <Text as="span" fontWeight="semibold">{quiz.questions.length}</Text>
+                  </InlineStack>
+                </BlockStack>
               </BlockStack>
-            </BlockStack>
-          </Card>
+            </Card>
 
-          {/* Help Card */}
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h3" variant="headingSm">
-                Tips
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                • Each question should have exactly 2 answer options
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                • Configure actions to show products, collections, or custom text based on answers
-              </Text>
-            </BlockStack>
-          </Card>
+            {/* Help Card */}
+            <Card>
+              <BlockStack gap="200">
+                <Text as="h3" variant="headingSm">
+                  Tips
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  • Each question should have exactly 2 answer options
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  • Configure actions to show products, collections, or custom text based on answers
+                </Text>
+              </BlockStack>
+            </Card>
+          </BlockStack>
         </Layout.Section>
       </Layout>
 
