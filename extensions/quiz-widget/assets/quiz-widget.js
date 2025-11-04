@@ -281,25 +281,34 @@
     }
 
     renderProductsResult(actionData) {
-      const productIds = actionData.product_ids || [];
-      const displayStyle = actionData.display_style || 'grid';
+      const products = actionData.products || [];
+      const customText = actionData.custom_text || 'Based on your answers, we recommend these products:';
 
-      // Note: In a real implementation, you would fetch product data from Shopify
-      // For now, we'll show product IDs with links
+      if (products.length === 0) {
+        return '<p>No products available.</p>';
+      }
+
       return `
         <div class="turbo-quiz-products-result">
-          <h3>Recommended Products</h3>
-          <p class="turbo-quiz-info">Based on your answers, we recommend these products:</p>
-          <div class="turbo-quiz-products ${displayStyle}">
-            ${productIds
-              .map(
-                (id) => `
-              <div class="turbo-quiz-product-card">
-                <p>Product ID: ${id}</p>
-                <a href="/products/${id}" class="turbo-quiz-product-link">View Product</a>
-              </div>
-            `
-              )
+          <p class="turbo-quiz-custom-text">${customText}</p>
+          <div class="turbo-quiz-products-grid">
+            ${products
+              .map((product) => {
+                const imageUrl = product.images?.[0]?.originalSrc || '';
+                const price = product.variants?.[0]?.price || '';
+                const handle = this.extractHandle(product.id);
+
+                return `
+                  <div class="turbo-quiz-product-card">
+                    ${imageUrl ? `<img src="${imageUrl}" alt="${product.title}" class="turbo-quiz-product-image" />` : ''}
+                    <div class="turbo-quiz-product-info">
+                      <h3 class="turbo-quiz-product-title">${product.title}</h3>
+                      ${price ? `<p class="turbo-quiz-product-price">$${price}</p>` : ''}
+                      <a href="/products/${handle}" class="turbo-quiz-shop-now-btn">Shop Now</a>
+                    </div>
+                  </div>
+                `;
+              })
               .join('')}
           </div>
         </div>
@@ -307,26 +316,45 @@
     }
 
     renderCollectionsResult(actionData) {
-      const collectionIds = actionData.collection_ids || [];
+      const collections = actionData.collections || [];
+      const customText = actionData.custom_text || 'Based on your answers, check out these collections:';
+
+      if (collections.length === 0) {
+        return '<p>No collections available.</p>';
+      }
 
       return `
         <div class="turbo-quiz-collections-result">
-          <h3>Recommended Collections</h3>
-          <p class="turbo-quiz-info">Based on your answers, check out these collections:</p>
-          <div class="turbo-quiz-collections">
-            ${collectionIds
-              .map(
-                (id) => `
-              <div class="turbo-quiz-collection-card">
-                <p>Collection ID: ${id}</p>
-                <a href="/collections/${id}" class="turbo-quiz-collection-link">Browse Collection</a>
-              </div>
-            `
-              )
+          <p class="turbo-quiz-custom-text">${customText}</p>
+          <div class="turbo-quiz-products-grid">
+            ${collections
+              .map((collection) => {
+                const imageUrl = collection.image?.originalSrc || '';
+                const handle = this.extractHandle(collection.id);
+
+                return `
+                  <div class="turbo-quiz-product-card">
+                    ${imageUrl ? `<img src="${imageUrl}" alt="${collection.title}" class="turbo-quiz-product-image" />` : ''}
+                    <div class="turbo-quiz-product-info">
+                      <h3 class="turbo-quiz-product-title">${collection.title}</h3>
+                      <a href="/collections/${handle}" class="turbo-quiz-shop-now-btn">Shop Now</a>
+                    </div>
+                  </div>
+                `;
+              })
               .join('')}
           </div>
         </div>
       `;
+    }
+
+    extractHandle(gid) {
+      // Extract handle/ID from Shopify GID
+      // Example: "gid://shopify/Product/123" -> "123"
+      // Or could be product handle depending on data structure
+      if (!gid) return '';
+      const parts = gid.split('/');
+      return parts[parts.length - 1];
     }
 
     restart() {

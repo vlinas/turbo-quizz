@@ -120,62 +120,80 @@
 }
 
 /* Products/Collections Result */
-.turbo-quiz-products-result h3,
-.turbo-quiz-collections-result h3 {
-  font-size: inherit;
-  font-weight: 600;
-  margin: 0 0 0.5rem 0;
-}
-
-.turbo-quiz-info {
-  opacity: 0.7;
+.turbo-quiz-custom-text {
+  font-size: 1.1em;
   margin: 0 0 1.5rem 0;
+  line-height: 1.5;
 }
 
-.turbo-quiz-products.grid,
-.turbo-quiz-collections {
+.turbo-quiz-products-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1.5rem;
   margin-top: 1rem;
 }
 
-.turbo-quiz-product-card,
-.turbo-quiz-collection-card {
+.turbo-quiz-product-card {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.turbo-quiz-product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.turbo-quiz-product-image {
+  width: 100%;
+  height: 250px;
+  object-fit: cover;
+  display: block;
+}
+
+.turbo-quiz-product-info {
   padding: 1rem;
-  border: 1px solid currentColor;
-  opacity: 0.7;
   text-align: center;
 }
 
-.turbo-quiz-product-card p,
-.turbo-quiz-collection-card p {
-  margin: 0 0 0.75rem 0;
-  font-size: 0.9em;
+.turbo-quiz-product-title {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  line-height: 1.3;
 }
 
-.turbo-quiz-product-link,
-.turbo-quiz-collection-link {
-  display: inline-block;
-  padding: 0.5rem 1rem;
-  background: transparent;
-  border: 1px solid currentColor;
+.turbo-quiz-product-price {
+  font-size: 1.2em;
+  font-weight: 700;
+  margin: 0 0 1rem 0;
   color: inherit;
-  text-decoration: none;
-  font-size: inherit;
-  transition: opacity 0.2s;
-  opacity: 0.7;
 }
 
-.turbo-quiz-product-link:hover,
-.turbo-quiz-collection-link:hover {
-  opacity: 1;
+.turbo-quiz-shop-now-btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: #000;
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.95em;
+  font-weight: 600;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.turbo-quiz-shop-now-btn:hover {
+  background: #333;
 }
 
 /* Responsive */
 @media (max-width: 640px) {
-  .turbo-quiz-products.grid,
-  .turbo-quiz-collections {
+  .turbo-quiz-products-grid {
     grid-template-columns: 1fr;
+  }
+
+  .turbo-quiz-product-image {
+    height: 200px;
   }
 }

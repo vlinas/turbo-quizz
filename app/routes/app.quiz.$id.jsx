@@ -26,9 +26,11 @@ import {
   DeleteIcon,
   PlusIcon,
   EditIcon,
+  ImageIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { useAppBridge } from "@shopify/app-bridge-react";
 
 export const loader = async ({ request, params }) => {
   const { session } = await authenticate.admin(request);
@@ -176,27 +178,48 @@ export const action = async ({ request, params }) => {
       }
 
       // Build action data objects
-      const answer1Data = answer1_action_type === "show_text" ? { text: answer1_action_data } :
-        answer1_action_type === "show_html" ? { html: answer1_action_data } :
-        answer1_action_type === "show_products" ? {
-          product_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
-          display_style: "grid"
-        } :
-        answer1_action_type === "show_collections" ? {
-          collection_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
-          display_style: "grid"
-        } : {};
+      let answer1Data = {};
+      let answer2Data = {};
 
-      const answer2Data = answer2_action_type === "show_text" ? { text: answer2_action_data } :
-        answer2_action_type === "show_html" ? { html: answer2_action_data } :
-        answer2_action_type === "show_products" ? {
-          product_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
-          display_style: "grid"
-        } :
-        answer2_action_type === "show_collections" ? {
-          collection_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
-          display_style: "grid"
-        } : {};
+      if (answer1_action_type === "show_text") {
+        answer1Data = { text: answer1_action_data };
+      } else if (answer1_action_type === "show_html") {
+        answer1Data = { html: answer1_action_data };
+      } else if (answer1_action_type === "show_products" || answer1_action_type === "show_collections") {
+        // Parse JSON data from form
+        try {
+          answer1Data = JSON.parse(answer1_action_data || "{}");
+        } catch (e) {
+          // Fallback to old format if JSON parse fails
+          answer1Data = answer1_action_type === "show_products" ? {
+            products: [],
+            custom_text: "Based on your answers, we recommend these products:"
+          } : {
+            collections: [],
+            custom_text: "Based on your answers, check out these collections:"
+          };
+        }
+      }
+
+      if (answer2_action_type === "show_text") {
+        answer2Data = { text: answer2_action_data };
+      } else if (answer2_action_type === "show_html") {
+        answer2Data = { html: answer2_action_data };
+      } else if (answer2_action_type === "show_products" || answer2_action_type === "show_collections") {
+        // Parse JSON data from form
+        try {
+          answer2Data = JSON.parse(answer2_action_data || "{}");
+        } catch (e) {
+          // Fallback to old format if JSON parse fails
+          answer2Data = answer2_action_type === "show_products" ? {
+            products: [],
+            custom_text: "Based on your answers, we recommend these products:"
+          } : {
+            collections: [],
+            custom_text: "Based on your answers, check out these collections:"
+          };
+        }
+      }
 
       // Create question with answers
       await prisma.question.create({
@@ -266,27 +289,48 @@ export const action = async ({ request, params }) => {
       }
 
       // Build action data objects
-      const answer1Data = answer1_action_type === "show_text" ? { text: answer1_action_data } :
-        answer1_action_type === "show_html" ? { html: answer1_action_data } :
-        answer1_action_type === "show_products" ? {
-          product_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
-          display_style: "grid"
-        } :
-        answer1_action_type === "show_collections" ? {
-          collection_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
-          display_style: "grid"
-        } : {};
+      let answer1Data = {};
+      let answer2Data = {};
 
-      const answer2Data = answer2_action_type === "show_text" ? { text: answer2_action_data } :
-        answer2_action_type === "show_html" ? { html: answer2_action_data } :
-        answer2_action_type === "show_products" ? {
-          product_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
-          display_style: "grid"
-        } :
-        answer2_action_type === "show_collections" ? {
-          collection_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
-          display_style: "grid"
-        } : {};
+      if (answer1_action_type === "show_text") {
+        answer1Data = { text: answer1_action_data };
+      } else if (answer1_action_type === "show_html") {
+        answer1Data = { html: answer1_action_data };
+      } else if (answer1_action_type === "show_products" || answer1_action_type === "show_collections") {
+        // Parse JSON data from form
+        try {
+          answer1Data = JSON.parse(answer1_action_data || "{}");
+        } catch (e) {
+          // Fallback to old format if JSON parse fails
+          answer1Data = answer1_action_type === "show_products" ? {
+            products: [],
+            custom_text: "Based on your answers, we recommend these products:"
+          } : {
+            collections: [],
+            custom_text: "Based on your answers, check out these collections:"
+          };
+        }
+      }
+
+      if (answer2_action_type === "show_text") {
+        answer2Data = { text: answer2_action_data };
+      } else if (answer2_action_type === "show_html") {
+        answer2Data = { html: answer2_action_data };
+      } else if (answer2_action_type === "show_products" || answer2_action_type === "show_collections") {
+        // Parse JSON data from form
+        try {
+          answer2Data = JSON.parse(answer2_action_data || "{}");
+        } catch (e) {
+          // Fallback to old format if JSON parse fails
+          answer2Data = answer2_action_type === "show_products" ? {
+            products: [],
+            custom_text: "Based on your answers, we recommend these products:"
+          } : {
+            collections: [],
+            custom_text: "Based on your answers, check out these collections:"
+          };
+        }
+      }
 
       // Update question and answers in a transaction
       await prisma.$transaction([
@@ -359,6 +403,7 @@ export default function QuizBuilder() {
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
+  const appBridge = useAppBridge();
 
   const [title, setTitle] = useState(quiz.title);
   const [description, setDescription] = useState(quiz.description || "");
@@ -373,9 +418,21 @@ export default function QuizBuilder() {
   const [newAnswer1ActionType, setNewAnswer1ActionType] = useState("show_text");
   const [newAnswer1ActionData, setNewAnswer1ActionData] = useState("");
 
+  // Products/Collections state for Answer 1
+  const [newAnswer1Products, setNewAnswer1Products] = useState([]);
+  const [newAnswer1ProductsText, setNewAnswer1ProductsText] = useState("Based on your answers, we recommend these products:");
+  const [newAnswer1Collections, setNewAnswer1Collections] = useState([]);
+  const [newAnswer1CollectionsText, setNewAnswer1CollectionsText] = useState("Based on your answers, check out these collections:");
+
   const [newAnswer2Text, setNewAnswer2Text] = useState("");
   const [newAnswer2ActionType, setNewAnswer2ActionType] = useState("show_text");
   const [newAnswer2ActionData, setNewAnswer2ActionData] = useState("");
+
+  // Products/Collections state for Answer 2
+  const [newAnswer2Products, setNewAnswer2Products] = useState([]);
+  const [newAnswer2ProductsText, setNewAnswer2ProductsText] = useState("Based on your answers, we recommend these products:");
+  const [newAnswer2Collections, setNewAnswer2Collections] = useState([]);
+  const [newAnswer2CollectionsText, setNewAnswer2CollectionsText] = useState("Based on your answers, check out these collections:");
 
   const handleSave = () => {
     setIsSubmitting(true);
@@ -412,11 +469,39 @@ export default function QuizBuilder() {
     formData.append("question_text", newQuestionText);
     formData.append("answer1_text", newAnswer1Text);
     formData.append("answer1_action_type", newAnswer1ActionType);
-    formData.append("answer1_action_data", newAnswer1ActionData);
+
+    // Build answer 1 action data
+    let answer1FinalData = newAnswer1ActionData;
+    if (newAnswer1ActionType === "show_products") {
+      answer1FinalData = JSON.stringify({
+        products: newAnswer1Products,
+        custom_text: newAnswer1ProductsText
+      });
+    } else if (newAnswer1ActionType === "show_collections") {
+      answer1FinalData = JSON.stringify({
+        collections: newAnswer1Collections,
+        custom_text: newAnswer1CollectionsText
+      });
+    }
+    formData.append("answer1_action_data", answer1FinalData);
 
     formData.append("answer2_text", newAnswer2Text);
     formData.append("answer2_action_type", newAnswer2ActionType);
-    formData.append("answer2_action_data", newAnswer2ActionData);
+
+    // Build answer 2 action data
+    let answer2FinalData = newAnswer2ActionData;
+    if (newAnswer2ActionType === "show_products") {
+      answer2FinalData = JSON.stringify({
+        products: newAnswer2Products,
+        custom_text: newAnswer2ProductsText
+      });
+    } else if (newAnswer2ActionType === "show_collections") {
+      answer2FinalData = JSON.stringify({
+        collections: newAnswer2Collections,
+        custom_text: newAnswer2CollectionsText
+      });
+    }
+    formData.append("answer2_action_data", answer2FinalData);
 
     submit(formData, { method: "post" });
 
@@ -425,9 +510,17 @@ export default function QuizBuilder() {
     setNewAnswer1Text("");
     setNewAnswer1ActionType("show_text");
     setNewAnswer1ActionData("");
+    setNewAnswer1Products([]);
+    setNewAnswer1ProductsText("Based on your answers, we recommend these products:");
+    setNewAnswer1Collections([]);
+    setNewAnswer1CollectionsText("Based on your answers, check out these collections:");
     setNewAnswer2Text("");
     setNewAnswer2ActionType("show_text");
     setNewAnswer2ActionData("");
+    setNewAnswer2Products([]);
+    setNewAnswer2ProductsText("Based on your answers, we recommend these products:");
+    setNewAnswer2Collections([]);
+    setNewAnswer2CollectionsText("Based on your answers, check out these collections:");
     setShowAddQuestion(false);
     setEditingQuestionId(null);
   };
@@ -438,9 +531,17 @@ export default function QuizBuilder() {
     setNewAnswer1Text("");
     setNewAnswer1ActionType("show_text");
     setNewAnswer1ActionData("");
+    setNewAnswer1Products([]);
+    setNewAnswer1ProductsText("Based on your answers, we recommend these products:");
+    setNewAnswer1Collections([]);
+    setNewAnswer1CollectionsText("Based on your answers, check out these collections:");
     setNewAnswer2Text("");
     setNewAnswer2ActionType("show_text");
     setNewAnswer2ActionData("");
+    setNewAnswer2Products([]);
+    setNewAnswer2ProductsText("Based on your answers, we recommend these products:");
+    setNewAnswer2Collections([]);
+    setNewAnswer2CollectionsText("Based on your answers, check out these collections:");
     setEditingQuestionId(null);
   };
 
@@ -468,9 +569,11 @@ export default function QuizBuilder() {
     } else if (answer1.action_type === "show_html") {
       setNewAnswer1ActionData(answer1.action_data.html || "");
     } else if (answer1.action_type === "show_products") {
-      setNewAnswer1ActionData(answer1.action_data.product_ids ? answer1.action_data.product_ids.join(",") : "");
+      setNewAnswer1Products(answer1.action_data.products || []);
+      setNewAnswer1ProductsText(answer1.action_data.custom_text || "Based on your answers, we recommend these products:");
     } else if (answer1.action_type === "show_collections") {
-      setNewAnswer1ActionData(answer1.action_data.collection_ids ? answer1.action_data.collection_ids.join(",") : "");
+      setNewAnswer1Collections(answer1.action_data.collections || []);
+      setNewAnswer1CollectionsText(answer1.action_data.custom_text || "Based on your answers, check out these collections:");
     }
 
     // Answer 2
@@ -484,13 +587,81 @@ export default function QuizBuilder() {
     } else if (answer2.action_type === "show_html") {
       setNewAnswer2ActionData(answer2.action_data.html || "");
     } else if (answer2.action_type === "show_products") {
-      setNewAnswer2ActionData(answer2.action_data.product_ids ? answer2.action_data.product_ids.join(",") : "");
+      setNewAnswer2Products(answer2.action_data.products || []);
+      setNewAnswer2ProductsText(answer2.action_data.custom_text || "Based on your answers, we recommend these products:");
     } else if (answer2.action_type === "show_collections") {
-      setNewAnswer2ActionData(answer2.action_data.collection_ids ? answer2.action_data.collection_ids.join(",") : "");
+      setNewAnswer2Collections(answer2.action_data.collections || []);
+      setNewAnswer2CollectionsText(answer2.action_data.custom_text || "Based on your answers, check out these collections:");
     }
 
     setEditingQuestionId(question.question_id);
     setShowAddQuestion(true);
+  };
+
+  // Resource Picker handlers for Answer 1
+  const handleSelectAnswer1Products = async () => {
+    const selected = await appBridge.resourcePicker({
+      type: "product",
+      multiple: 3,
+      selectionIds: newAnswer1Products.map(p => ({ id: p.id })),
+    });
+
+    if (selected) {
+      setNewAnswer1Products(selected);
+    }
+  };
+
+  const handleSelectAnswer1Collections = async () => {
+    const selected = await appBridge.resourcePicker({
+      type: "collection",
+      multiple: 3,
+      selectionIds: newAnswer1Collections.map(c => ({ id: c.id })),
+    });
+
+    if (selected) {
+      setNewAnswer1Collections(selected);
+    }
+  };
+
+  const handleRemoveAnswer1Product = (productId) => {
+    setNewAnswer1Products(newAnswer1Products.filter(p => p.id !== productId));
+  };
+
+  const handleRemoveAnswer1Collection = (collectionId) => {
+    setNewAnswer1Collections(newAnswer1Collections.filter(c => c.id !== collectionId));
+  };
+
+  // Resource Picker handlers for Answer 2
+  const handleSelectAnswer2Products = async () => {
+    const selected = await appBridge.resourcePicker({
+      type: "product",
+      multiple: 3,
+      selectionIds: newAnswer2Products.map(p => ({ id: p.id })),
+    });
+
+    if (selected) {
+      setNewAnswer2Products(selected);
+    }
+  };
+
+  const handleSelectAnswer2Collections = async () => {
+    const selected = await appBridge.resourcePicker({
+      type: "collection",
+      multiple: 3,
+      selectionIds: newAnswer2Collections.map(c => ({ id: c.id })),
+    });
+
+    if (selected) {
+      setNewAnswer2Collections(selected);
+    }
+  };
+
+  const handleRemoveAnswer2Product = (productId) => {
+    setNewAnswer2Products(newAnswer2Products.filter(p => p.id !== productId));
+  };
+
+  const handleRemoveAnswer2Collection = (collectionId) => {
+    setNewAnswer2Collections(newAnswer2Collections.filter(c => c.id !== collectionId));
   };
 
   return (
@@ -671,27 +842,126 @@ export default function QuizBuilder() {
                       )}
 
                       {newAnswer1ActionType === "show_products" && (
-                        <TextField
-                          label="Product IDs"
-                          value={newAnswer1ActionData}
-                          onChange={setNewAnswer1ActionData}
-                          placeholder="gid://shopify/Product/123,gid://shopify/Product/456"
-                          multiline={3}
-                          autoComplete="off"
-                          helpText="Enter product GIDs separated by commas (max 3). Example: gid://shopify/Product/123"
-                        />
+                        <BlockStack gap="300">
+                          <TextField
+                            label="Custom result text"
+                            value={newAnswer1ProductsText}
+                            onChange={setNewAnswer1ProductsText}
+                            placeholder="Based on your answers, we recommend these products:"
+                            autoComplete="off"
+                            helpText="Text shown above the product recommendations"
+                          />
+
+                          <Box>
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">
+                              Products (max 3)
+                            </Text>
+                            <Box paddingBlockStart="200">
+                              <Button onClick={handleSelectAnswer1Products}>
+                                {newAnswer1Products.length > 0 ? "Change products" : "Select products"}
+                              </Button>
+                            </Box>
+                          </Box>
+
+                          {newAnswer1Products.length > 0 && (
+                            <BlockStack gap="200">
+                              {newAnswer1Products.map((product) => (
+                                <Box
+                                  key={product.id}
+                                  padding="300"
+                                  background="bg-surface-secondary"
+                                  borderRadius="200"
+                                >
+                                  <InlineStack align="space-between" blockAlign="center" gap="300">
+                                    <InlineStack gap="300" blockAlign="center">
+                                      {product.images?.[0]?.originalSrc && (
+                                        <Thumbnail
+                                          source={product.images[0].originalSrc}
+                                          alt={product.title}
+                                          size="small"
+                                        />
+                                      )}
+                                      <BlockStack gap="100">
+                                        <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                          {product.title}
+                                        </Text>
+                                        {product.variants?.[0]?.price && (
+                                          <Text as="p" variant="bodySm" tone="subdued">
+                                            ${product.variants[0].price}
+                                          </Text>
+                                        )}
+                                      </BlockStack>
+                                    </InlineStack>
+                                    <Button
+                                      icon={DeleteIcon}
+                                      variant="plain"
+                                      tone="critical"
+                                      onClick={() => handleRemoveAnswer1Product(product.id)}
+                                    />
+                                  </InlineStack>
+                                </Box>
+                              ))}
+                            </BlockStack>
+                          )}
+                        </BlockStack>
                       )}
 
                       {newAnswer1ActionType === "show_collections" && (
-                        <TextField
-                          label="Collection IDs"
-                          value={newAnswer1ActionData}
-                          onChange={setNewAnswer1ActionData}
-                          placeholder="gid://shopify/Collection/123,gid://shopify/Collection/456"
-                          multiline={3}
-                          autoComplete="off"
-                          helpText="Enter collection GIDs separated by commas (max 3). Example: gid://shopify/Collection/123"
-                        />
+                        <BlockStack gap="300">
+                          <TextField
+                            label="Custom result text"
+                            value={newAnswer1CollectionsText}
+                            onChange={setNewAnswer1CollectionsText}
+                            placeholder="Based on your answers, check out these collections:"
+                            autoComplete="off"
+                            helpText="Text shown above the collection recommendations"
+                          />
+
+                          <Box>
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">
+                              Collections (max 3)
+                            </Text>
+                            <Box paddingBlockStart="200">
+                              <Button onClick={handleSelectAnswer1Collections}>
+                                {newAnswer1Collections.length > 0 ? "Change collections" : "Select collections"}
+                              </Button>
+                            </Box>
+                          </Box>
+
+                          {newAnswer1Collections.length > 0 && (
+                            <BlockStack gap="200">
+                              {newAnswer1Collections.map((collection) => (
+                                <Box
+                                  key={collection.id}
+                                  padding="300"
+                                  background="bg-surface-secondary"
+                                  borderRadius="200"
+                                >
+                                  <InlineStack align="space-between" blockAlign="center" gap="300">
+                                    <InlineStack gap="300" blockAlign="center">
+                                      {collection.image?.originalSrc && (
+                                        <Thumbnail
+                                          source={collection.image.originalSrc}
+                                          alt={collection.title}
+                                          size="small"
+                                        />
+                                      )}
+                                      <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                        {collection.title}
+                                      </Text>
+                                    </InlineStack>
+                                    <Button
+                                      icon={DeleteIcon}
+                                      variant="plain"
+                                      tone="critical"
+                                      onClick={() => handleRemoveAnswer1Collection(collection.id)}
+                                    />
+                                  </InlineStack>
+                                </Box>
+                              ))}
+                            </BlockStack>
+                          )}
+                        </BlockStack>
                       )}
                     </BlockStack>
 
@@ -745,27 +1015,126 @@ export default function QuizBuilder() {
                       )}
 
                       {newAnswer2ActionType === "show_products" && (
-                        <TextField
-                          label="Product IDs"
-                          value={newAnswer2ActionData}
-                          onChange={setNewAnswer2ActionData}
-                          placeholder="gid://shopify/Product/123,gid://shopify/Product/456"
-                          multiline={3}
-                          autoComplete="off"
-                          helpText="Enter product GIDs separated by commas (max 3). Example: gid://shopify/Product/123"
-                        />
+                        <BlockStack gap="300">
+                          <TextField
+                            label="Custom result text"
+                            value={newAnswer2ProductsText}
+                            onChange={setNewAnswer2ProductsText}
+                            placeholder="Based on your answers, we recommend these products:"
+                            autoComplete="off"
+                            helpText="Text shown above the product recommendations"
+                          />
+
+                          <Box>
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">
+                              Products (max 3)
+                            </Text>
+                            <Box paddingBlockStart="200">
+                              <Button onClick={handleSelectAnswer2Products}>
+                                {newAnswer2Products.length > 0 ? "Change products" : "Select products"}
+                              </Button>
+                            </Box>
+                          </Box>
+
+                          {newAnswer2Products.length > 0 && (
+                            <BlockStack gap="200">
+                              {newAnswer2Products.map((product) => (
+                                <Box
+                                  key={product.id}
+                                  padding="300"
+                                  background="bg-surface-secondary"
+                                  borderRadius="200"
+                                >
+                                  <InlineStack align="space-between" blockAlign="center" gap="300">
+                                    <InlineStack gap="300" blockAlign="center">
+                                      {product.images?.[0]?.originalSrc && (
+                                        <Thumbnail
+                                          source={product.images[0].originalSrc}
+                                          alt={product.title}
+                                          size="small"
+                                        />
+                                      )}
+                                      <BlockStack gap="100">
+                                        <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                          {product.title}
+                                        </Text>
+                                        {product.variants?.[0]?.price && (
+                                          <Text as="p" variant="bodySm" tone="subdued">
+                                            ${product.variants[0].price}
+                                          </Text>
+                                        )}
+                                      </BlockStack>
+                                    </InlineStack>
+                                    <Button
+                                      icon={DeleteIcon}
+                                      variant="plain"
+                                      tone="critical"
+                                      onClick={() => handleRemoveAnswer2Product(product.id)}
+                                    />
+                                  </InlineStack>
+                                </Box>
+                              ))}
+                            </BlockStack>
+                          )}
+                        </BlockStack>
                       )}
 
                       {newAnswer2ActionType === "show_collections" && (
-                        <TextField
-                          label="Collection IDs"
-                          value={newAnswer2ActionData}
-                          onChange={setNewAnswer2ActionData}
-                          placeholder="gid://shopify/Collection/123,gid://shopify/Collection/456"
-                          multiline={3}
-                          autoComplete="off"
-                          helpText="Enter collection GIDs separated by commas (max 3). Example: gid://shopify/Collection/123"
-                        />
+                        <BlockStack gap="300">
+                          <TextField
+                            label="Custom result text"
+                            value={newAnswer2CollectionsText}
+                            onChange={setNewAnswer2CollectionsText}
+                            placeholder="Based on your answers, check out these collections:"
+                            autoComplete="off"
+                            helpText="Text shown above the collection recommendations"
+                          />
+
+                          <Box>
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">
+                              Collections (max 3)
+                            </Text>
+                            <Box paddingBlockStart="200">
+                              <Button onClick={handleSelectAnswer2Collections}>
+                                {newAnswer2Collections.length > 0 ? "Change collections" : "Select collections"}
+                              </Button>
+                            </Box>
+                          </Box>
+
+                          {newAnswer2Collections.length > 0 && (
+                            <BlockStack gap="200">
+                              {newAnswer2Collections.map((collection) => (
+                                <Box
+                                  key={collection.id}
+                                  padding="300"
+                                  background="bg-surface-secondary"
+                                  borderRadius="200"
+                                >
+                                  <InlineStack align="space-between" blockAlign="center" gap="300">
+                                    <InlineStack gap="300" blockAlign="center">
+                                      {collection.image?.originalSrc && (
+                                        <Thumbnail
+                                          source={collection.image.originalSrc}
+                                          alt={collection.title}
+                                          size="small"
+                                        />
+                                      )}
+                                      <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                        {collection.title}
+                                      </Text>
+                                    </InlineStack>
+                                    <Button
+                                      icon={DeleteIcon}
+                                      variant="plain"
+                                      tone="critical"
+                                      onClick={() => handleRemoveAnswer2Collection(collection.id)}
+                                    />
+                                  </InlineStack>
+                                </Box>
+                              ))}
+                            </BlockStack>
+                          )}
+                        </BlockStack>
                       )}
                     </BlockStack>
 
@@ -777,8 +1146,14 @@ export default function QuizBuilder() {
                           !newQuestionText ||
                           !newAnswer1Text ||
                           !newAnswer2Text ||
-                          !newAnswer1ActionData ||
-                          !newAnswer2ActionData
+                          (newAnswer1ActionType === "show_text" && !newAnswer1ActionData) ||
+                          (newAnswer1ActionType === "show_html" && !newAnswer1ActionData) ||
+                          (newAnswer1ActionType === "show_products" && newAnswer1Products.length === 0) ||
+                          (newAnswer1ActionType === "show_collections" && newAnswer1Collections.length === 0) ||
+                          (newAnswer2ActionType === "show_text" && !newAnswer2ActionData) ||
+                          (newAnswer2ActionType === "show_html" && !newAnswer2ActionData) ||
+                          (newAnswer2ActionType === "show_products" && newAnswer2Products.length === 0) ||
+                          (newAnswer2ActionType === "show_collections" && newAnswer2Collections.length === 0)
                         }
                       >
                         Save question
