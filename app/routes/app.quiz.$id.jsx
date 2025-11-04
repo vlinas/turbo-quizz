@@ -31,6 +31,96 @@ import {
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
+// Helper functions for Shopify GraphQL
+function toGids(ids) {
+  return ids.map((id) => {
+    if (typeof id === "string" && id.startsWith("gid://")) return id;
+    const numId = typeof id === "string" ? id.replace(/\D/g, "") : id;
+    return `gid://shopify/Product/${numId}`;
+  });
+}
+
+function toCollectionGids(ids) {
+  return ids.map((id) => {
+    if (typeof id === "string" && id.startsWith("gid://")) return id;
+    const numId = typeof id === "string" ? id.replace(/\D/g, "") : id;
+    return `gid://shopify/Collection/${numId}`;
+  });
+}
+
+// Note: This function needs to be called from within the action handler where admin context is available
+// For now, we'll just return the IDs as-is and let the frontend/widget handle the full data fetch
+async function fetchNodesByIds(gids, admin) {
+  if (!gids || gids.length === 0) return [];
+
+  const query = `
+    query getNodes($ids: [ID!]!) {
+      nodes(ids: $ids) {
+        ... on Product {
+          id
+          title
+          handle
+          images(first: 1) {
+            edges {
+              node {
+                originalSrc
+              }
+            }
+          }
+          variants(first: 1) {
+            edges {
+              node {
+                price
+              }
+            }
+          }
+        }
+        ... on Collection {
+          id
+          title
+          handle
+          image {
+            originalSrc
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await admin.graphql(query, { variables: { ids: gids } });
+    const result = await response.json();
+
+    if (result.errors) {
+      console.error("GraphQL errors:", result.errors);
+      return [];
+    }
+
+    // Transform the nodes to the format expected by the frontend
+    return (result.data?.nodes || []).filter(Boolean).map((node) => {
+      if (node.__typename === "Product" || node.images) {
+        return {
+          id: node.id,
+          title: node.title,
+          handle: node.handle,
+          images: node.images?.edges?.map((e) => ({ originalSrc: e.node.originalSrc })) || [],
+          variants: node.variants?.edges?.map((e) => ({ price: e.node.price })) || [],
+        };
+      } else {
+        return {
+          id: node.id,
+          title: node.title,
+          handle: node.handle,
+          image: node.image,
+        };
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching nodes:", error);
+    return [];
+  }
+}
+
 export const loader = async ({ request, params }) => {
   const { session } = await authenticate.admin(request);
   const { id } = params;
@@ -72,7 +162,7 @@ export const loader = async ({ request, params }) => {
 };
 
 export const action = async ({ request, params }) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const { id } = params;
   const formData = await request.formData();
   const actionType = formData.get("_action");
@@ -190,11 +280,11 @@ export const action = async ({ request, params }) => {
           const parsed = JSON.parse(answer1_action_data || "{}");
           if (answer1_action_type === "show_products") {
             const ids = (parsed.products || []).map((p) => p.id || p).slice(0, 3);
-            const nodes = await fetchNodesByIds(toGids(ids));
+            const nodes = await fetchNodesByIds(toGids(ids), admin);
             answer1Data = { products: nodes, custom_text: (formData.get("answer1_custom_text") || parsed.custom_text || "Based on your answers, we recommend these products:") };
           } else {
             const ids = (parsed.collections || []).map((c) => c.id || c).slice(0, 3);
-            const nodes = await fetchNodesByIds(toCollectionGids(ids));
+            const nodes = await fetchNodesByIds(toCollectionGids(ids), admin);
             answer1Data = { collections: nodes, custom_text: (formData.get("answer1_custom_text") || parsed.custom_text || "Based on your answers, check out these collections:") };
           }
         } catch (e) {
@@ -217,11 +307,11 @@ export const action = async ({ request, params }) => {
           const parsed = JSON.parse(answer2_action_data || "{}");
           if (answer2_action_type === "show_products") {
             const ids = (parsed.products || []).map((p) => p.id || p).slice(0, 3);
-            const nodes = await fetchNodesByIds(toGids(ids));
+            const nodes = await fetchNodesByIds(toGids(ids), admin);
             answer2Data = { products: nodes, custom_text: (formData.get("answer2_custom_text") || parsed.custom_text || "Based on your answers, we recommend these products:") };
           } else {
             const ids = (parsed.collections || []).map((c) => c.id || c).slice(0, 3);
-            const nodes = await fetchNodesByIds(toCollectionGids(ids));
+            const nodes = await fetchNodesByIds(toCollectionGids(ids), admin);
             answer2Data = { collections: nodes, custom_text: (formData.get("answer2_custom_text") || parsed.custom_text || "Based on your answers, check out these collections:") };
           }
         } catch (e) {
@@ -456,8 +546,15 @@ export default function QuizBuilder() {
   };
 
   const handlePickProductsForAnswer = async (which) => {
-    const selection = await openResourcePicker("product", true);
+    // Get currently selected items
+    const currentItems = which === 1 ? answer1PreviewItems : answer2PreviewItems;
+    const currentIds = currentItems.map((item) => item.id);
+
+    // Open resource picker with current selection
+    const selection = await openResourcePicker("product", true, currentIds);
     if (!selection.length) return;
+
+    // Cap to 3 items
     const capped = selection.slice(0, 3);
     const products = capped.map((s) => ({ id: s.id }));
     const defaultText = "Based on your answers, we recommend these products:";
@@ -470,8 +567,15 @@ export default function QuizBuilder() {
   };
 
   const handlePickCollectionsForAnswer = async (which) => {
-    const selection = await openResourcePicker("collection", true);
+    // Get currently selected items
+    const currentItems = which === 1 ? answer1PreviewItems : answer2PreviewItems;
+    const currentIds = currentItems.map((item) => item.id);
+
+    // Open resource picker with current selection
+    const selection = await openResourcePicker("collection", true, currentIds);
     if (!selection.length) return;
+
+    // Cap to 3 items
     const capped = selection.slice(0, 3);
     const collections = capped.map((s) => ({ id: s.id }));
     const defaultText = "Based on your answers, check out these collections:";
@@ -481,6 +585,28 @@ export default function QuizBuilder() {
     const items = capped.map((s) => ({ id: s.id, title: s.title, image: s?.image?.originalSrc }));
     if (which === 1) setAnswer1PreviewItems(items);
     if (which === 2) setAnswer2PreviewItems(items);
+  };
+
+  const handleRemoveItem = (which, itemId, type) => {
+    const currentItems = which === 1 ? answer1PreviewItems : answer2PreviewItems;
+    const updatedItems = currentItems.filter((item) => item.id !== itemId);
+
+    // Update preview items
+    if (which === 1) setAnswer1PreviewItems(updatedItems);
+    if (which === 2) setAnswer2PreviewItems(updatedItems);
+
+    // Update JSON data
+    const customText = which === 1 ? answer1CustomText : answer2CustomText;
+    const key = type === "products" ? "products" : "collections";
+    const defaultText = type === "products"
+      ? "Based on your answers, we recommend these products:"
+      : "Based on your answers, check out these collections:";
+
+    const items = updatedItems.map((item) => ({ id: item.id }));
+    const jsonString = JSON.stringify({ [key]: items, custom_text: customText || defaultText }, null, 2);
+
+    if (which === 1) setNewAnswer1ActionData(jsonString);
+    if (which === 2) setNewAnswer2ActionData(jsonString);
   };
 
   const parsePreview = (jsonString, type) => {
@@ -588,10 +714,32 @@ export default function QuizBuilder() {
     // Set answer 1 action data - store as JSON string for products/collections
     if (answer1.action_type === "show_text") {
       setNewAnswer1ActionData(answer1.action_data.text || "");
+      setAnswer1PreviewItems([]);
     } else if (answer1.action_type === "show_html") {
       setNewAnswer1ActionData(answer1.action_data.html || "");
-    } else if (answer1.action_type === "show_products" || answer1.action_type === "show_collections") {
+      setAnswer1PreviewItems([]);
+    } else if (answer1.action_type === "show_products") {
       setNewAnswer1ActionData(JSON.stringify(answer1.action_data, null, 2));
+      setAnswer1CustomText(answer1.action_data.custom_text || "Based on your answers, we recommend these products:");
+      // Extract preview items from products array
+      const products = answer1.action_data.products || [];
+      const previewItems = products.map((p) => ({
+        id: p.id,
+        title: p.title,
+        image: p.images?.[0]?.originalSrc,
+      }));
+      setAnswer1PreviewItems(previewItems);
+    } else if (answer1.action_type === "show_collections") {
+      setNewAnswer1ActionData(JSON.stringify(answer1.action_data, null, 2));
+      setAnswer1CustomText(answer1.action_data.custom_text || "Based on your answers, check out these collections:");
+      // Extract preview items from collections array
+      const collections = answer1.action_data.collections || [];
+      const previewItems = collections.map((c) => ({
+        id: c.id,
+        title: c.title,
+        image: c.image?.originalSrc,
+      }));
+      setAnswer1PreviewItems(previewItems);
     }
 
     // Answer 2
@@ -602,10 +750,32 @@ export default function QuizBuilder() {
     // Set answer 2 action data - store as JSON string for products/collections
     if (answer2.action_type === "show_text") {
       setNewAnswer2ActionData(answer2.action_data.text || "");
+      setAnswer2PreviewItems([]);
     } else if (answer2.action_type === "show_html") {
       setNewAnswer2ActionData(answer2.action_data.html || "");
-    } else if (answer2.action_type === "show_products" || answer2.action_type === "show_collections") {
+      setAnswer2PreviewItems([]);
+    } else if (answer2.action_type === "show_products") {
       setNewAnswer2ActionData(JSON.stringify(answer2.action_data, null, 2));
+      setAnswer2CustomText(answer2.action_data.custom_text || "Based on your answers, we recommend these products:");
+      // Extract preview items from products array
+      const products = answer2.action_data.products || [];
+      const previewItems = products.map((p) => ({
+        id: p.id,
+        title: p.title,
+        image: p.images?.[0]?.originalSrc,
+      }));
+      setAnswer2PreviewItems(previewItems);
+    } else if (answer2.action_type === "show_collections") {
+      setNewAnswer2ActionData(JSON.stringify(answer2.action_data, null, 2));
+      setAnswer2CustomText(answer2.action_data.custom_text || "Based on your answers, check out these collections:");
+      // Extract preview items from collections array
+      const collections = answer2.action_data.collections || [];
+      const previewItems = collections.map((c) => ({
+        id: c.id,
+        title: c.title,
+        image: c.image?.originalSrc,
+      }));
+      setAnswer2PreviewItems(previewItems);
     }
 
     setEditingQuestionId(question.question_id);
@@ -792,27 +962,39 @@ export default function QuizBuilder() {
                       {newAnswer1ActionType === "show_products" && (
                         <BlockStack gap="200">
                           <InlineStack gap="200" blockAlign="center">
-                            <Button onClick={() => handlePickProductsForAnswer(1)}>Pick products</Button>
+                            <Button onClick={() => handlePickProductsForAnswer(1)}>
+                              {answer1PreviewItems?.length ? "Change products" : "Pick products"}
+                            </Button>
                             <Text as="span" tone="subdued">
-                              {parsePreview(newAnswer1ActionData, "show_products").length} selected
+                              {answer1PreviewItems?.length || 0} / 3 selected
                             </Text>
                           </InlineStack>
                           <TextField label="Custom text" value={answer1CustomText} onChange={setAnswer1CustomText} placeholder="Based on your answers, we recommend these products:" />
                           {answer1PreviewItems?.length ? (
-                            <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
+                            <BlockStack gap="200">
                               {answer1PreviewItems.map((p) => (
-                                <Box key={p.id} padding="150" background="bg-surface-secondary" borderRadius="100">
-                                  <BlockStack gap="100" inlineAlign="center">
+                                <Box key={p.id} padding="300" background="bg-surface-secondary" borderRadius="200">
+                                  <InlineStack gap="300" blockAlign="center" wrap={false}>
                                     {p.image ? (
-                                      <img src={p.image} alt={p.title || p.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }} />
-                                    ) : null}
-                                    <Text as="span" variant="bodySm" truncate>
-                                      {p.title || p.id}
-                                    </Text>
-                                  </BlockStack>
+                                      <img src={p.image} alt={p.title || p.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8, flexShrink: 0 }} />
+                                    ) : (
+                                      <Box style={{ width: 48, height: 48, background: "#e0e0e0", borderRadius: 8, flexShrink: 0 }} />
+                                    )}
+                                    <Box style={{ flex: 1, minWidth: 0 }}>
+                                      <Text as="span" variant="bodyMd" truncate>
+                                        {p.title || p.id}
+                                      </Text>
+                                    </Box>
+                                    <Button
+                                      icon={DeleteIcon}
+                                      variant="plain"
+                                      tone="critical"
+                                      onClick={() => handleRemoveItem(1, p.id, "products")}
+                                    />
+                                  </InlineStack>
                                 </Box>
                               ))}
-                            </InlineGrid>
+                            </BlockStack>
                           ) : null}
                         </BlockStack>
                       )}
@@ -820,27 +1002,39 @@ export default function QuizBuilder() {
                       {newAnswer1ActionType === "show_collections" && (
                         <BlockStack gap="200">
                           <InlineStack gap="200" blockAlign="center">
-                            <Button onClick={() => handlePickCollectionsForAnswer(1)}>Pick collections</Button>
+                            <Button onClick={() => handlePickCollectionsForAnswer(1)}>
+                              {answer1PreviewItems?.length ? "Change collections" : "Pick collections"}
+                            </Button>
                             <Text as="span" tone="subdued">
-                              {parsePreview(newAnswer1ActionData, "show_collections").length} selected
+                              {answer1PreviewItems?.length || 0} / 3 selected
                             </Text>
                           </InlineStack>
                           <TextField label="Custom text" value={answer1CustomText} onChange={setAnswer1CustomText} placeholder="Based on your answers, check out these collections:" />
                           {answer1PreviewItems?.length ? (
-                            <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
+                            <BlockStack gap="200">
                               {answer1PreviewItems.map((c) => (
-                                <Box key={c.id} padding="150" background="bg-surface-secondary" borderRadius="100">
-                                  <BlockStack gap="100" inlineAlign="center">
+                                <Box key={c.id} padding="300" background="bg-surface-secondary" borderRadius="200">
+                                  <InlineStack gap="300" blockAlign="center" wrap={false}>
                                     {c.image ? (
-                                      <img src={c.image} alt={c.title || c.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }} />
-                                    ) : null}
-                                    <Text as="span" variant="bodySm" truncate>
-                                      {c.title || c.id}
-                                    </Text>
-                                  </BlockStack>
+                                      <img src={c.image} alt={c.title || c.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8, flexShrink: 0 }} />
+                                    ) : (
+                                      <Box style={{ width: 48, height: 48, background: "#e0e0e0", borderRadius: 8, flexShrink: 0 }} />
+                                    )}
+                                    <Box style={{ flex: 1, minWidth: 0 }}>
+                                      <Text as="span" variant="bodyMd" truncate>
+                                        {c.title || c.id}
+                                      </Text>
+                                    </Box>
+                                    <Button
+                                      icon={DeleteIcon}
+                                      variant="plain"
+                                      tone="critical"
+                                      onClick={() => handleRemoveItem(1, c.id, "collections")}
+                                    />
+                                  </InlineStack>
                                 </Box>
                               ))}
-                            </InlineGrid>
+                            </BlockStack>
                           ) : null}
                         </BlockStack>
                       )}
@@ -898,27 +1092,39 @@ export default function QuizBuilder() {
                       {newAnswer2ActionType === "show_products" && (
                         <BlockStack gap="200">
                           <InlineStack gap="200" blockAlign="center">
-                            <Button onClick={() => handlePickProductsForAnswer(2)}>Pick products</Button>
+                            <Button onClick={() => handlePickProductsForAnswer(2)}>
+                              {answer2PreviewItems?.length ? "Change products" : "Pick products"}
+                            </Button>
                             <Text as="span" tone="subdued">
-                              {parsePreview(newAnswer2ActionData, "show_products").length} selected
+                              {answer2PreviewItems?.length || 0} / 3 selected
                             </Text>
                           </InlineStack>
                           <TextField label="Custom text" value={answer2CustomText} onChange={setAnswer2CustomText} placeholder="Based on your answers, we recommend these products:" />
                           {answer2PreviewItems?.length ? (
-                            <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
+                            <BlockStack gap="200">
                               {answer2PreviewItems.map((p) => (
-                                <Box key={p.id} padding="150" background="bg-surface-secondary" borderRadius="100">
-                                  <BlockStack gap="100" inlineAlign="center">
+                                <Box key={p.id} padding="300" background="bg-surface-secondary" borderRadius="200">
+                                  <InlineStack gap="300" blockAlign="center" wrap={false}>
                                     {p.image ? (
-                                      <img src={p.image} alt={p.title || p.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }} />
-                                    ) : null}
-                                    <Text as="span" variant="bodySm" truncate>
-                                      {p.title || p.id}
-                                    </Text>
-                                  </BlockStack>
+                                      <img src={p.image} alt={p.title || p.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8, flexShrink: 0 }} />
+                                    ) : (
+                                      <Box style={{ width: 48, height: 48, background: "#e0e0e0", borderRadius: 8, flexShrink: 0 }} />
+                                    )}
+                                    <Box style={{ flex: 1, minWidth: 0 }}>
+                                      <Text as="span" variant="bodyMd" truncate>
+                                        {p.title || p.id}
+                                      </Text>
+                                    </Box>
+                                    <Button
+                                      icon={DeleteIcon}
+                                      variant="plain"
+                                      tone="critical"
+                                      onClick={() => handleRemoveItem(2, p.id, "products")}
+                                    />
+                                  </InlineStack>
                                 </Box>
                               ))}
-                            </InlineGrid>
+                            </BlockStack>
                           ) : null}
                         </BlockStack>
                       )}
@@ -926,27 +1132,39 @@ export default function QuizBuilder() {
                       {newAnswer2ActionType === "show_collections" && (
                         <BlockStack gap="200">
                           <InlineStack gap="200" blockAlign="center">
-                            <Button onClick={() => handlePickCollectionsForAnswer(2)}>Pick collections</Button>
+                            <Button onClick={() => handlePickCollectionsForAnswer(2)}>
+                              {answer2PreviewItems?.length ? "Change collections" : "Pick collections"}
+                            </Button>
                             <Text as="span" tone="subdued">
-                              {parsePreview(newAnswer2ActionData, "show_collections").length} selected
+                              {answer2PreviewItems?.length || 0} / 3 selected
                             </Text>
                           </InlineStack>
                           <TextField label="Custom text" value={answer2CustomText} onChange={setAnswer2CustomText} placeholder="Based on your answers, check out these collections:" />
                           {answer2PreviewItems?.length ? (
-                            <InlineGrid columns={{xs: 3, sm: 4}} gap="200">
+                            <BlockStack gap="200">
                               {answer2PreviewItems.map((c) => (
-                                <Box key={c.id} padding="150" background="bg-surface-secondary" borderRadius="100">
-                                  <BlockStack gap="100" inlineAlign="center">
+                                <Box key={c.id} padding="300" background="bg-surface-secondary" borderRadius="200">
+                                  <InlineStack gap="300" blockAlign="center" wrap={false}>
                                     {c.image ? (
-                                      <img src={c.image} alt={c.title || c.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }} />
-                                    ) : null}
-                                    <Text as="span" variant="bodySm" truncate>
-                                      {c.title || c.id}
-                                    </Text>
-                                  </BlockStack>
+                                      <img src={c.image} alt={c.title || c.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8, flexShrink: 0 }} />
+                                    ) : (
+                                      <Box style={{ width: 48, height: 48, background: "#e0e0e0", borderRadius: 8, flexShrink: 0 }} />
+                                    )}
+                                    <Box style={{ flex: 1, minWidth: 0 }}>
+                                      <Text as="span" variant="bodyMd" truncate>
+                                        {c.title || c.id}
+                                      </Text>
+                                    </Box>
+                                    <Button
+                                      icon={DeleteIcon}
+                                      variant="plain"
+                                      tone="critical"
+                                      onClick={() => handleRemoveItem(2, c.id, "collections")}
+                                    />
+                                  </InlineStack>
                                 </Box>
                               ))}
-                            </InlineGrid>
+                            </BlockStack>
                           ) : null}
                         </BlockStack>
                       )}
