@@ -126,6 +126,11 @@ async function fetchNodesByIds(gids, admin) {
 export const loader = async ({ request, params }) => {
   const { session } = await authenticate.admin(request);
   const { id } = params;
+  const url = new URL(request.url);
+
+  // Get date range from query params (default to last 30 days)
+  const daysParam = url.searchParams.get("days") || "30";
+  const days = parseInt(daysParam, 10);
 
   // Convert id to integer
   const quizId = parseInt(id, 10);
@@ -160,7 +165,47 @@ export const loader = async ({ request, params }) => {
     throw new Response("Quiz not found", { status: 404 });
   }
 
-  return json({ quiz });
+  // Fetch analytics data
+  const dateThreshold = new Date();
+  dateThreshold.setDate(dateThreshold.getDate() - days);
+  dateThreshold.setHours(0, 0, 0, 0);
+
+  const quizSessions = await prisma.quizSession.findMany({
+    where: {
+      quiz_id: quizId,
+      shop: session.shop,
+      started_at: { gte: dateThreshold }
+    },
+    include: {
+      order_attributions: true,
+    },
+  });
+
+  const totalSessions = quizSessions.length;
+  const completedSessions = quizSessions.filter((s) => s.is_completed).length;
+
+  const totalRevenue = quizSessions.reduce((sum, session) => {
+    const revenue = session.order_attributions.reduce(
+      (orderSum, order) => orderSum + parseFloat(order.total_price), 0
+    );
+    return sum + revenue;
+  }, 0);
+
+  const totalOrders = quizSessions.reduce(
+    (sum, session) => sum + session.order_attributions.length, 0
+  );
+
+  const analytics = {
+    starts: totalSessions,
+    completions: completedSessions,
+    completionRate: totalSessions > 0 ? ((completedSessions / totalSessions) * 100).toFixed(1) : "0.0",
+    totalRevenue: totalRevenue.toFixed(2),
+    totalOrders,
+    conversionRate: completedSessions > 0 ? ((totalOrders / completedSessions) * 100).toFixed(1) : "0.0",
+    days,
+  };
+
+  return json({ quiz, analytics });
 };
 
 export const action = async ({ request, params }) => {
@@ -542,7 +587,7 @@ export const action = async ({ request, params }) => {
 };
 
 export default function QuizBuilder() {
-  const { quiz } = useLoaderData();
+  const { quiz, analytics } = useLoaderData();
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
@@ -553,6 +598,7 @@ export default function QuizBuilder() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAddQuestion, setShowAddQuestion] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState(null);
+  const [dateRange, setDateRange] = useState(String(analytics.days));
 
   // New/Edit question form state
   const [newQuestionText, setNewQuestionText] = useState("");
@@ -848,10 +894,6 @@ export default function QuizBuilder() {
       }}
       secondaryActions={[
         {
-          content: "View analytics",
-          onAction: () => navigate(`/app/quiz/${quiz.quiz_id}/analytics`),
-        },
-        {
           content: "Delete quiz",
           destructive: true,
           onAction: () => setShowDeleteModal(true),
@@ -871,6 +913,68 @@ export default function QuizBuilder() {
               <p>{actionData.error}</p>
             </Banner>
           )}
+
+          {/* Analytics Section */}
+          <Card>
+            <BlockStack gap="400">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h2" variant="headingMd">
+                  Analytics
+                </Text>
+                <Select
+                  label=""
+                  labelHidden
+                  options={[
+                    { label: "Last 7 days", value: "7" },
+                    { label: "Last 30 days", value: "30" },
+                    { label: "Last 90 days", value: "90" },
+                    { label: "Last 365 days", value: "365" },
+                  ]}
+                  value={dateRange}
+                  onChange={(value) => {
+                    setDateRange(value);
+                    navigate(`/app/quiz/${quiz.quiz_id}?days=${value}`);
+                  }}
+                />
+              </InlineStack>
+
+              <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
+                <Card>
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodyMd" tone="subdued">Starts</Text>
+                    <Text as="p" variant="heading2xl">{analytics.starts.toLocaleString()}</Text>
+                  </BlockStack>
+                </Card>
+                <Card>
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodyMd" tone="subdued">Completions</Text>
+                    <Text as="p" variant="heading2xl">{analytics.completions.toLocaleString()}</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {analytics.completionRate}% completion rate
+                    </Text>
+                  </BlockStack>
+                </Card>
+                <Card>
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodyMd" tone="subdued">Revenue</Text>
+                    <Text as="p" variant="heading2xl">${analytics.totalRevenue}</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {analytics.totalOrders} {analytics.totalOrders === 1 ? 'order' : 'orders'}
+                    </Text>
+                  </BlockStack>
+                </Card>
+                <Card>
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodyMd" tone="subdued">Conversion</Text>
+                    <Text as="p" variant="heading2xl">{analytics.conversionRate}%</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      of completions
+                    </Text>
+                  </BlockStack>
+                </Card>
+              </InlineGrid>
+            </BlockStack>
+          </Card>
 
           {/* Quiz ID Card */}
           <Card>
