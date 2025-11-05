@@ -209,8 +209,20 @@ export const loader = async ({ request, params }) => {
         },
       });
       answerStats[answer.answer_id] = selectionCount;
+
+      // Debug logging
+      console.log(`[Answer Stats] answer_id: ${answer.answer_id}, quiz_id: ${quizId}, shop: ${session.shop}, threshold: ${dateThreshold.toISOString()}, count: ${selectionCount}`);
     }
   }
+
+  // Also log total answer selections for this quiz (without date filter)
+  const totalAnswerSelections = await prisma.answerSelection.count({
+    where: {
+      quiz_id: quizId,
+      shop: session.shop,
+    },
+  });
+  console.log(`[Answer Stats] Total answer selections for quiz ${quizId}: ${totalAnswerSelections}`);
 
   // Calculate percentages for each answer within its question
   const answerStatsWithPercentages = {};
