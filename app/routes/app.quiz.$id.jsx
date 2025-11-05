@@ -1,6 +1,6 @@
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useNavigate, useSubmit, useActionData } from "@remix-run/react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Page,
   Layout,
@@ -9,7 +9,8 @@ import {
   BlockStack,
   TextField,
   Text,
-  Banner,
+  Toast,
+  Frame,
   InlineStack,
   InlineGrid,
   Select,
@@ -600,6 +601,24 @@ export default function QuizBuilder() {
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const [dateRange, setDateRange] = useState(String(analytics.days));
 
+  // Toast state
+  const [toastActive, setToastActive] = useState(false);
+  const [toastContent, setToastContent] = useState("");
+  const [toastError, setToastError] = useState(false);
+
+  // Show toast when actionData changes
+  useEffect(() => {
+    if (actionData?.success) {
+      setToastContent("Quiz updated successfully!");
+      setToastError(false);
+      setToastActive(true);
+    } else if (actionData?.error) {
+      setToastContent(actionData.error);
+      setToastError(true);
+      setToastActive(true);
+    }
+  }, [actionData]);
+
   // New/Edit question form state
   const [newQuestionText, setNewQuestionText] = useState("");
   const [newAnswer1Text, setNewAnswer1Text] = useState("");
@@ -882,8 +901,18 @@ export default function QuizBuilder() {
     setShowAddQuestion(true);
   };
 
+  const toastMarkup = toastActive ? (
+    <Toast
+      content={toastContent}
+      onDismiss={() => setToastActive(false)}
+      error={toastError}
+      duration={4500}
+    />
+  ) : null;
+
   return (
-    <Page
+    <Frame>
+      <Page
       title={quiz.title}
       backAction={{ content: "Quizzes", onAction: () => navigate("/app") }}
       primaryAction={{
@@ -903,18 +932,6 @@ export default function QuizBuilder() {
       <Layout>
         <Layout.Section>
           <BlockStack gap="500">
-            {actionData?.success && (
-              <Banner tone="success" onDismiss={() => {}}>
-                <p>Quiz updated successfully!</p>
-              </Banner>
-            )}
-
-            {actionData?.error && (
-              <Banner tone="critical" onDismiss={() => {}}>
-                <p>{actionData.error}</p>
-              </Banner>
-            )}
-
             {/* Analytics Section */}
             <Card>
             <BlockStack gap="400">
@@ -1486,6 +1503,8 @@ export default function QuizBuilder() {
           </BlockStack>
         </Modal.Section>
       </Modal>
+      {toastMarkup}
     </Page>
+    </Frame>
   );
 }

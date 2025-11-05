@@ -1,6 +1,6 @@
 import { json, redirect } from "@remix-run/node";
 import { useNavigate, useSubmit, useActionData } from "@remix-run/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Page,
   Layout,
@@ -9,7 +9,8 @@ import {
   BlockStack,
   TextField,
   Text,
-  Banner,
+  Toast,
+  Frame,
   InlineStack,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
@@ -69,6 +70,18 @@ export default function NewQuiz() {
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Toast state
+  const [toastActive, setToastActive] = useState(false);
+  const [toastContent, setToastContent] = useState("");
+
+  // Show toast when there's an error
+  useEffect(() => {
+    if (actionData?.error) {
+      setToastContent(actionData.error);
+      setToastActive(true);
+    }
+  }, [actionData]);
+
   const handleSubmit = () => {
     setIsSubmitting(true);
     const formData = new FormData();
@@ -77,8 +90,18 @@ export default function NewQuiz() {
     submit(formData, { method: "post" });
   };
 
+  const toastMarkup = toastActive ? (
+    <Toast
+      content={toastContent}
+      onDismiss={() => setToastActive(false)}
+      error={true}
+      duration={4500}
+    />
+  ) : null;
+
   return (
-    <Page
+    <Frame>
+      <Page
       title="Create Quiz"
       backAction={{ content: "Quizzes", onAction: () => navigate("/app") }}
       primaryAction={{
@@ -90,72 +113,72 @@ export default function NewQuiz() {
     >
       <Layout>
         <Layout.Section>
-          {actionData?.error && (
-            <Banner tone="critical" onDismiss={() => {}}>
-              <p>{actionData.error}</p>
-            </Banner>
-          )}
+          <BlockStack gap="500">
+            <Card>
+              <BlockStack gap="400">
+                <Text as="h2" variant="headingMd">
+                  Quiz Details
+                </Text>
 
-          <Card>
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">
-                Quiz Details
-              </Text>
+                <TextField
+                  label="Quiz Title"
+                  value={title}
+                  onChange={setTitle}
+                  placeholder="e.g., Find Your Perfect Product"
+                  autoComplete="off"
+                  helpText="A catchy title that describes your quiz"
+                  requiredIndicator
+                />
 
-              <TextField
-                label="Quiz Title"
-                value={title}
-                onChange={setTitle}
-                placeholder="e.g., Find Your Perfect Product"
-                autoComplete="off"
-                helpText="A catchy title that describes your quiz"
-                requiredIndicator
-              />
+                <TextField
+                  label="Description"
+                  value={description}
+                  onChange={setDescription}
+                  placeholder="e.g., Answer a few questions to discover products that match your style"
+                  multiline={3}
+                  autoComplete="off"
+                  helpText="Optional description shown to customers"
+                />
 
-              <TextField
-                label="Description"
-                value={description}
-                onChange={setDescription}
-                placeholder="e.g., Answer a few questions to discover products that match your style"
-                multiline={3}
-                autoComplete="off"
-                helpText="Optional description shown to customers"
-              />
-
-              <InlineStack align="end">
-                <Button onClick={() => navigate("/app")}>Cancel</Button>
-                <Button
-                  variant="primary"
-                  onClick={handleSubmit}
-                  disabled={!title || isSubmitting}
-                  loading={isSubmitting}
-                >
-                  Create quiz
-                </Button>
-              </InlineStack>
-            </BlockStack>
-          </Card>
+                <InlineStack align="end" gap="300">
+                  <Button onClick={() => navigate("/app")}>Cancel</Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleSubmit}
+                    disabled={!title || isSubmitting}
+                    loading={isSubmitting}
+                  >
+                    Create quiz
+                  </Button>
+                </InlineStack>
+              </BlockStack>
+            </Card>
+          </BlockStack>
         </Layout.Section>
 
         <Layout.Section variant="oneThird">
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h3" variant="headingSm">
-                Next Steps
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                After creating your quiz, you'll be able to:
-              </Text>
-              <ul style={{ paddingLeft: "20px", margin: "8px 0" }}>
-                <li>Add questions and answers</li>
-                <li>Configure product recommendations</li>
-                <li>Customize the quiz appearance</li>
-                <li>Publish to your storefront</li>
-              </ul>
-            </BlockStack>
-          </Card>
+          <BlockStack gap="500">
+            <Card>
+              <BlockStack gap="300">
+                <Text as="h3" variant="headingSm">
+                  Next Steps
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  After creating your quiz, you'll be able to:
+                </Text>
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodySm">• Add questions and answers</Text>
+                  <Text as="p" variant="bodySm">• Configure product recommendations</Text>
+                  <Text as="p" variant="bodySm">• Customize the quiz appearance</Text>
+                  <Text as="p" variant="bodySm">• Publish to your storefront</Text>
+                </BlockStack>
+              </BlockStack>
+            </Card>
+          </BlockStack>
         </Layout.Section>
       </Layout>
+      {toastMarkup}
     </Page>
+    </Frame>
   );
 }

@@ -1,6 +1,6 @@
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useNavigate, useSubmit, useActionData } from "@remix-run/react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Page,
   Layout,
@@ -9,7 +9,8 @@ import {
   BlockStack,
   TextField,
   Text,
-  Banner,
+  Toast,
+  Frame,
   InlineStack,
   InlineGrid,
   Select,
@@ -190,6 +191,18 @@ export default function EditQuestion() {
   const [answer1PreviewItems, setAnswer1PreviewItems] = useState([]);
   const [answer2PreviewItems, setAnswer2PreviewItems] = useState([]);
 
+  // Toast state
+  const [toastActive, setToastActive] = useState(false);
+  const [toastContent, setToastContent] = useState("");
+
+  // Show toast when there's an error
+  useEffect(() => {
+    if (actionData?.error) {
+      setToastContent(actionData.error);
+      setToastActive(true);
+    }
+  }, [actionData]);
+
   // Resource pickers (uses App Bridge picker if available)
   const openResourcePicker = async (type, multiple = true, initialSelection = []) => {
     try {
@@ -315,8 +328,18 @@ export default function EditQuestion() {
     }
   };
 
+  const toastMarkup = toastActive ? (
+    <Toast
+      content={toastContent}
+      onDismiss={() => setToastActive(false)}
+      error={true}
+      duration={4500}
+    />
+  ) : null;
+
   return (
-    <Page
+    <Frame>
+      <Page
       title="Edit Question"
       backAction={{ content: quiz.title, onAction: () => navigate(`/app/quiz/${quiz.quiz_id}`) }}
       primaryAction={{
@@ -336,12 +359,6 @@ export default function EditQuestion() {
     >
       <Layout>
         <Layout.Section>
-          {actionData?.error && (
-            <Banner tone="critical" onDismiss={() => {}}>
-              <p>{actionData.error}</p>
-            </Banner>
-          )}
-
           <Card>
             <BlockStack gap="400">
               <Text as="h2" variant="headingMd">
@@ -607,6 +624,8 @@ export default function EditQuestion() {
           </BlockStack>
         </Modal.Section>
       </Modal>
+      {toastMarkup}
     </Page>
+    </Frame>
   );
 }

@@ -1,6 +1,6 @@
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useNavigate, useSubmit, useActionData } from "@remix-run/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Page,
   Layout,
@@ -9,7 +9,8 @@ import {
   BlockStack,
   TextField,
   Text,
-  Banner,
+  Toast,
+  Frame,
   InlineStack,
   Select,
   Box,
@@ -170,6 +171,18 @@ export default function NewQuestion() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Toast state
+  const [toastActive, setToastActive] = useState(false);
+  const [toastContent, setToastContent] = useState("");
+
+  // Show toast when there's an error
+  useEffect(() => {
+    if (actionData?.error) {
+      setToastContent(actionData.error);
+      setToastActive(true);
+    }
+  }, [actionData]);
+
   const actionTypeOptions = [
     { label: "Show text message", value: "show_text" },
     { label: "Show products", value: "show_products" },
@@ -217,8 +230,18 @@ export default function NewQuestion() {
 
   const isValid = questionText && answer1Text && answer2Text && answer1ActionData && answer2ActionData;
 
+  const toastMarkup = toastActive ? (
+    <Toast
+      content={toastContent}
+      onDismiss={() => setToastActive(false)}
+      error={true}
+      duration={4500}
+    />
+  ) : null;
+
   return (
-    <Page
+    <Frame>
+      <Page
       title="Add Question"
       backAction={{
         content: "Back to quiz",
@@ -233,12 +256,6 @@ export default function NewQuestion() {
     >
       <Layout>
         <Layout.Section>
-          {actionData?.error && (
-            <Banner tone="critical" onDismiss={() => {}}>
-              <p>{actionData.error}</p>
-            </Banner>
-          )}
-
           {/* Question */}
           <Card>
             <BlockStack gap="400">
@@ -395,6 +412,8 @@ export default function NewQuestion() {
           </Card>
         </Layout.Section>
       </Layout>
+      {toastMarkup}
     </Page>
+    </Frame>
   );
 }
