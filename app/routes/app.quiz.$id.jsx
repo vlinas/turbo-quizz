@@ -1022,7 +1022,7 @@ export default function QuizBuilder() {
                     <Text as="p" variant="bodyMd" tone="subdued">Conversion</Text>
                     <Text as="p" variant="heading2xl">{analytics.conversionRate}%</Text>
                     <Text as="p" variant="bodySm" tone="subdued">
-                      of completions
+                      of completions led to orders
                     </Text>
                   </BlockStack>
                 </Card>
@@ -1391,12 +1391,9 @@ export default function QuizBuilder() {
                     <Card key={question.id} background="bg-surface-secondary">
                       <BlockStack gap="300">
                         <InlineStack align="space-between" blockAlign="start">
-                          <BlockStack gap="100">
-                            <Text as="h3" variant="headingSm">
-                              Question {index + 1}
-                            </Text>
-                            <Text as="p">{question.question_text}</Text>
-                          </BlockStack>
+                          <Text as="h3" variant="headingMd">
+                            {question.question_text}
+                          </Text>
                           <InlineStack gap="200">
                             <Button
                               icon={EditIcon}
