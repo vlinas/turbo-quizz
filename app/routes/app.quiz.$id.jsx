@@ -196,6 +196,42 @@ export const loader = async ({ request, params }) => {
     (sum, session) => sum + session.order_attributions.length, 0
   );
 
+  // Fetch answer statistics for each question
+  const answerStats = {};
+  for (const question of quiz.questions) {
+    for (const answer of question.answers) {
+      const selectionCount = await prisma.answerSelection.count({
+        where: {
+          answer_id: answer.answer_id,
+          quiz_id: quizId,
+          shop: session.shop,
+          selected_at: { gte: dateThreshold }
+        },
+      });
+      answerStats[answer.answer_id] = selectionCount;
+    }
+  }
+
+  // Calculate percentages for each answer within its question
+  const answerStatsWithPercentages = {};
+  for (const question of quiz.questions) {
+    const totalSelectionsForQuestion = question.answers.reduce(
+      (sum, answer) => sum + (answerStats[answer.answer_id] || 0), 0
+    );
+
+    for (const answer of question.answers) {
+      const clicks = answerStats[answer.answer_id] || 0;
+      const percentage = totalSelectionsForQuestion > 0
+        ? ((clicks / totalSelectionsForQuestion) * 100).toFixed(1)
+        : "0.0";
+
+      answerStatsWithPercentages[answer.answer_id] = {
+        clicks,
+        percentage,
+      };
+    }
+  }
+
   const analytics = {
     starts: totalSessions,
     completions: completedSessions,
@@ -206,7 +242,7 @@ export const loader = async ({ request, params }) => {
     days,
   };
 
-  return json({ quiz, analytics });
+  return json({ quiz, analytics, answerStats: answerStatsWithPercentages });
 };
 
 export const action = async ({ request, params }) => {
@@ -588,7 +624,7 @@ export const action = async ({ request, params }) => {
 };
 
 export default function QuizBuilder() {
-  const { quiz, analytics } = useLoaderData();
+  const { quiz, analytics, answerStats } = useLoaderData();
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
@@ -959,7 +995,7 @@ export default function QuizBuilder() {
               <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
                 <Card>
                   <BlockStack gap="200">
-                    <Text as="p" variant="bodyMd" tone="subdued">Starts</Text>
+                    <Text as="p" variant="bodyMd" tone="subdued">Impressions</Text>
                     <Text as="p" variant="heading2xl">{analytics.starts.toLocaleString()}</Text>
                   </BlockStack>
                 </Card>
@@ -991,36 +1027,6 @@ export default function QuizBuilder() {
                   </BlockStack>
                 </Card>
               </InlineGrid>
-            </BlockStack>
-          </Card>
-
-          {/* Quiz ID Card */}
-          <Card>
-            <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">
-                Quiz ID
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                Use this ID to embed the quiz in your theme using the Quiz Widget app block
-              </Text>
-              <Box
-                background="bg-surface-secondary"
-                padding="400"
-                borderRadius="200"
-              >
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="p" variant="headingLg" fontWeight="bold">
-                    {quiz.quiz_id}
-                  </Text>
-                  <Button
-                    onClick={() => {
-                      navigator.clipboard.writeText(quiz.quiz_id);
-                    }}
-                  >
-                    Copy ID
-                  </Button>
-                </InlineStack>
-              </Box>
             </BlockStack>
           </Card>
 
@@ -1412,23 +1418,34 @@ export default function QuizBuilder() {
 
                         {/* Answers */}
                         <BlockStack gap="200">
-                          {question.answers.map((answer, answerIndex) => (
-                            <Box key={answer.id} padding="300" background="bg-surface">
-                              <BlockStack gap="200">
-                                <InlineStack gap="200" blockAlign="center">
-                                  <Badge tone={answerIndex === 0 ? "info" : "success"}>
-                                    Answer {answerIndex + 1}
-                                  </Badge>
-                                  <Text as="span" fontWeight="semibold">
-                                    {answer.answer_text}
+                          {question.answers.map((answer, answerIndex) => {
+                            const stats = answerStats[answer.answer_id] || { clicks: 0, percentage: "0.0" };
+                            return (
+                              <Box key={answer.id} padding="300" background="bg-surface">
+                                <BlockStack gap="200">
+                                  <InlineStack align="space-between" blockAlign="center">
+                                    <InlineStack gap="200" blockAlign="center">
+                                      <Badge tone={answerIndex === 0 ? "info" : "success"}>
+                                        Answer {answerIndex + 1}
+                                      </Badge>
+                                      <Text as="span" fontWeight="semibold">
+                                        {answer.answer_text}
+                                      </Text>
+                                    </InlineStack>
+                                    <InlineStack gap="300" blockAlign="center">
+                                      <Text as="span" variant="bodySm" tone="subdued">
+                                        {stats.clicks} clicks
+                                      </Text>
+                                      <Badge tone="info">{stats.percentage}%</Badge>
+                                    </InlineStack>
+                                  </InlineStack>
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    Action: {answer.action_type === "show_text" ? "Show text" : answer.action_type === "show_html" ? "Show HTML" : answer.action_type === "show_products" ? "Show products" : "Show collections"}
                                   </Text>
-                                </InlineStack>
-                                <Text as="p" variant="bodySm" tone="subdued">
-                                  Action: {answer.action_type === "show_text" ? "Show text" : answer.action_type === "show_html" ? "Show HTML" : answer.action_type === "show_products" ? "Show products" : "Show collections"}
-                                </Text>
-                              </BlockStack>
-                            </Box>
-                          ))}
+                                </BlockStack>
+                              </Box>
+                            );
+                          })}
                         </BlockStack>
                       </BlockStack>
                     </Card>
@@ -1442,18 +1459,33 @@ export default function QuizBuilder() {
 
         <Layout.Section variant="oneThird">
           <BlockStack gap="500">
-            {/* Quiz Stats */}
+            {/* Quiz ID Card */}
             <Card>
               <BlockStack gap="300">
-                <Text as="h3" variant="headingSm">
-                  Quiz Stats
+                <Text as="h2" variant="headingMd">
+                  Quiz ID
                 </Text>
-                <BlockStack gap="200">
-                  <InlineStack align="space-between">
-                    <Text as="span" tone="subdued">Questions</Text>
-                    <Text as="span" fontWeight="semibold">{quiz.questions.length}</Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Use this ID to embed the quiz in your theme using the Quiz Widget app block
+                </Text>
+                <Box
+                  background="bg-surface-secondary"
+                  padding="400"
+                  borderRadius="200"
+                >
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="p" variant="headingLg" fontWeight="bold">
+                      {quiz.quiz_id}
+                    </Text>
+                    <Button
+                      onClick={() => {
+                        navigator.clipboard.writeText(String(quiz.quiz_id));
+                      }}
+                    >
+                      Copy ID
+                    </Button>
                   </InlineStack>
-                </BlockStack>
+                </Box>
               </BlockStack>
             </Card>
 
@@ -1474,6 +1506,9 @@ export default function QuizBuilder() {
           </BlockStack>
         </Layout.Section>
       </Layout>
+
+      {/* Bottom spacing */}
+      <Box paddingBlockEnd="800" />
 
       {/* Delete Confirmation Modal */}
       <Modal
