@@ -27,10 +27,10 @@ import {
   Box,
 } from "@shopify/polaris";
 import {
-  QuestionCircleIcon,
   PlayIcon,
   CheckCircleIcon,
   ChartVerticalIcon,
+  CashDollarIcon,
 } from "@shopify/polaris-icons";
 
 import { authenticate, PRO_PLAN } from "../shopify.server";
@@ -158,6 +158,21 @@ export const loader = async ({ request }) => {
         select: { is_completed: true },
       });
 
+      // Get attributed revenue for this quiz
+      const orderAttributions = await prisma.quizOrderAttribution.findMany({
+        where: {
+          quiz_id: quiz.quiz_id,
+          shop: session.shop,
+        },
+        select: {
+          total_price: true,
+        },
+      });
+
+      const attributedRevenue = orderAttributions.reduce(
+        (sum, order) => sum + parseFloat(order.total_price), 0
+      );
+
       const totalSessions = sessions.length;
       const completedSessions = sessions.filter((s) => s.is_completed).length;
       const completionRate = totalSessions > 0
@@ -170,6 +185,7 @@ export const loader = async ({ request }) => {
           totalSessions,
           completedSessions,
           completionRate,
+          attributedRevenue,
         },
       };
     })
@@ -200,17 +216,17 @@ export default function Index() {
 
   // Calculate metrics
   const metrics = useMemo(() => {
-    const totalQuizzes = quizzes.length;
-    const totalSessions = quizzes.reduce((sum, q) => sum + q.stats.totalSessions, 0);
+    const totalImpressions = quizzes.reduce((sum, q) => sum + q.stats.totalSessions, 0);
     const totalCompletions = quizzes.reduce((sum, q) => sum + q.stats.completedSessions, 0);
-    const avgCompletionRate = totalSessions > 0
-      ? Math.round((totalCompletions / totalSessions) * 100)
+    const totalAttributedRevenue = quizzes.reduce((sum, q) => sum + q.stats.attributedRevenue, 0);
+    const avgCompletionRate = totalImpressions > 0
+      ? Math.round((totalCompletions / totalImpressions) * 100)
       : 0;
 
     return {
-      totalQuizzes,
-      totalSessions,
+      totalImpressions,
       totalCompletions,
+      totalAttributedRevenue,
       avgCompletionRate,
     };
   }, [quizzes]);
@@ -231,9 +247,10 @@ export default function Index() {
         description: quiz.description || "No description",
         questionCount: quiz.questions.length,
         date: formattedDate,
-        sessions: quiz.stats.totalSessions,
+        impressions: quiz.stats.totalSessions,
         completions: quiz.stats.completedSessions,
         completionRate: quiz.stats.completionRate,
+        attributedRevenue: quiz.stats.attributedRevenue,
       };
     });
   }, [quizzes]);
@@ -289,9 +306,10 @@ export default function Index() {
         description,
         questionCount,
         date,
-        sessions,
+        impressions,
         completions,
         completionRate,
+        attributedRevenue,
       },
       index
     ) => (
@@ -303,14 +321,9 @@ export default function Index() {
         onClick={() => navigate(`/app/quiz/${quiz_id}`)}
       >
         <IndexTable.Cell>
-          <BlockStack gap="100">
-            <Text variant="bodyMd" fontWeight="semibold" as="span">
-              {title}
-            </Text>
-            <Text variant="bodySm" as="span" tone="subdued">
-              {questionCount} {questionCount === 1 ? "question" : "questions"}
-            </Text>
-          </BlockStack>
+          <Text variant="bodyMd" fontWeight="semibold" as="span">
+            {title}
+          </Text>
         </IndexTable.Cell>
         <IndexTable.Cell>
           <Text as="span" tone="subdued">
@@ -318,7 +331,7 @@ export default function Index() {
           </Text>
         </IndexTable.Cell>
         <IndexTable.Cell>
-          <Text as="span">{sessions}</Text>
+          <Text as="span">{impressions}</Text>
         </IndexTable.Cell>
         <IndexTable.Cell>
           <Text as="span">{completions}</Text>
@@ -335,6 +348,9 @@ export default function Index() {
           >
             {completionRate}%
           </Badge>
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          <Text as="span">${attributedRevenue.toFixed(2)}</Text>
         </IndexTable.Cell>
       </IndexTable.Row>
     )
@@ -363,33 +379,14 @@ export default function Index() {
         <BlockStack gap="200" inlineAlign="start">
           <InlineStack gap="200" blockAlign="center">
             <Box paddingInlineEnd="200">
-              <Icon source={QuestionCircleIcon} tone="info" />
-            </Box>
-            <Text as="h3" variant="headingSm" tone="subdued">
-              Total Quizzes
-            </Text>
-          </InlineStack>
-          <Text as="p" variant="heading2xl">
-            {metrics.totalQuizzes}
-          </Text>
-          <Text as="p" variant="bodySm" tone="subdued">
-            All quizzes created
-          </Text>
-        </BlockStack>
-      </Card>
-
-      <Card>
-        <BlockStack gap="200" inlineAlign="start">
-          <InlineStack gap="200" blockAlign="center">
-            <Box paddingInlineEnd="200">
               <Icon source={PlayIcon} tone="warning" />
             </Box>
             <Text as="h3" variant="headingSm" tone="subdued">
-              Total Sessions
+              Total Impressions
             </Text>
           </InlineStack>
           <Text as="p" variant="heading2xl">
-            {metrics.totalSessions}
+            {metrics.totalImpressions}
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
             Quizzes started
@@ -431,6 +428,25 @@ export default function Index() {
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
             Average across all quizzes
+          </Text>
+        </BlockStack>
+      </Card>
+
+      <Card>
+        <BlockStack gap="200" inlineAlign="start">
+          <InlineStack gap="200" blockAlign="center">
+            <Box paddingInlineEnd="200">
+              <Icon source={CashDollarIcon} tone="success" />
+            </Box>
+            <Text as="h3" variant="headingSm" tone="subdued">
+              Attributed Revenue
+            </Text>
+          </InlineStack>
+          <Text as="p" variant="heading2xl">
+            ${metrics.totalAttributedRevenue.toFixed(2)}
+          </Text>
+          <Text as="p" variant="bodySm" tone="subdued">
+            Total from all quizzes
           </Text>
         </BlockStack>
       </Card>
@@ -523,9 +539,10 @@ export default function Index() {
                   headings={[
                     { title: "Quiz" },
                     { title: "Date created" },
-                    { title: "Sessions" },
+                    { title: "Impressions" },
                     { title: "Completions" },
                     { title: "Completion rate" },
+                    { title: "Attributed revenue" },
                   ]}
                   selectable={false}
                 >
