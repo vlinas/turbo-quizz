@@ -217,15 +217,29 @@ async function handleAnswer(data) {
     });
   } else {
     // Create new selection
-    await prisma.answerSelection.create({
-      data: {
+    try {
+      console.log('[Record Answer] Creating selection:', {
         session_id,
         answer_id,
         question_id,
         quiz_id,
         shop: session.shop,
-      },
-    });
+      });
+      await prisma.answerSelection.create({
+        data: {
+          session_id,
+          answer_id,
+          question_id,
+          quiz_id,
+          shop: session.shop,
+        },
+      });
+      console.log('[Record Answer] Selection created successfully');
+    } catch (error) {
+      console.error('[Record Answer] Failed to create selection:', error.message);
+      console.error('[Record Answer] Error details:', JSON.stringify(error, null, 2));
+      throw error;
+    }
   }
 
   return json({
