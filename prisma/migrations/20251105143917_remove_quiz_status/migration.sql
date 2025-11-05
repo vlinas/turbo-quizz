@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE "Quiz" DROP COLUMN "status";
+ALTER TABLE "Quiz" DROP COLUMN IF EXISTS "status";
 
 -- DropIndex
-DROP INDEX "Quiz_status_idx";
+DROP INDEX IF EXISTS "Quiz_status_idx";
