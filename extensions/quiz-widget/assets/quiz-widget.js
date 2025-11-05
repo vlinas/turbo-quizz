@@ -247,6 +247,9 @@
               session_id: this.sessionId,
             }),
           });
+
+          // Add session_id to cart attributes for order attribution
+          await this.addSessionToCart(this.sessionId);
         } catch (error) {
           console.error('Error completing session:', error);
         }
@@ -383,6 +386,30 @@
       if (!gid) return '';
       const parts = gid.split('/');
       return parts[parts.length - 1];
+    }
+
+    async addSessionToCart(sessionId) {
+      try {
+        // Add quiz session ID as cart attribute for order attribution
+        const response = await fetch('/cart/update.js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            attributes: {
+              'turbo_quiz_session': sessionId,
+              'quiz_id': this.quizId,
+            },
+          }),
+        });
+
+        if (response.ok) {
+          console.log('[TurboQuiz] Session added to cart attributes for attribution');
+        } else {
+          console.error('[TurboQuiz] Failed to add session to cart:', await response.text());
+        }
+      } catch (error) {
+        console.error('[TurboQuiz] Error adding session to cart:', error);
+      }
     }
 
     restart() {

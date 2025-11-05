@@ -81,7 +81,25 @@ export const action = async ({ request }) => {
           });
         }
 
-        // If no session found, check order notes for session_id
+        // If no session found, check cart attributes for session_id
+        if (!quizSession && payload.note_attributes) {
+          const sessionIdAttr = payload.note_attributes.find(
+            attr => attr.name === 'turbo_quiz_session'
+          );
+
+          if (sessionIdAttr && sessionIdAttr.value) {
+            const sessionId = sessionIdAttr.value;
+            console.log(`[Quiz Attribution] Found session ID in cart attributes: ${sessionId}`);
+
+            quizSession = await db.quizSession.findUnique({
+              where: {
+                session_id: sessionId,
+              },
+            });
+          }
+        }
+
+        // If still no session found, check order notes for session_id (legacy support)
         if (!quizSession) {
           const orderNote = payload.note || "";
           const sessionIdMatch = orderNote.match(/quiz_session:([a-zA-Z0-9-]+)/);
