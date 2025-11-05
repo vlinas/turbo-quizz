@@ -165,6 +165,18 @@ async function handleAnswer(data) {
     });
   }
 
+  // Convert quiz_id to integer
+  const parsedQuizId = parseInt(quiz_id, 10);
+  if (isNaN(parsedQuizId)) {
+    return json({
+      success: false,
+      error: "Invalid quiz_id format"
+    }, {
+      status: 400,
+      headers: corsHeaders
+    });
+  }
+
   // Verify session exists
   const session = await prisma.quizSession.findUnique({
     where: { session_id },
@@ -222,7 +234,7 @@ async function handleAnswer(data) {
         session_id,
         answer_id,
         question_id,
-        quiz_id,
+        quiz_id: parsedQuizId,
         shop: session.shop,
       });
       await prisma.answerSelection.create({
@@ -230,7 +242,7 @@ async function handleAnswer(data) {
           session_id,
           answer_id,
           question_id,
-          quiz_id,
+          quiz_id: parsedQuizId,
           shop: session.shop,
         },
       });
