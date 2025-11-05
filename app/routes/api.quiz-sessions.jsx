@@ -15,7 +15,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-export async function loader() {
+export async function loader({ request }) {
+  // Handle OPTIONS requests for CORS preflight
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders
+    });
+  }
+
   return json(
     { error: "Method not allowed. Use POST for actions." },
     {
@@ -68,14 +76,6 @@ export async function action({ request }) {
       headers: corsHeaders
     });
   }
-}
-
-// Handle OPTIONS requests for CORS preflight
-export async function options() {
-  return new Response(null, {
-    status: 204,
-    headers: corsHeaders
-  });
 }
 
 /**
