@@ -70,8 +70,7 @@
     }
 
     async loadQuiz() {
-      this.showLoading();
-
+      // Don't show loading state - keep it seamless
       try {
         const response = await fetch(`${this.appUrl}/api/quiz/${this.quizId}`);
         const data = await response.json();
@@ -81,7 +80,8 @@
         }
 
         this.quiz = data.quiz;
-        await this.startSession();
+        // Start session in background without blocking render
+        this.startSession().catch(err => console.error('Session start error:', err));
         this.renderQuiz();
       } catch (error) {
         console.error('Error loading quiz:', error);
@@ -125,11 +125,10 @@
     }
 
     renderQuiz() {
-      this.hideLoading();
       this.hideError();
-      this.containerEl.style.display = 'block';
+      // Container is already visible - no need to show/hide
 
-      // Show first question (title and progress bar removed)
+      // Show first question immediately
       this.renderQuestion();
     }
 
@@ -397,20 +396,17 @@
     }
 
     showLoading() {
-      this.loadingEl.style.display = 'block';
-      this.errorEl.style.display = 'none';
-      this.containerEl.style.display = 'none';
+      // No-op - we don't show loading state for seamless experience
     }
 
     hideLoading() {
-      this.loadingEl.style.display = 'none';
+      // No-op - we don't show loading state for seamless experience
     }
 
     showError(message) {
       this.errorMessageEl.textContent = message;
       this.errorEl.style.display = 'block';
-      this.loadingEl.style.display = 'none';
-      this.containerEl.style.display = 'none';
+      this.containerEl.style.opacity = '0.3';
     }
 
     hideError() {

@@ -9,9 +9,8 @@
   data-app-url="https://turbo-quizz-1660bbe41f52.herokuapp.com"
   id="turbo-quiz-{{ block.id }}"
 >
-  <div class="turbo-quiz-loading">
+  <div class="turbo-quiz-loading" style="display: none; opacity: 0;">
     <div class="turbo-quiz-spinner"></div>
-    <p>Loading quiz...</p>
   </div>
 
   <div class="turbo-quiz-error" style="display: none;">
@@ -19,7 +18,7 @@
     <button class="turbo-quiz-retry-btn">Try Again</button>
   </div>
 
-  <div class="turbo-quiz-container" style="display: none;">
+  <div class="turbo-quiz-container" style="min-height: 200px;">
     <!-- Quiz Header (hidden - minimal theme-friendly design) -->
     <div class="turbo-quiz-header" style="display: none;">
       <h2 class="turbo-quiz-title"></h2>
