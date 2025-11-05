@@ -31,6 +31,7 @@ import {
   CheckCircleIcon,
   ChartVerticalIcon,
   CashDollarIcon,
+  EditIcon,
 } from "@shopify/polaris-icons";
 
 import { authenticate, PRO_PLAN } from "../shopify.server";
@@ -318,39 +319,63 @@ export default function Index() {
         key={id}
         selected={selectedResources.includes(id)}
         position={index}
-        onClick={() => navigate(`/app/quiz/${quiz_id}`)}
       >
         <IndexTable.Cell>
-          <Text variant="bodyMd" fontWeight="semibold" as="span">
-            {title}
-          </Text>
+          <Box paddingBlockStart="300" paddingBlockEnd="300">
+            <Text variant="bodyMd" fontWeight="semibold" as="span">
+              {title}
+            </Text>
+          </Box>
         </IndexTable.Cell>
         <IndexTable.Cell>
-          <Text as="span" tone="subdued">
-            {date}
-          </Text>
+          <Box paddingBlockStart="300" paddingBlockEnd="300">
+            <Text as="span" tone="subdued">
+              {date}
+            </Text>
+          </Box>
         </IndexTable.Cell>
         <IndexTable.Cell>
-          <Text as="span">{impressions}</Text>
+          <Box paddingBlockStart="300" paddingBlockEnd="300">
+            <Text as="span">{impressions}</Text>
+          </Box>
         </IndexTable.Cell>
         <IndexTable.Cell>
-          <Text as="span">{completions}</Text>
+          <Box paddingBlockStart="300" paddingBlockEnd="300">
+            <Text as="span">{completions}</Text>
+          </Box>
         </IndexTable.Cell>
         <IndexTable.Cell>
-          <Badge
-            tone={
-              completionRate >= 70
-                ? "success"
-                : completionRate >= 40
-                ? "info"
-                : "attention"
-            }
-          >
-            {completionRate}%
-          </Badge>
+          <Box paddingBlockStart="300" paddingBlockEnd="300">
+            <Badge
+              tone={
+                completionRate >= 70
+                  ? "success"
+                  : completionRate >= 40
+                  ? "info"
+                  : "attention"
+              }
+            >
+              {completionRate}%
+            </Badge>
+          </Box>
         </IndexTable.Cell>
         <IndexTable.Cell>
-          <Text as="span">${attributedRevenue.toFixed(2)}</Text>
+          <Box paddingBlockStart="300" paddingBlockEnd="300">
+            <Text as="span">${attributedRevenue.toFixed(2)}</Text>
+          </Box>
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          <Box paddingBlockStart="200" paddingBlockEnd="200">
+            <Button
+              icon={EditIcon}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/app/quiz/${quiz_id}`);
+              }}
+            >
+              Edit
+            </Button>
+          </Box>
         </IndexTable.Cell>
       </IndexTable.Row>
     )
@@ -543,6 +568,7 @@ export default function Index() {
                     { title: "Completions" },
                     { title: "Completion rate" },
                     { title: "Attributed revenue" },
+                    { title: "Actions" },
                   ]}
                   selectable={false}
                 >
