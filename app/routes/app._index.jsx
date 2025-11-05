@@ -191,9 +191,8 @@ export default function Index() {
   // State
   const [modalActive, setModalActive] = useState(false);
   const [queryValue, setQueryValue] = useState("");
-  const [statusFilter, setStatusFilter] = useState([]);
 
-  const { mode, setMode } = useSetIndexFiltersMode();
+  const { mode, setMode} = useSetIndexFiltersMode();
 
   const totalCount = quizzes.length;
   const totalSet = limit;
@@ -202,7 +201,6 @@ export default function Index() {
   // Calculate metrics
   const metrics = useMemo(() => {
     const totalQuizzes = quizzes.length;
-    const activeQuizzes = quizzes.filter((q) => q.status === "active").length;
     const totalSessions = quizzes.reduce((sum, q) => sum + q.stats.totalSessions, 0);
     const totalCompletions = quizzes.reduce((sum, q) => sum + q.stats.completedSessions, 0);
     const avgCompletionRate = totalSessions > 0
@@ -211,7 +209,6 @@ export default function Index() {
 
     return {
       totalQuizzes,
-      activeQuizzes,
       totalSessions,
       totalCompletions,
       avgCompletionRate,
@@ -237,7 +234,6 @@ export default function Index() {
         sessions: quiz.stats.totalSessions,
         completions: quiz.stats.completedSessions,
         completionRate: quiz.stats.completionRate,
-        status: quiz.status,
       };
     });
   }, [quizzes]);
@@ -253,15 +249,8 @@ export default function Index() {
       );
     }
 
-    // Status filter
-    if (statusFilter.length > 0) {
-      filtered = filtered.filter((quiz) =>
-        statusFilter.includes(quiz.status)
-      );
-    }
-
     return filtered;
-  }, [processedQuizzes, queryValue, statusFilter]);
+  }, [processedQuizzes, queryValue]);
 
   // IndexTable setup
   const resourceName = {
@@ -275,13 +264,8 @@ export default function Index() {
   // Handlers
   const handleQueryChange = useCallback((value) => setQueryValue(value), []);
   const handleQueryClear = useCallback(() => setQueryValue(""), []);
-  const handleStatusFilterChange = useCallback(
-    (value) => setStatusFilter(value),
-    []
-  );
   const handleFiltersClearAll = useCallback(() => {
     handleQueryClear();
-    setStatusFilter([]);
   }, [handleQueryClear]);
 
   const handleUpgradePlan = () => setModalActive(true);
@@ -292,36 +276,8 @@ export default function Index() {
   const handleModalClose = () => setModalActive(false);
 
   // Filters
-  const filters = [
-    {
-      key: "status",
-      label: "Status",
-      filter: (
-        <ChoiceList
-          title="Status"
-          titleHidden
-          choices={[
-            { label: "Active", value: "active" },
-            { label: "Draft", value: "draft" },
-            { label: "Inactive", value: "inactive" },
-          ]}
-          selected={statusFilter}
-          onChange={handleStatusFilterChange}
-          allowMultiple
-        />
-      ),
-      shortcut: true,
-    },
-  ];
-
+  const filters = [];
   const appliedFilters = [];
-  if (statusFilter.length > 0) {
-    appliedFilters.push({
-      key: "status",
-      label: `Status: ${statusFilter.join(", ")}`,
-      onRemove: () => setStatusFilter([]),
-    });
-  }
 
   // Row markup
   const rowMarkup = filteredQuizzes.map(
@@ -336,7 +292,6 @@ export default function Index() {
         sessions,
         completions,
         completionRate,
-        status,
       },
       index
     ) => (
@@ -381,19 +336,6 @@ export default function Index() {
             {completionRate}%
           </Badge>
         </IndexTable.Cell>
-        <IndexTable.Cell>
-          <Badge
-            tone={
-              status === "active"
-                ? "success"
-                : status === "draft"
-                ? "info"
-                : "default"
-            }
-          >
-            {status.charAt(0).toUpperCase() + status.slice(1)}
-          </Badge>
-        </IndexTable.Cell>
       </IndexTable.Row>
     )
   );
@@ -431,7 +373,7 @@ export default function Index() {
             {metrics.totalQuizzes}
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
-            {metrics.activeQuizzes} active
+            All quizzes created
           </Text>
         </BlockStack>
       </Card>
@@ -584,7 +526,6 @@ export default function Index() {
                     { title: "Sessions" },
                     { title: "Completions" },
                     { title: "Completion rate" },
-                    { title: "Status" },
                   ]}
                   selectable={false}
                 >

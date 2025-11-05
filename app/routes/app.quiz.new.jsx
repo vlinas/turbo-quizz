@@ -45,7 +45,6 @@ export const action = async ({ request }) => {
         quiz_id: nextQuizId,
         title,
         description: description || "",
-        status: "draft",
         display_on_pages: [],
       },
     });

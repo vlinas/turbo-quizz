@@ -27,7 +27,6 @@ model Quiz {
   quiz_id        Int
   title          String
   description    String?
-  status         String        @default("draft")
   display_on_pages String[]
   theme_settings Json?
   created_at     DateTime      @default(now())
@@ -38,7 +37,6 @@ model Quiz {
 
   @@unique([shop, quiz_id])
   @@index([shop])
-  @@index([status])
 }
 
 model Question {
