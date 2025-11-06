@@ -188,8 +188,6 @@ export default function EditQuestion() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAdvancedJson1, setShowAdvancedJson1] = useState(false);
   const [showAdvancedJson2, setShowAdvancedJson2] = useState(false);
-  const [answer1PreviewItems, setAnswer1PreviewItems] = useState([]);
-  const [answer2PreviewItems, setAnswer2PreviewItems] = useState([]);
 
   // Toast state
   const [toastActive, setToastActive] = useState(false);
@@ -207,8 +205,22 @@ export default function EditQuestion() {
   const openResourcePicker = async (type, multiple = true, initialSelection = []) => {
     try {
       if (typeof window !== "undefined" && window.shopify && typeof window.shopify.resourcePicker === "function") {
-        const result = await window.shopify.resourcePicker({ type, multiple, selectionIds: initialSelection });
-        return result && Array.isArray(result.selection) ? result.selection : [];
+        const config = {
+          type,
+          multiple,
+          action: "select"
+        };
+
+        // Add selection IDs if provided
+        if (initialSelection && initialSelection.length > 0) {
+          config.selectionIds = initialSelection;
+        }
+
+        const result = await window.shopify.resourcePicker(config);
+
+        // Handle both old and new API response formats
+        const selection = result?.selection || result || [];
+        return Array.isArray(selection) ? selection : [];
       }
     } catch (e) {
       console.error("Resource picker error:", e);
@@ -217,27 +229,59 @@ export default function EditQuestion() {
   };
 
   const handlePickProducts = async (which) => {
-    const selection = await openResourcePicker("product", true);
+    // Get current selection to pass as initial selection
+    const currentData = which === 1 ? answer1ActionData : answer2ActionData;
+    const currentIds = currentData ? currentData.split(",").filter(Boolean) : [];
+
+    const selection = await openResourcePicker("product", true, currentIds);
     if (!selection.length) return;
+
+    // Cap at 3 products
     const capped = selection.slice(0, 3);
     const idsCsv = capped.map((s) => s.id).join(",");
-    if (which === 1) setAnswer1ActionData(idsCsv);
-    if (which === 2) setAnswer2ActionData(idsCsv);
-    const items = capped.map((s) => ({ id: s.id, title: s.title, image: s?.images?.[0]?.originalSrc || s?.image?.originalSrc }));
-    if (which === 1) setAnswer1PreviewItems(items);
-    if (which === 2) setAnswer2PreviewItems(items);
+
+    // Extract items for preview
+    const items = capped.map((s) => ({
+      id: s.id,
+      title: s.title,
+      image: s?.images?.[0]?.originalSrc || s?.images?.[0]?.url || s?.image?.originalSrc || s?.image?.url || ""
+    }));
+
+    if (which === 1) {
+      setAnswer1ActionData(idsCsv);
+      setAnswer1PreviewItems(items);
+    } else if (which === 2) {
+      setAnswer2ActionData(idsCsv);
+      setAnswer2PreviewItems(items);
+    }
   };
 
   const handlePickCollections = async (which) => {
-    const selection = await openResourcePicker("collection", true);
+    // Get current selection to pass as initial selection
+    const currentData = which === 1 ? answer1ActionData : answer2ActionData;
+    const currentIds = currentData ? currentData.split(",").filter(Boolean) : [];
+
+    const selection = await openResourcePicker("collection", true, currentIds);
     if (!selection.length) return;
+
+    // Cap at 3 collections
     const capped = selection.slice(0, 3);
     const idsCsv = capped.map((s) => s.id).join(",");
-    if (which === 1) setAnswer1ActionData(idsCsv);
-    if (which === 2) setAnswer2ActionData(idsCsv);
-    const items = capped.map((s) => ({ id: s.id, title: s.title, image: s?.image?.originalSrc }));
-    if (which === 1) setAnswer1PreviewItems(items);
-    if (which === 2) setAnswer2PreviewItems(items);
+
+    // Extract items for preview
+    const items = capped.map((s) => ({
+      id: s.id,
+      title: s.title,
+      image: s?.image?.originalSrc || s?.image?.url || ""
+    }));
+
+    if (which === 1) {
+      setAnswer1ActionData(idsCsv);
+      setAnswer1PreviewItems(items);
+    } else if (which === 2) {
+      setAnswer2ActionData(idsCsv);
+      setAnswer2PreviewItems(items);
+    }
   };
 
   const parseCount = (raw, type) => {
@@ -253,29 +297,63 @@ export default function EditQuestion() {
     }
   };
 
+  // Extract initial data and preview items from stored answer data
+  const extractInitialData = (answer) => {
+    const actionData = answer.action_data;
+    const actionType = answer.action_type;
+
+    if (actionType === "show_text") {
+      return { data: actionData.text || "", customText: "", previewItems: [] };
+    }
+
+    if (actionType === "show_products") {
+      const products = actionData.products || [];
+      const ids = products.map(p => p.id).join(",");
+      const previewItems = products.map(p => ({
+        id: p.id,
+        title: p.title,
+        image: p.images?.[0]?.originalSrc || p.images?.[0]?.url || ""
+      }));
+      return {
+        data: ids,
+        customText: actionData.custom_text || "",
+        previewItems
+      };
+    }
+
+    if (actionType === "show_collections") {
+      const collections = actionData.collections || [];
+      const ids = collections.map(c => c.id).join(",");
+      const previewItems = collections.map(c => ({
+        id: c.id,
+        title: c.title,
+        image: c.image?.originalSrc || c.image?.url || ""
+      }));
+      return {
+        data: ids,
+        customText: actionData.custom_text || "",
+        previewItems
+      };
+    }
+
+    return { data: "", customText: "", previewItems: [] };
+  };
+
   // Answer 1
+  const answer1Initial = extractInitialData(question.answers[0]);
   const [answer1Text, setAnswer1Text] = useState(question.answers[0].answer_text);
   const [answer1ActionType, setAnswer1ActionType] = useState(question.answers[0].action_type);
-  const [answer1ActionData, setAnswer1ActionData] = useState(
-    question.answers[0].action_type === "show_text"
-      ? question.answers[0].action_data.text
-      : question.answers[0].action_type === "show_products"
-      ? question.answers[0].action_data.product_ids?.join(",") || ""
-      : question.answers[0].action_data.collection_ids?.join(",") || ""
-  );
-  const [answer1CustomText, setAnswer1CustomText] = useState("");
+  const [answer1ActionData, setAnswer1ActionData] = useState(answer1Initial.data);
+  const [answer1CustomText, setAnswer1CustomText] = useState(answer1Initial.customText);
+  const [answer1PreviewItems, setAnswer1PreviewItems] = useState(answer1Initial.previewItems);
 
   // Answer 2
+  const answer2Initial = extractInitialData(question.answers[1]);
   const [answer2Text, setAnswer2Text] = useState(question.answers[1].answer_text);
   const [answer2ActionType, setAnswer2ActionType] = useState(question.answers[1].action_type);
-  const [answer2ActionData, setAnswer2ActionData] = useState(
-    question.answers[1].action_type === "show_text"
-      ? question.answers[1].action_data.text
-      : question.answers[1].action_type === "show_products"
-      ? question.answers[1].action_data.product_ids?.join(",") || ""
-      : question.answers[1].action_data.collection_ids?.join(",") || ""
-  );
-  const [answer2CustomText, setAnswer2CustomText] = useState("");
+  const [answer2ActionData, setAnswer2ActionData] = useState(answer2Initial.data);
+  const [answer2CustomText, setAnswer2CustomText] = useState(answer2Initial.customText);
+  const [answer2PreviewItems, setAnswer2PreviewItems] = useState(answer2Initial.previewItems);
 
   const actionTypeOptions = [
     { label: "Show Text Message", value: "show_text" },
@@ -406,10 +484,16 @@ export default function EditQuestion() {
               />
 
               {answer1ActionType === "show_products" && (
-                <InlineStack gap="200" blockAlign="center">
-                  <Button onClick={() => handlePickProducts(1)}>Pick products</Button>
-                  <Text as="span" tone="subdued">{parseCount(answer1ActionData, "show_products")} selected</Text>
-                </InlineStack>
+                <BlockStack gap="300">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Button onClick={() => handlePickProducts(1)}>
+                      {answer1PreviewItems.length > 0 ? "Change products" : "Pick products"} (max 3)
+                    </Button>
+                    {answer1PreviewItems.length > 0 && (
+                      <Badge tone="success">{answer1PreviewItems.length} selected</Badge>
+                    )}
+                  </InlineStack>
+                </BlockStack>
               )}
               {answer1ActionType === "show_products" && (
                 <TextField label="Custom text" value={answer1CustomText} onChange={setAnswer1CustomText} placeholder="Based on your answers, we recommend these products:" />
@@ -433,10 +517,16 @@ export default function EditQuestion() {
               ) : null}
 
               {answer1ActionType === "show_collections" && (
-                <InlineStack gap="200" blockAlign="center">
-                  <Button onClick={() => handlePickCollections(1)}>Pick collections</Button>
-                  <Text as="span" tone="subdued">{parseCount(answer1ActionData, "show_collections")} selected</Text>
-                </InlineStack>
+                <BlockStack gap="300">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Button onClick={() => handlePickCollections(1)}>
+                      {answer1PreviewItems.length > 0 ? "Change collections" : "Pick collections"} (max 3)
+                    </Button>
+                    {answer1PreviewItems.length > 0 && (
+                      <Badge tone="success">{answer1PreviewItems.length} selected</Badge>
+                    )}
+                  </InlineStack>
+                </BlockStack>
               )}
               {answer1ActionType === "show_collections" && (
                 <TextField label="Custom text" value={answer1CustomText} onChange={setAnswer1CustomText} placeholder="Based on your answers, check out these collections:" />
@@ -502,10 +592,16 @@ export default function EditQuestion() {
               />
 
               {answer2ActionType === "show_products" && (
-                <InlineStack gap="200" blockAlign="center">
-                  <Button onClick={() => handlePickProducts(2)}>Pick products</Button>
-                  <Text as="span" tone="subdued">{parseCount(answer2ActionData, "show_products")} selected</Text>
-                </InlineStack>
+                <BlockStack gap="300">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Button onClick={() => handlePickProducts(2)}>
+                      {answer2PreviewItems.length > 0 ? "Change products" : "Pick products"} (max 3)
+                    </Button>
+                    {answer2PreviewItems.length > 0 && (
+                      <Badge tone="success">{answer2PreviewItems.length} selected</Badge>
+                    )}
+                  </InlineStack>
+                </BlockStack>
               )}
               {answer2ActionType === "show_products" && (
                 <TextField label="Custom text" value={answer2CustomText} onChange={setAnswer2CustomText} placeholder="Based on your answers, we recommend these products:" />
@@ -529,10 +625,16 @@ export default function EditQuestion() {
               ) : null}
 
               {answer2ActionType === "show_collections" && (
-                <InlineStack gap="200" blockAlign="center">
-                  <Button onClick={() => handlePickCollections(2)}>Pick collections</Button>
-                  <Text as="span" tone="subdued">{parseCount(answer2ActionData, "show_collections")} selected</Text>
-                </InlineStack>
+                <BlockStack gap="300">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Button onClick={() => handlePickCollections(2)}>
+                      {answer2PreviewItems.length > 0 ? "Change collections" : "Pick collections"} (max 3)
+                    </Button>
+                    {answer2PreviewItems.length > 0 && (
+                      <Badge tone="success">{answer2PreviewItems.length} selected</Badge>
+                    )}
+                  </InlineStack>
+                </BlockStack>
               )}
               {answer2ActionType === "show_collections" && (
                 <TextField label="Custom text" value={answer2CustomText} onChange={setAnswer2CustomText} placeholder="Based on your answers, check out these collections:" />
