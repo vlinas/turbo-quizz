@@ -118,6 +118,14 @@ export const action = async ({ request, params }) => {
     const answer1Data = await buildData(answer1_action_type, answer1_action_data, answer1_custom_text);
     const answer2Data = await buildData(answer2_action_type, answer2_action_data, answer2_custom_text);
 
+    // Debug logging
+    console.log('[Edit Question] answer1_action_type:', answer1_action_type);
+    console.log('[Edit Question] answer1_action_data (raw):', answer1_action_data);
+    console.log('[Edit Question] answer1Data (built):', JSON.stringify(answer1Data));
+    console.log('[Edit Question] answer2_action_type:', answer2_action_type);
+    console.log('[Edit Question] answer2_action_data (raw):', answer2_action_data);
+    console.log('[Edit Question] answer2Data (built):', JSON.stringify(answer2Data));
+
     try {
       // Update question and answers in transaction
       await prisma.question.update({
