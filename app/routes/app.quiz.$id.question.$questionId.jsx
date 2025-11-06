@@ -101,15 +101,24 @@ export const action = async ({ request, params }) => {
     const answer2_custom_text = formData.get("answer2_custom_text") || "";
 
     const buildData = async (type, raw, customTextDefault) => {
+      console.log('[buildData] type:', type, 'raw:', raw);
       if (type === "show_text") return { text: raw };
       if (type === "show_products") {
         const ids = (raw || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 3);
-        const nodes = await fetchNodesByIds(toGids(ids));
+        console.log('[buildData] split IDs:', ids);
+        const gids = toGids(ids);
+        console.log('[buildData] converted GIDs:', gids);
+        const nodes = await fetchNodesByIds(gids);
+        console.log('[buildData] fetched nodes:', JSON.stringify(nodes));
         return { products: nodes, custom_text: customTextDefault || "Based on your answers, we recommend these products:" };
       }
       if (type === "show_collections") {
         const ids = (raw || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 3);
-        const nodes = await fetchNodesByIds(toCollectionGids(ids));
+        console.log('[buildData] split IDs:', ids);
+        const gids = toCollectionGids(ids);
+        console.log('[buildData] converted GIDs:', gids);
+        const nodes = await fetchNodesByIds(gids);
+        console.log('[buildData] fetched nodes:', JSON.stringify(nodes));
         return { collections: nodes, custom_text: customTextDefault || "Based on your answers, check out these collections:" };
       }
       return {};
