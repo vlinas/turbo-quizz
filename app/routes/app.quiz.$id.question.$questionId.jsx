@@ -1,6 +1,6 @@
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useNavigate, useSubmit, useActionData } from "@remix-run/react";
-import { useState, useCallback, useEffect } from "react";
+import { useLoaderData, useNavigate, useSubmit, useActionData, Form } from "@remix-run/react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Page,
   Layout,
@@ -199,6 +199,7 @@ export default function EditQuestion() {
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
+  const formRef = useRef(null);
 
   const [questionText, setQuestionText] = useState(question.question_text);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -380,21 +381,11 @@ export default function EditQuestion() {
 
   const handleSave = useCallback(() => {
     setIsSubmitting(true);
-    const formData = new FormData();
-    formData.append("_action", "update");
-    formData.append("question_text", questionText);
-    formData.append("answer1_id", question.answers[0].answer_id);
-    formData.append("answer1_text", answer1Text);
-    formData.append("answer1_action_type", answer1ActionType);
-    formData.append("answer1_action_data", answer1ActionData);
-    formData.append("answer1_custom_text", answer1CustomText);
-    formData.append("answer2_id", question.answers[1].answer_id);
-    formData.append("answer2_text", answer2Text);
-    formData.append("answer2_action_type", answer2ActionType);
-    formData.append("answer2_action_data", answer2ActionData);
-    formData.append("answer2_custom_text", answer2CustomText);
-    submit(formData, { method: "post", action: `/app/quiz/${quiz.quiz_id}/question/${question.question_id}` });
-  }, [questionText, answer1Text, answer1ActionType, answer1ActionData, answer1CustomText, answer2Text, answer2ActionType, answer2ActionData, answer2CustomText, question.answers, question.question_id, quiz.quiz_id, submit]);
+    // Submit the hidden form which has the correct action attribute
+    if (formRef.current) {
+      formRef.current.requestSubmit();
+    }
+  }, []);
 
   const handleDelete = useCallback(() => {
     const formData = new FormData();
@@ -434,6 +425,27 @@ export default function EditQuestion() {
 
   return (
     <Frame>
+      {/* Hidden form with explicit action for proper routing */}
+      <Form
+        ref={formRef}
+        method="post"
+        action={`/app/quiz/${quiz.quiz_id}/question/${question.question_id}`}
+        style={{ display: 'none' }}
+      >
+        <input type="hidden" name="_action" value="update" />
+        <input type="hidden" name="question_text" value={questionText} />
+        <input type="hidden" name="answer1_id" value={question.answers[0].answer_id} />
+        <input type="hidden" name="answer1_text" value={answer1Text} />
+        <input type="hidden" name="answer1_action_type" value={answer1ActionType} />
+        <input type="hidden" name="answer1_action_data" value={answer1ActionData} />
+        <input type="hidden" name="answer1_custom_text" value={answer1CustomText} />
+        <input type="hidden" name="answer2_id" value={question.answers[1].answer_id} />
+        <input type="hidden" name="answer2_text" value={answer2Text} />
+        <input type="hidden" name="answer2_action_type" value={answer2ActionType} />
+        <input type="hidden" name="answer2_action_data" value={answer2ActionData} />
+        <input type="hidden" name="answer2_custom_text" value={answer2CustomText} />
+      </Form>
+
       <Page
       title="Edit Question"
       backAction={{ content: quiz.title, onAction: () => navigate(`/app/quiz/${quiz.quiz_id}`) }}
