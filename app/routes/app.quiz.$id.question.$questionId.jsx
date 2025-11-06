@@ -393,8 +393,8 @@ export default function EditQuestion() {
     formData.append("answer2_action_type", answer2ActionType);
     formData.append("answer2_action_data", answer2ActionData);
     formData.append("answer2_custom_text", answer2CustomText);
-    submit(formData, { method: "post" });
-  }, [questionText, answer1Text, answer1ActionType, answer1ActionData, answer2Text, answer2ActionType, answer2ActionData, question.answers, submit]);
+    submit(formData, { method: "post", action: `/app/quiz/${quiz.quiz_id}/question/${question.question_id}` });
+  }, [questionText, answer1Text, answer1ActionType, answer1ActionData, answer1CustomText, answer2Text, answer2ActionType, answer2ActionData, answer2CustomText, question.answers, question.question_id, quiz.quiz_id, submit]);
 
   const handleDelete = useCallback(() => {
     const formData = new FormData();
