@@ -185,8 +185,9 @@ export default function NewQuestion() {
 
   const actionTypeOptions = [
     { label: "Show text message", value: "show_text" },
-    { label: "Show products", value: "show_products" },
-    { label: "Show collections", value: "show_collections" },
+    // Products and collections temporarily disabled - coming soon
+    // { label: "Show products", value: "show_products" },
+    // { label: "Show collections", value: "show_collections" },
   ];
 
   const handleSubmit = () => {

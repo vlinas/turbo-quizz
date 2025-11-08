@@ -375,8 +375,9 @@ export default function EditQuestion() {
 
   const actionTypeOptions = [
     { label: "Show Text Message", value: "show_text" },
-    { label: "Show Products", value: "show_products" },
-    { label: "Show Collections", value: "show_collections" },
+    // Products and collections temporarily disabled - coming soon
+    // { label: "Show Products", value: "show_products" },
+    // { label: "Show Collections", value: "show_collections" },
   ];
 
   const handleSave = useCallback(() => {

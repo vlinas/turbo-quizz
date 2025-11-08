@@ -370,7 +370,7 @@ export default function BillingPage() {
                           Everything You Need to Succeed
                         </Text>
                         <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
-                          <InlineStack gap="300" blockAlign="center">
+                          <InlineStack gap="300" blockAlign="start">
                             <Icon source={CheckIcon} tone="success" />
                             <BlockStack gap="100">
                               <Text as="span" fontWeight="semibold">Unlimited quizzes</Text>
@@ -379,7 +379,7 @@ export default function BillingPage() {
                               </Text>
                             </BlockStack>
                           </InlineStack>
-                          <InlineStack gap="300" blockAlign="center">
+                          <InlineStack gap="300" blockAlign="start">
                             <Icon source={CheckIcon} tone="success" />
                             <BlockStack gap="100">
                               <Text as="span" fontWeight="semibold">Unlimited questions</Text>
@@ -388,7 +388,7 @@ export default function BillingPage() {
                               </Text>
                             </BlockStack>
                           </InlineStack>
-                          <InlineStack gap="300" blockAlign="center">
+                          <InlineStack gap="300" blockAlign="start">
                             <Icon source={CheckIcon} tone="success" />
                             <BlockStack gap="100">
                               <Text as="span" fontWeight="semibold">Product recommendations</Text>
@@ -397,7 +397,7 @@ export default function BillingPage() {
                               </Text>
                             </BlockStack>
                           </InlineStack>
-                          <InlineStack gap="300" blockAlign="center">
+                          <InlineStack gap="300" blockAlign="start">
                             <Icon source={CheckIcon} tone="success" />
                             <BlockStack gap="100">
                               <Text as="span" fontWeight="semibold">Collection recommendations</Text>
@@ -406,7 +406,7 @@ export default function BillingPage() {
                               </Text>
                             </BlockStack>
                           </InlineStack>
-                          <InlineStack gap="300" blockAlign="center">
+                          <InlineStack gap="300" blockAlign="start">
                             <Icon source={CheckIcon} tone="success" />
                             <BlockStack gap="100">
                               <Text as="span" fontWeight="semibold">Order attribution</Text>
@@ -415,7 +415,7 @@ export default function BillingPage() {
                               </Text>
                             </BlockStack>
                           </InlineStack>
-                          <InlineStack gap="300" blockAlign="center">
+                          <InlineStack gap="300" blockAlign="start">
                             <Icon source={CheckIcon} tone="success" />
                             <BlockStack gap="100">
                               <Text as="span" fontWeight="semibold">Revenue analytics</Text>
@@ -424,7 +424,7 @@ export default function BillingPage() {
                               </Text>
                             </BlockStack>
                           </InlineStack>
-                          <InlineStack gap="300" blockAlign="center">
+                          <InlineStack gap="300" blockAlign="start">
                             <Icon source={CheckIcon} tone="success" />
                             <BlockStack gap="100">
                               <Text as="span" fontWeight="semibold">Answer statistics</Text>
@@ -433,7 +433,7 @@ export default function BillingPage() {
                               </Text>
                             </BlockStack>
                           </InlineStack>
-                          <InlineStack gap="300" blockAlign="center">
+                          <InlineStack gap="300" blockAlign="start">
                             <Icon source={CheckIcon} tone="success" />
                             <BlockStack gap="100">
                               <Text as="span" fontWeight="semibold">Priority support</Text>
