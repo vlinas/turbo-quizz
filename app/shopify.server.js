@@ -27,14 +27,14 @@ const shopify = shopifyApp({
       amount: 14.99,
       trialDays: 0,
       currencyCode: "USD",
-      test: true,
+      test: process.env.NODE_ENV !== 'production',
       interval: BillingInterval.Every30Days,
     },
     [PRO_PLAN]: {
       amount: 14.99,
       trialDays: 0,
       currencyCode: "USD",
-      test: true,
+      test: process.env.NODE_ENV !== 'production',
       interval: BillingInterval.Every30Days,
     }
   },

@@ -45,11 +45,11 @@ export const action = async ({ request }) => {
           data: params,
         });
 
-        codes.forEach(async (code) => {
+        // Process discount codes sequentially to ensure proper tracking
+        await Promise.all(codes.map(async (code) => {
           const discount_id = await updateUsedCode(code, payload.current_total_price);
-          await updateRevenue(discount_id, payload.current_total_price)
-        });
-        // codes.map(code => updateUsedCode(code));
+          await updateRevenue(discount_id, payload.current_total_price);
+        }));
 
       } catch (error) {
         console.log(error);
