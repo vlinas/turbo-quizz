@@ -1,5 +1,5 @@
 {
-  "name": "turbo-quizz-app",
+  "name": "simple-product-page-quiz",
   "private": true,
   "scripts": {
     "build": "remix build",

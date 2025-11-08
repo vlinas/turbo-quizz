@@ -3,7 +3,7 @@
   "settings": {
     "quiz_id": {
       "label": "Quiz ID",
-      "info": "Enter the Quiz ID from your Turbo Quiz app dashboard"
+      "info": "Enter the Quiz ID from your Simple Product Page Quiz app dashboard"
     },
     "app_url": {
       "label": "App URL",

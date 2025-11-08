@@ -335,7 +335,7 @@ export default function BillingPage() {
                             <Icon source={StarFilledIcon} tone="warning" />
                           </InlineStack>
                           <Text as="h1" variant="heading2xl" alignment="center">
-                            Unlock the Full Power of Turbo Quiz
+                            Unlock the Full Power of Simple Product Page Quiz
                           </Text>
                           <Text as="p" variant="bodyLg" tone="subdued" alignment="center">
                             Create unlimited quizzes, track revenue, and grow your business with advanced analytics
