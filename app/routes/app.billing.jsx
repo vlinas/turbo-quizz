@@ -26,7 +26,7 @@ import {
   ChartVerticalIcon,
   PlayIcon,
 } from "@shopify/polaris-icons";
-import { authenticate, PRO_PLAN } from "../shopify.server";
+import { authenticate, PREMIUM_PLAN } from "../shopify.server";
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
@@ -91,7 +91,7 @@ export const action = async ({ request }) => {
 
       // Request billing
       const billingResponse = await billing.request({
-        plan: PRO_PLAN,
+        plan: PREMIUM_PLAN,
         isTest: true,
         returnUrl: `${launchUrl}/billing?upgrade=success`,
       });
@@ -350,14 +350,14 @@ export default function BillingPage() {
                         <BlockStack gap="300" inlineAlign="center">
                           <InlineStack gap="200" blockAlign="baseline">
                             <Text as="p" variant="heading3xl">
-                              $14.99
+                              $19.99
                             </Text>
                             <Text as="span" variant="headingLg" tone="subdued">
                               /month
                             </Text>
                           </InlineStack>
                           <Text as="p" variant="bodySm" tone="subdued">
-                            Billed monthly • Cancel anytime
+                            Billed monthly • 7-day free trial • Cancel anytime
                           </Text>
                         </BlockStack>
                       </Box>
@@ -461,7 +461,7 @@ export default function BillingPage() {
                                 value="startSubscription"
                                 loading={isSubmitting}
                               >
-                                Upgrade to Pro Now
+                                Start 7-Day Free Trial
                               </Button>
                             </Box>
                           </InlineStack>

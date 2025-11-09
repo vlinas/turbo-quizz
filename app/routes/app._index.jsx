@@ -34,7 +34,7 @@ import {
   EditIcon,
 } from "@shopify/polaris-icons";
 
-import { authenticate, PRO_PLAN } from "../shopify.server";
+import { authenticate, PREMIUM_PLAN } from "../shopify.server";
 import prisma from "../db.server";
 
 export const action = async ({ request }) => {
@@ -68,11 +68,11 @@ export const action = async ({ request }) => {
     activeSubscriptions.status != "ACTIVE"
   ) {
     await billing.require({
-      plans: [PRO_PLAN],
+      plans: [PREMIUM_PLAN],
       isTest: true,
       onFailure: async () =>
         billing.request({
-          plan: PRO_PLAN,
+          plan: PREMIUM_PLAN,
           isTest: true,
           returnUrl: launchUrl,
         }),
@@ -614,7 +614,7 @@ export default function Index() {
               </ul>
             </BlockStack>
             <Text variant="bodyMd" as="p" fontWeight="semibold">
-              Price: $14.99 USD per month
+              Price: $19.99 USD per month (7-day free trial)
             </Text>
           </BlockStack>
         </Modal.Section>
