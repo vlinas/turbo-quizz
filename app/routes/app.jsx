@@ -25,7 +25,7 @@ export default function App() {
         <Link to="/app" rel="home">
           Quizzes
         </Link>
-        <Link to="/app/billing">Billing</Link>
+        <Link to="/app/settings">Settings</Link>
       </ui-nav-menu>
       <Outlet />
       </Frame>

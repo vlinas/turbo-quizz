@@ -93,7 +93,7 @@ export const action = async ({ request }) => {
       const billingResponse = await billing.request({
         plan: PREMIUM_PLAN,
         isTest: true,
-        returnUrl: `${launchUrl}/billing?upgrade=success`,
+        returnUrl: `${launchUrl}/settings?upgrade=success`,
       });
 
       // Redirect to confirmation URL
@@ -121,7 +121,7 @@ export const action = async ({ request }) => {
     return json({ error: error.message || "An error occurred" }, { status: 500 });
   }
 
-  return redirect("/app/billing");
+  return redirect("/app/settings");
 };
 
 export default function BillingPage() {
@@ -147,7 +147,7 @@ export default function BillingPage() {
     if (params.get('upgrade') === 'success') {
       setShowSuccessToast(true);
       // Clean up URL
-      window.history.replaceState({}, '', '/app/billing');
+      window.history.replaceState({}, '', '/app/settings');
     }
   }, [actionData]);
 
