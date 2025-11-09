@@ -489,31 +489,6 @@ export default function Index() {
       ]}
     >
       <BlockStack gap="500">
-        {/* Trial callout */}
-        {planid == null && (
-          <CalloutCard
-            title="You're on the free plan"
-            illustration="https://cdn.shopify.com/s/assets/admin/checkout/settings-customizecart-705f57c725ac05be5a34ec20c05b94298cb8afd10aac7bd9c7ad02030f48cfa0.svg"
-            primaryAction={{
-              content: "Upgrade to Pro",
-              onAction: handleUpgradePlan,
-            }}
-          >
-            <BlockStack gap="300">
-              <Text as="p" variant="bodyMd">
-                {`${totalCount} of ${totalSet} free ${
-                  totalSet === 1 ? "quiz has" : "quizzes have"
-                } been created.`}
-              </Text>
-              <ProgressBar
-                progress={percentage}
-                size="small"
-                tone={percentage >= 80 ? "critical" : "primary"}
-              />
-            </BlockStack>
-          </CalloutCard>
-        )}
-
         {totalCount === 0 ? (
           <Card>{emptyStateMarkup}</Card>
         ) : (
@@ -599,12 +574,12 @@ export default function Index() {
         <Modal.Section>
           <BlockStack gap="400">
             <Text variant="bodyMd" as="p">
-              You've reached the limit of your free plan. Upgrade to Pro to
-              create unlimited quizzes and unlock all features.
+              Unlock the full potential of your store with Simple Product Page Quiz Premium.
+              Create unlimited quizzes and track revenue with advanced analytics.
             </Text>
             <BlockStack gap="200">
               <Text variant="headingMd" as="h3">
-                Pro Plan includes:
+                Premium Plan includes:
               </Text>
               <ul>
                 <li>Unlimited quizzes</li>
