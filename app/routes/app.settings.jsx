@@ -17,6 +17,7 @@ import {
   Divider,
   Box,
   Banner,
+  TextField,
 } from "@shopify/polaris";
 import {
   CheckIcon,
@@ -27,6 +28,7 @@ import {
   PlayIcon,
 } from "@shopify/polaris-icons";
 import { authenticate, PREMIUM_PLAN } from "../shopify.server";
+import prisma from "../db.server";
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
@@ -61,19 +63,50 @@ export const loader = async ({ request }) => {
     activePlan = activeSubscriptions.find((plan) => plan.status === "ACTIVE");
   }
 
+  // Get shop settings including custom CSS
+  let shopSettings = await prisma.shopSettings.findUnique({
+    where: { shop: session.shop },
+  });
+
+  // Create default settings if they don't exist
+  if (!shopSettings) {
+    shopSettings = await prisma.shopSettings.create({
+      data: {
+        shop: session.shop,
+        customCss: "",
+      },
+    });
+  }
+
   return json({
     shop: session.shop,
     activePlan,
+    customCss: shopSettings.customCss || "",
   });
 };
 
 export const action = async ({ request }) => {
   const formData = await request.formData();
   const _action = formData.get("_action");
-  const { billing, admin } = await authenticate.admin(request);
+  const { billing, admin, session } = await authenticate.admin(request);
 
   try {
-    if (_action === "startSubscription") {
+    if (_action === "saveCustomCss") {
+      const customCss = formData.get("customCss");
+
+      // Update or create shop settings
+      await prisma.shopSettings.upsert({
+        where: { shop: session.shop },
+        update: { customCss },
+        create: {
+          shop: session.shop,
+          customCss,
+        },
+      });
+
+      return json({ customCssSaved: true });
+
+    } else if (_action === "startSubscription") {
       // Get the app installation launch URL for return
       const result = await admin.graphql(
         `#graphql
@@ -125,17 +158,23 @@ export const action = async ({ request }) => {
 };
 
 export default function BillingPage() {
-  const { shop, activePlan } = useLoaderData();
+  const { shop, activePlan, customCss } = useLoaderData();
   const actionData = useActionData();
   const navigation = useNavigation();
 
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [showCancelToast, setShowCancelToast] = useState(false);
+  const [showCssSavedToast, setShowCssSavedToast] = useState(false);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
+  const [customCssValue, setCustomCssValue] = useState(customCss);
 
   useEffect(() => {
     if (actionData?.subscriptionCancelled) {
       setShowCancelToast(true);
+    }
+
+    if (actionData?.customCssSaved) {
+      setShowCssSavedToast(true);
     }
 
     if (actionData?.error) {
@@ -156,6 +195,7 @@ export default function BillingPage() {
 
   const toggleSuccessToast = useCallback(() => setShowSuccessToast(false), []);
   const toggleCancelToast = useCallback(() => setShowCancelToast(false), []);
+  const toggleCssSavedToast = useCallback(() => setShowCssSavedToast(false), []);
 
   return (
     <Frame>
@@ -362,90 +402,6 @@ export default function BillingPage() {
                         </BlockStack>
                       </Box>
 
-                      <Divider />
-
-                      {/* Features Grid */}
-                      <BlockStack gap="400">
-                        <Text as="h3" variant="headingMd" alignment="center">
-                          Everything You Need to Succeed
-                        </Text>
-                        <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
-                          <InlineStack gap="300" blockAlign="start">
-                            <Icon source={CheckIcon} tone="success" />
-                            <BlockStack gap="100">
-                              <Text as="span" fontWeight="semibold">Unlimited quizzes</Text>
-                              <Text as="span" variant="bodySm" tone="subdued">
-                                Create as many quizzes as you need
-                              </Text>
-                            </BlockStack>
-                          </InlineStack>
-                          <InlineStack gap="300" blockAlign="start">
-                            <Icon source={CheckIcon} tone="success" />
-                            <BlockStack gap="100">
-                              <Text as="span" fontWeight="semibold">Unlimited questions</Text>
-                              <Text as="span" variant="bodySm" tone="subdued">
-                                No limits on questions or answers
-                              </Text>
-                            </BlockStack>
-                          </InlineStack>
-                          <InlineStack gap="300" blockAlign="start">
-                            <Icon source={CheckIcon} tone="success" />
-                            <BlockStack gap="100">
-                              <Text as="span" fontWeight="semibold">Product recommendations</Text>
-                              <Text as="span" variant="bodySm" tone="subdued">
-                                Show personalized product suggestions
-                              </Text>
-                            </BlockStack>
-                          </InlineStack>
-                          <InlineStack gap="300" blockAlign="start">
-                            <Icon source={CheckIcon} tone="success" />
-                            <BlockStack gap="100">
-                              <Text as="span" fontWeight="semibold">Collection recommendations</Text>
-                              <Text as="span" variant="bodySm" tone="subdued">
-                                Guide customers to curated collections
-                              </Text>
-                            </BlockStack>
-                          </InlineStack>
-                          <InlineStack gap="300" blockAlign="start">
-                            <Icon source={CheckIcon} tone="success" />
-                            <BlockStack gap="100">
-                              <Text as="span" fontWeight="semibold">Order attribution</Text>
-                              <Text as="span" variant="bodySm" tone="subdued">
-                                Track which quizzes drive sales
-                              </Text>
-                            </BlockStack>
-                          </InlineStack>
-                          <InlineStack gap="300" blockAlign="start">
-                            <Icon source={CheckIcon} tone="success" />
-                            <BlockStack gap="100">
-                              <Text as="span" fontWeight="semibold">Revenue analytics</Text>
-                              <Text as="span" variant="bodySm" tone="subdued">
-                                See exactly how much revenue quizzes generate
-                              </Text>
-                            </BlockStack>
-                          </InlineStack>
-                          <InlineStack gap="300" blockAlign="start">
-                            <Icon source={CheckIcon} tone="success" />
-                            <BlockStack gap="100">
-                              <Text as="span" fontWeight="semibold">Answer statistics</Text>
-                              <Text as="span" variant="bodySm" tone="subdued">
-                                Understand customer preferences with detailed insights
-                              </Text>
-                            </BlockStack>
-                          </InlineStack>
-                          <InlineStack gap="300" blockAlign="start">
-                            <Icon source={CheckIcon} tone="success" />
-                            <BlockStack gap="100">
-                              <Text as="span" fontWeight="semibold">Priority support</Text>
-                              <Text as="span" variant="bodySm" tone="subdued">
-                                Get help when you need it most
-                              </Text>
-                            </BlockStack>
-                          </InlineStack>
-                        </InlineGrid>
-                      </BlockStack>
-
-                      <Divider />
 
                       {/* CTA Section */}
                       <BlockStack gap="300">
@@ -473,6 +429,72 @@ export default function BillingPage() {
                   </Card>
                 </>
               )}
+
+              {/* Custom CSS Section */}
+              <Card>
+                <BlockStack gap="400">
+                  <BlockStack gap="200">
+                    <Text as="h2" variant="headingLg">
+                      Custom CSS Styling
+                    </Text>
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Customize the appearance of your quiz widget to match your store's design. Add custom CSS rules that will be applied to the quiz widget on your storefront.
+                    </Text>
+                  </BlockStack>
+
+                  <Divider />
+
+                  <Form method="post">
+                    <BlockStack gap="400">
+                      <TextField
+                        label="Custom CSS"
+                        value={customCssValue}
+                        onChange={setCustomCssValue}
+                        multiline={8}
+                        autoComplete="off"
+                        helpText="Add CSS rules to style your quiz widget. Example: .quiz-container { background: #f5f5f5; border-radius: 8px; }"
+                        name="customCss"
+                      />
+
+                      <InlineStack align="end">
+                        <Button
+                          variant="primary"
+                          submit
+                          name="_action"
+                          value="saveCustomCss"
+                          loading={isSubmitting}
+                        >
+                          Save Custom CSS
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+                  </Form>
+
+                  <Divider />
+
+                  <BlockStack gap="200">
+                    <Text as="h3" variant="headingMd">
+                      Available CSS Classes
+                    </Text>
+                    <Box>
+                      <BlockStack gap="100">
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          • <Text as="span" fontWeight="semibold">.quiz-container</Text> - Main quiz wrapper
+                        </Text>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          • <Text as="span" fontWeight="semibold">.quiz-question</Text> - Question text
+                        </Text>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          • <Text as="span" fontWeight="semibold">.quiz-answer</Text> - Answer buttons
+                        </Text>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          • <Text as="span" fontWeight="semibold">.quiz-results</Text> - Results section
+                        </Text>
+                      </BlockStack>
+                    </Box>
+                  </BlockStack>
+                </BlockStack>
+              </Card>
             </BlockStack>
           </Layout.Section>
 
@@ -552,6 +574,13 @@ export default function BillingPage() {
           <Toast
             content="Subscription cancelled successfully"
             onDismiss={toggleCancelToast}
+            duration={4500}
+          />
+        )}
+        {showCssSavedToast && (
+          <Toast
+            content="Custom CSS saved successfully"
+            onDismiss={toggleCssSavedToast}
             duration={4500}
           />
         )}

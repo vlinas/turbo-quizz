@@ -1005,13 +1005,13 @@ export default function QuizBuilder() {
               </InlineStack>
 
               <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
-                <Card>
+                <Card background="bg-surface-secondary">
                   <BlockStack gap="200">
                     <Text as="p" variant="bodyMd" tone="subdued">Impressions</Text>
                     <Text as="p" variant="heading2xl">{analytics.starts.toLocaleString()}</Text>
                   </BlockStack>
                 </Card>
-                <Card>
+                <Card background="bg-surface-secondary">
                   <BlockStack gap="200">
                     <Text as="p" variant="bodyMd" tone="subdued">Completions</Text>
                     <Text as="p" variant="heading2xl">{analytics.completions.toLocaleString()}</Text>
@@ -1020,7 +1020,7 @@ export default function QuizBuilder() {
                     </Text>
                   </BlockStack>
                 </Card>
-                <Card>
+                <Card background="bg-surface-secondary">
                   <BlockStack gap="200">
                     <Text as="p" variant="bodyMd" tone="subdued">Revenue</Text>
                     <Text as="p" variant="heading2xl">${analytics.totalRevenue}</Text>
@@ -1029,7 +1029,7 @@ export default function QuizBuilder() {
                     </Text>
                   </BlockStack>
                 </Card>
-                <Card>
+                <Card background="bg-surface-secondary">
                   <BlockStack gap="200">
                     <Text as="p" variant="bodyMd" tone="subdued">Conversion</Text>
                     <Text as="p" variant="heading2xl">{analytics.conversionRate}%</Text>

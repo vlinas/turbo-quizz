@@ -319,6 +319,7 @@ export default function Index() {
         key={id}
         selected={selectedResources.includes(id)}
         position={index}
+        onClick={() => navigate(`/app/quiz/${quiz_id}`)}
       >
         <IndexTable.Cell>
           <Box paddingBlockStart="300" paddingBlockEnd="300">

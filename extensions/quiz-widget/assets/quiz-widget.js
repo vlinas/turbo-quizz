@@ -60,6 +60,17 @@
         return;
       }
 
+      // Check if quiz was already completed
+      const completedKey = `turbo_quiz_completed_${this.quizId}`;
+      const wasCompleted = localStorage.getItem(completedKey);
+
+      if (wasCompleted) {
+        // Hide the entire quiz widget if already completed
+        this.container.style.display = 'none';
+        console.log('[TurboQuiz] Quiz already completed, hiding widget');
+        return;
+      }
+
       // Event listeners
       this.nextBtn.addEventListener('click', () => this.handleNext());
       this.backBtn.addEventListener('click', () => this.handleBack());
@@ -236,6 +247,11 @@
     }
 
     async showResult() {
+      // Mark quiz as completed in localStorage so it never shows again
+      const completedKey = `turbo_quiz_completed_${this.quizId}`;
+      localStorage.setItem(completedKey, 'true');
+      console.log('[TurboQuiz] Quiz marked as completed');
+
       // Mark session as completed
       if (this.sessionId) {
         try {
