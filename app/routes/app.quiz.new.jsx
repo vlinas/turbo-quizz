@@ -30,14 +30,26 @@ export const action = async ({ request }) => {
   }
 
   try {
-    // Get the next quiz_id for this shop
-    const lastQuiz = await prisma.quiz.findFirst({
-      where: { shop: session.shop },
-      orderBy: { quiz_id: 'desc' },
-      select: { quiz_id: true },
-    });
+    // Generate a random 4-digit quiz ID
+    let quizId;
+    let isUnique = false;
 
-    const nextQuizId = lastQuiz ? lastQuiz.quiz_id + 1 : 1;
+    while (!isUnique) {
+      // Generate random 4-digit number (1000-9999)
+      quizId = Math.floor(1000 + Math.random() * 9000);
+
+      // Check if this ID already exists for this shop
+      const existing = await prisma.quiz.findFirst({
+        where: {
+          shop: session.shop,
+          quiz_id: quizId,
+        },
+      });
+
+      isUnique = !existing;
+    }
+
+    const nextQuizId = quizId;
 
     // Create quiz directly in database with integer ID
     const quiz = await prisma.quiz.create({
@@ -126,7 +138,7 @@ export default function NewQuiz() {
                   onChange={setTitle}
                   placeholder="e.g., Find Your Perfect Product"
                   autoComplete="off"
-                  helpText="A catchy title that describes your quiz"
+                  helpText="For internal use only - not shown to customers"
                   requiredIndicator
                 />
 
@@ -134,10 +146,10 @@ export default function NewQuiz() {
                   label="Description"
                   value={description}
                   onChange={setDescription}
-                  placeholder="e.g., Answer a few questions to discover products that match your style"
+                  placeholder="e.g., Brief notes about this quiz"
                   multiline={3}
                   autoComplete="off"
-                  helpText="Optional description shown to customers"
+                  helpText="For internal use only - not shown to customers"
                 />
 
                 <InlineStack align="end" gap="300">
@@ -168,9 +180,9 @@ export default function NewQuiz() {
                 </Text>
                 <BlockStack gap="200">
                   <Text as="p" variant="bodySm">• Add questions and answers</Text>
-                  <Text as="p" variant="bodySm">• Configure product recommendations</Text>
                   <Text as="p" variant="bodySm">• Customize the quiz appearance</Text>
                   <Text as="p" variant="bodySm">• Publish to your storefront</Text>
+                  <Text as="p" variant="bodySm">• Track quiz analytics</Text>
                 </BlockStack>
               </BlockStack>
             </Card>

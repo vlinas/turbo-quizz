@@ -450,6 +450,7 @@ export default function BillingPage() {
                       {/* CTA Section */}
                       <BlockStack gap="300">
                         <Form method="post">
+                          <input type="hidden" name="_action" value="startSubscription" />
                           <InlineStack align="center">
                             <Box width="400px">
                               <Button
@@ -457,8 +458,6 @@ export default function BillingPage() {
                                 size="large"
                                 fullWidth
                                 submit
-                                name="_action"
-                                value="startSubscription"
                                 loading={isSubmitting}
                               >
                                 Start 7-Day Free Trial
