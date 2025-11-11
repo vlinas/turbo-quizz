@@ -1,6 +1,5 @@
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
-import { updateRevenue, updateUsedCode } from "../discount_server";
 
 export const action = async ({ request }) => {
   const { topic, shop, session, admin, payload } = await authenticate.webhook(
@@ -20,41 +19,6 @@ export const action = async ({ request }) => {
 
       break;
     case "ORDERS_CREATE":
-      console.log("Payload Data:", payload);
-      let codes = {};
-      codes = payload.discount_codes.map(item => item.code);
-      console.log('Codes: ', codes);
-      console.log('Codes: ', session);
-      // payload.discount_codes(discount => {
-      //   codes += discount.code;
-      // });
-      const params = {
-        order_id: payload.id.toString(),
-        shop: session.shop ? session.shop : 'missing',
-        order_value: payload.current_total_price.toString(),
-        order_tax: payload.tax_lines,
-        currency: payload.currency,
-        discount: payload.current_total_discounts,
-        discount_codes: (codes || null),
-        discount_application: payload.discount_applications,
-        line_items: payload.line_items,
-      };
-
-      try {
-        await db.orders.create({
-          data: params,
-        });
-
-        // Process discount codes sequentially to ensure proper tracking
-        await Promise.all(codes.map(async (code) => {
-          const discount_id = await updateUsedCode(code, payload.current_total_price);
-          await updateRevenue(discount_id, payload.current_total_price);
-        }));
-
-      } catch (error) {
-        console.log(error);
-      }
-
       // QUIZ ATTRIBUTION: Attribute order to quiz session
       try {
         console.log(`[Quiz Attribution] Processing order #${payload.order_number || payload.id}`);

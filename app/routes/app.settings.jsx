@@ -92,7 +92,7 @@ export const action = async ({ request }) => {
       // Request billing
       const billingResponse = await billing.request({
         plan: PREMIUM_PLAN,
-        isTest: true,
+        isTest: process.env.NODE_ENV !== 'production',
         returnUrl: `${launchUrl}/settings?upgrade=success`,
       });
 
@@ -101,7 +101,7 @@ export const action = async ({ request }) => {
 
     } else if (_action === "cancelSubscription") {
       const billingCheck = await billing.require({
-        plans: [PRO_PLAN],
+        plans: [PREMIUM_PLAN],
         onFailure: async () => {
           return json({ error: "No active subscription found" }, { status: 400 });
         },
@@ -110,7 +110,7 @@ export const action = async ({ request }) => {
       const subscription = billingCheck.appSubscriptions[0];
       await billing.cancel({
         subscriptionId: subscription.id,
-        isTest: true,
+        isTest: process.env.NODE_ENV !== 'production',
         prorate: true,
       });
 
@@ -187,17 +187,17 @@ export default function BillingPage() {
                         <InlineStack gap="300" blockAlign="center">
                           <Icon source={StarFilledIcon} tone="warning" />
                           <Text as="h2" variant="headingXl">
-                            Pro Plan
+                            Premium Plan
                           </Text>
                           <Badge tone="success" size="large">Active</Badge>
                         </InlineStack>
                         <Text as="p" variant="bodyLg" tone="subdued">
-                          You have full access to all Pro features
+                          You have full access to all Premium features
                         </Text>
                       </BlockStack>
                       <Box>
                         <Text as="p" variant="heading2xl" alignment="end">
-                          $14.99
+                          $19.99
                         </Text>
                         <Text as="p" tone="subdued" alignment="end">
                           per month
@@ -501,7 +501,7 @@ export default function BillingPage() {
                         Current Plan
                       </Text>
                       <Text as="p" variant="bodyMd" fontWeight="semibold">
-                        {isSubscribed ? "Pro Plan" : "Free Plan"}
+                        {isSubscribed ? "Premium Plan" : "Trial"}
                       </Text>
                     </Box>
                     <Box>

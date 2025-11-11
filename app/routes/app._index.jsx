@@ -57,7 +57,7 @@ export const action = async ({ request }) => {
         }
       }
     }`,
-    { vaiables: {} }
+    { variables: {} }
   );
   const resultJson = await result.json();
   const { launchUrl, activeSubscriptions } = resultJson.data.app.installation;
@@ -69,11 +69,11 @@ export const action = async ({ request }) => {
   ) {
     await billing.require({
       plans: [PREMIUM_PLAN],
-      isTest: true,
+      isTest: process.env.NODE_ENV !== 'production',
       onFailure: async () =>
         billing.request({
           plan: PREMIUM_PLAN,
-          isTest: true,
+          isTest: process.env.NODE_ENV !== 'production',
           returnUrl: launchUrl,
         }),
     });
@@ -104,7 +104,7 @@ export const loader = async ({ request }) => {
         }
       }
     }`,
-    { vaiables: {} }
+    { variables: {} }
   );
   const resultJson = await result.json();
   const { activeSubscriptions } = resultJson.data.app.installation;
@@ -559,7 +559,7 @@ export default function Index() {
       <Modal
         open={modalActive}
         onClose={handleModalClose}
-        title="Upgrade to Pro Plan"
+        title="Upgrade to Premium Plan"
         primaryAction={{
           content: "Approve charges",
           onAction: handleApprove,
