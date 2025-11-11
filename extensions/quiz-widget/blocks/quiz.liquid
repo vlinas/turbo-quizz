@@ -6,7 +6,7 @@
 <div
   class="turbo-quiz-widget"
   data-quiz-id="{{ block.settings.quiz_id }}"
-  data-app-url="https://turbo-quizz-1660bbe41f52.herokuapp.com"
+  data-app-url="{{ block.settings.app_url | default: 'https://turbo-quizz-1660bbe41f52.herokuapp.com' }}"
   id="turbo-quiz-{{ block.id }}"
 >
   <div class="turbo-quiz-loading" style="display: none; opacity: 0;">
@@ -66,6 +66,13 @@
       "id": "quiz_id",
       "label": "Quiz ID",
       "info": "Enter the Quiz ID from your Turbo Quiz app (found in the quiz details page)"
+    },
+    {
+      "type": "text",
+      "id": "app_url",
+      "label": "App URL (Optional)",
+      "info": "Only change this for testing. Leave blank to use the default production URL.",
+      "default": ""
     }
   ]
 }
