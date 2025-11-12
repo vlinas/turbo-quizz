@@ -12,6 +12,12 @@
       this.answers = [];
       this.selectedAnswerId = null;
 
+      // Debug logging
+      console.log('[TurboQuiz] Initialized with:', {
+        quizId: this.quizId,
+        appUrl: this.appUrl,
+      });
+
       // DOM elements
       this.loadingEl = container.querySelector('.turbo-quiz-loading');
       this.errorEl = container.querySelector('.turbo-quiz-error');
