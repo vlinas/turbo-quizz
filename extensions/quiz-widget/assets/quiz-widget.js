@@ -61,7 +61,10 @@
     }
 
     async init() {
+      console.log('[TurboQuiz] init() called', { quizId: this.quizId, appUrl: this.appUrl });
+
       if (!this.quizId || !this.appUrl) {
+        console.error('[TurboQuiz] Missing quizId or appUrl');
         this.showError('Quiz ID or App URL not configured');
         return;
       }
@@ -69,6 +72,8 @@
       // Check if quiz was already completed
       const completedKey = `turbo_quiz_completed_${this.quizId}`;
       const wasCompleted = localStorage.getItem(completedKey);
+
+      console.log('[TurboQuiz] Checking completion status:', { completedKey, wasCompleted });
 
       if (wasCompleted) {
         // Hide the entire quiz widget if already completed
@@ -83,15 +88,22 @@
       this.retryBtn.addEventListener('click', () => this.init());
       this.restartBtn.addEventListener('click', () => this.restart());
 
+      console.log('[TurboQuiz] About to call loadQuiz()');
       await this.loadQuiz();
     }
 
     async loadQuiz() {
+      console.log('[TurboQuiz] loadQuiz() called');
       // Don't show loading state - keep it seamless
       try {
         // Add cache busting parameter to prevent browser caching old quiz data
         const cacheBuster = Date.now();
-        const response = await fetch(`${this.appUrl}/api/quiz/${this.quizId}?cb=${cacheBuster}`);
+        const url = `${this.appUrl}/api/quiz/${this.quizId}?cb=${cacheBuster}`;
+        console.log('[TurboQuiz] Fetching from:', url);
+
+        const response = await fetch(url);
+        console.log('[TurboQuiz] Response status:', response.status);
+
         const data = await response.json();
 
         console.log('[TurboQuiz] API Response:', {
@@ -107,11 +119,13 @@
         }
 
         this.quiz = data.quiz;
+        console.log('[TurboQuiz] Starting session...');
         // Start session in background without blocking render
         this.startSession().catch(err => console.error('Session start error:', err));
+        console.log('[TurboQuiz] Rendering quiz...');
         this.renderQuiz();
       } catch (error) {
-        console.error('Error loading quiz:', error);
+        console.error('[TurboQuiz] Error loading quiz:', error);
         this.showError(error.message || 'Failed to load quiz. Please try again.');
       }
     }
