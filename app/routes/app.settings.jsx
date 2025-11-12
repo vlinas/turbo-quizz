@@ -199,7 +199,7 @@ export default function BillingPage() {
 
   return (
     <Frame>
-      <Page fullWidth title="Plans & Billing">
+      <Page fullWidth title="Billing & Settings">
         <Layout>
           <Layout.Section>
             <BlockStack gap="500">

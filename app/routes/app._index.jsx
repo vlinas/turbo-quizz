@@ -484,7 +484,7 @@ export default function Index() {
       fullWidth
       secondaryActions={[
         {
-          content: "Settings",
+          content: "Billing & Settings",
           onAction: () => navigate("/app/settings"),
         },
       ]}
