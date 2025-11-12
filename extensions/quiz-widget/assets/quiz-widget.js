@@ -131,9 +131,16 @@
     }
 
     async startSession() {
-      // Clear any existing session cookie when starting new quiz
-      this.deleteCookie('turbo_quiz_session');
+      // Check if session already exists in cookie
+      const existingSessionId = this.getCookie('turbo_quiz_session');
 
+      if (existingSessionId) {
+        this.sessionId = existingSessionId;
+        console.log('[TurboQuiz] Using existing session:', this.sessionId);
+        return;
+      }
+
+      // Only create a new session if one doesn't exist
       try {
         // Get customer ID from Shopify if available
         const customerId = window.Shopify?.customerId || window.meta?.page?.customerId;
@@ -154,9 +161,9 @@
 
         if (data.success && data.session_id) {
           this.sessionId = data.session_id;
-          // Store session ID in cookie for order attribution
+          // Store session ID in cookie for order attribution (30 days)
           this.setCookie('turbo_quiz_session', this.sessionId, 30);
-          console.log('[TurboQuiz] Session started:', this.sessionId);
+          console.log('[TurboQuiz] New session started:', this.sessionId);
         } else {
           console.error('Failed to start session:', data.error);
         }
@@ -462,7 +469,9 @@
       this.currentQuestionIndex = 0;
       this.answers = [];
       this.selectedAnswerId = null;
+      // Clear session to create a new one on restart
       this.sessionId = null;
+      this.deleteCookie('turbo_quiz_session');
       this.renderQuiz();
       this.startSession();
       this.nextBtn.style.display = 'inline-block';
