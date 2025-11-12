@@ -89,8 +89,18 @@
     async loadQuiz() {
       // Don't show loading state - keep it seamless
       try {
-        const response = await fetch(`${this.appUrl}/api/quiz/${this.quizId}`);
+        // Add cache busting parameter to prevent browser caching old quiz data
+        const cacheBuster = Date.now();
+        const response = await fetch(`${this.appUrl}/api/quiz/${this.quizId}?cb=${cacheBuster}`);
         const data = await response.json();
+
+        console.log('[TurboQuiz] API Response:', {
+          success: data.success,
+          quizId: data.quiz?.quiz_id,
+          title: data.quiz?.title,
+          questionCount: data.quiz?.questions?.length,
+          firstQuestion: data.quiz?.questions?.[0]?.question_text
+        });
 
         if (!data.success || !data.quiz) {
           throw new Error(data.error || 'Failed to load quiz');
