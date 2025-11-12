@@ -107,30 +107,39 @@ export const action = async ({ request }) => {
       return json({ customCssSaved: true });
 
     } else if (_action === "startSubscription") {
-      // Get the app installation launch URL for return
-      const result = await admin.graphql(
-        `#graphql
-        query Shop {
-          app {
-            installation {
-              launchUrl
+      try {
+        // Get the app installation launch URL for return
+        const result = await admin.graphql(
+          `#graphql
+          query Shop {
+            app {
+              installation {
+                launchUrl
+              }
             }
-          }
-        }`,
-        { variables: {} }
-      );
-      const resultJson = await result.json();
-      const launchUrl = resultJson.data.app.installation.launchUrl;
+          }`,
+          { variables: {} }
+        );
+        const resultJson = await result.json();
+        const launchUrl = resultJson.data.app.installation.launchUrl;
 
-      // Request billing
-      const billingResponse = await billing.request({
-        plan: PREMIUM_PLAN,
-        isTest: process.env.NODE_ENV !== 'production',
-        returnUrl: `${launchUrl}/settings?upgrade=success`,
-      });
+        // Request billing
+        const billingResponse = await billing.request({
+          plan: PREMIUM_PLAN,
+          isTest: true, // Always test mode for now
+          returnUrl: `${launchUrl}/settings?upgrade=success`,
+        });
 
-      // Redirect to confirmation URL
-      return redirect(billingResponse.confirmationUrl);
+        // Redirect to confirmation URL
+        return redirect(billingResponse.confirmationUrl);
+      } catch (billingError) {
+        console.error("Billing request failed:", billingError);
+        // Return specific billing error
+        return json({
+          error: "billing_unavailable",
+          message: billingError.message
+        }, { status: 400 });
+      }
 
     } else if (_action === "cancelSubscription") {
       const billingCheck = await billing.require({
@@ -207,13 +216,29 @@ export default function BillingPage() {
               {showErrorBanner && actionData?.error && (
                 <Banner
                   title="Billing unavailable"
-                  tone="warning"
+                  tone="info"
                   onDismiss={() => setShowErrorBanner(false)}
                 >
-                  <Text as="p">
-                    The billing system is currently not available for this app. This typically happens with custom or development apps.
-                    {" "}If you need Pro features, please contact support.
-                  </Text>
+                  <BlockStack gap="200">
+                    <Text as="p">
+                      The billing system is not available for this app. This is normal for:
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      • Development/testing apps
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      • Custom apps (not distributed via Shopify App Store)
+                    </Text>
+                    <Text as="p">
+                      <strong>Good news:</strong> All premium features are available without billing during development.
+                      You can create unlimited quizzes and access all features for testing.
+                    </Text>
+                    {actionData.message && (
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Technical details: {actionData.message}
+                      </Text>
+                    )}
+                  </BlockStack>
                 </Banner>
               )}
 

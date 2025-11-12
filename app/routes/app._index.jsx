@@ -109,7 +109,9 @@ export const loader = async ({ request }) => {
   const resultJson = await result.json();
   const { activeSubscriptions } = resultJson.data.app.installation;
 
-  let limit = 3;
+  // For development/testing: unlimited quizzes
+  // In production with App Store distribution, this would check subscription status
+  let limit = -1; // Unlimited
   let status = false;
   let planid = null;
 
@@ -120,9 +122,6 @@ export const loader = async ({ request }) => {
         planid = index;
       }
     });
-    if (status == "ACTIVE") {
-      limit = -1;
-    }
   }
 
   // Fetch quizzes with stats
