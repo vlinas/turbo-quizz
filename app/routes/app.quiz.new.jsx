@@ -38,10 +38,9 @@ export const action = async ({ request }) => {
       // Generate random 4-digit number (1000-9999)
       quizId = Math.floor(1000 + Math.random() * 9000);
 
-      // Check if this ID already exists for this shop
+      // Check if this ID already exists GLOBALLY (not just for this shop)
       const existing = await prisma.quiz.findFirst({
         where: {
-          shop: session.shop,
           quiz_id: quizId,
         },
       });
