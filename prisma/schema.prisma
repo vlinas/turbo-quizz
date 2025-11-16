@@ -18,7 +18,7 @@ model Session {
   scope       String?
   expires     DateTime?
   accessToken String
-  userId      Int?
+  userId      BigInt?
 }
 
 model ShopSettings {
