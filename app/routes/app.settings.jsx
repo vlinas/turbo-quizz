@@ -489,6 +489,7 @@ export default function BillingPage() {
                   <Divider />
 
                   <Form method="post">
+                    <input type="hidden" name="_action" value="saveCustomCss" />
                     <BlockStack gap="400">
                       <TextField
                         label="Custom CSS"
@@ -504,8 +505,6 @@ export default function BillingPage() {
                         <Button
                           variant="primary"
                           submit
-                          name="_action"
-                          value="saveCustomCss"
                           loading={isSubmitting}
                         >
                           Save Custom CSS
