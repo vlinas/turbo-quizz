@@ -197,6 +197,8 @@ export const loader = async ({ request, params }) => {
   );
 
   // Fetch answer statistics for each question
+  // NOTE: Answer stats should show ALL-TIME counts, not filtered by date range
+  // This prevents answer clicks from showing as 0 when viewing different time periods
   const answerStats = {};
   for (const question of quiz.questions) {
     for (const answer of question.answers) {
@@ -205,7 +207,7 @@ export const loader = async ({ request, params }) => {
           answer_id: answer.answer_id,
           quiz_id: quizId,
           shop: session.shop,
-          selected_at: { gte: dateThreshold }
+          // Don't filter by selected_at - show all-time answer click counts
         },
       });
       answerStats[answer.answer_id] = selectionCount;
