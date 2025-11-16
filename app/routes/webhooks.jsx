@@ -160,8 +160,11 @@ export const action = async ({ request }) => {
       break;
 
     default:
-      throw new Response("Unhandled webhook topic", { status: 404 });
+      console.log(`[Webhook] Unhandled webhook topic: ${topic}`);
+      break;
   }
 
-  throw new Response();
+  // Return 200 OK for successful webhook processing
+  // This is required for Shopify Partner Dashboard automated checks
+  return new Response(null, { status: 200 });
 };
