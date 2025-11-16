@@ -20,6 +20,7 @@ const shopify = shopifyApp({
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.SingleMerchant,
+  useOnlineTokens: true,
   restResources,
   billing:{
     [PREMIUM_PLAN]: {
