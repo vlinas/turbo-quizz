@@ -1092,8 +1092,6 @@ export default function QuizBuilder() {
                         options={[
                           { label: "Show text message", value: "show_text" },
                           { label: "Show HTML", value: "show_html" },
-                          { label: "Show products", value: "show_products" },
-                          { label: "Show collections", value: "show_collections" },
                         ]}
                         value={newAnswer1ActionType}
                         onChange={handleAnswer1ActionTypeChange}
@@ -1222,8 +1220,6 @@ export default function QuizBuilder() {
                         options={[
                           { label: "Show text message", value: "show_text" },
                           { label: "Show HTML", value: "show_html" },
-                          { label: "Show products", value: "show_products" },
-                          { label: "Show collections", value: "show_collections" },
                         ]}
                         value={newAnswer2ActionType}
                         onChange={handleAnswer2ActionTypeChange}
