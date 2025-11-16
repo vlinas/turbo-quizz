@@ -18,8 +18,8 @@ export const action = async ({ request }) => {
       }
 
       break;
-    case "ORDERS_CREATE":
-      // QUIZ ATTRIBUTION: Attribute order to quiz session
+    case "ORDERS_PAID":
+      // QUIZ ATTRIBUTION: Attribute paid order to quiz session
       try {
         const customerEmail = payload.customer?.email || payload.email;
         const customerId = payload.customer?.id ? String(payload.customer.id) : null;

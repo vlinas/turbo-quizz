@@ -35,7 +35,7 @@ const shopify = shopifyApp({
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks",
     },
-    ORDERS_CREATE: {
+    ORDERS_PAID: {
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks",
     },
