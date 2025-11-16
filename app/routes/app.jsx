@@ -23,7 +23,7 @@ export default function App() {
       <Frame>
       <ui-nav-menu>
         <Link to="/app" rel="home">
-          Quizzes
+          Home
         </Link>
         <Link to="/app/settings">Billing & Settings</Link>
       </ui-nav-menu>
