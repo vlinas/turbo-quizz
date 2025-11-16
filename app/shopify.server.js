@@ -35,10 +35,8 @@ const shopify = shopifyApp({
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks",
     },
-    ORDERS_PAID: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks",
-    },
+    // Note: ORDERS_PAID and ORDERS_CREATE require protected customer data approval
+    // Using API polling instead via /api/sync-orders endpoint
   },
   hooks: {
     afterAuth: async ({ session }) => {
