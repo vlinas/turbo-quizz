@@ -90,12 +90,16 @@ export const action = async ({ request }) => {
   const _action = formData.get("_action");
   const { billing, admin, session } = await authenticate.admin(request);
 
+  console.log("[Settings Action] Action type:", _action);
+
   try {
     if (_action === "saveCustomCss") {
       const customCss = formData.get("customCss");
+      console.log("[Settings Action] Saving custom CSS for shop:", session.shop);
+      console.log("[Settings Action] CSS length:", customCss?.length || 0);
 
       // Update or create shop settings
-      await prisma.shopSettings.upsert({
+      const result = await prisma.shopSettings.upsert({
         where: { shop: session.shop },
         update: { customCss },
         create: {
@@ -104,6 +108,7 @@ export const action = async ({ request }) => {
         },
       });
 
+      console.log("[Settings Action] Custom CSS saved successfully, returning JSON response");
       return json({ customCssSaved: true });
 
     } else if (_action === "startSubscription") {
