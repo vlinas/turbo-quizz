@@ -69,11 +69,9 @@ export const action = async ({ request }) => {
   ) {
     await billing.require({
       plans: [PREMIUM_PLAN],
-      isTest: process.env.NODE_ENV !== 'production',
       onFailure: async () =>
         billing.request({
           plan: PREMIUM_PLAN,
-          isTest: process.env.NODE_ENV !== 'production',
           returnUrl: launchUrl,
         }),
     });
@@ -109,9 +107,8 @@ export const loader = async ({ request }) => {
   const resultJson = await result.json();
   const { activeSubscriptions } = resultJson.data.app.installation;
 
-  // For development/testing: unlimited quizzes
-  // In production with App Store distribution, this would check subscription status
-  let limit = -1; // Unlimited
+  // Free tier: 3 quizzes, Premium: unlimited
+  let limit = 3;
   let status = false;
   let planid = null;
 
@@ -122,6 +119,9 @@ export const loader = async ({ request }) => {
         planid = index;
       }
     });
+    if (status == "ACTIVE") {
+      limit = -1; // Unlimited for premium subscribers
+    }
   }
 
   // Fetch quizzes with stats
@@ -589,7 +589,7 @@ export default function Index() {
               </ul>
             </BlockStack>
             <Text variant="bodyMd" as="p" fontWeight="semibold">
-              Price: $19.99 USD per month (7-day free trial)
+              Price: $14.99 USD per month (7-day free trial)
             </Text>
           </BlockStack>
         </Modal.Section>

@@ -126,7 +126,6 @@ export const action = async ({ request }) => {
         // Request billing
         const billingResponse = await billing.request({
           plan: PREMIUM_PLAN,
-          isTest: true, // Always test mode for now
           returnUrl: `${launchUrl}/settings?upgrade=success`,
         });
 
@@ -152,7 +151,6 @@ export const action = async ({ request }) => {
       const subscription = billingCheck.appSubscriptions[0];
       await billing.cancel({
         subscriptionId: subscription.id,
-        isTest: process.env.NODE_ENV !== 'production',
         prorate: true,
       });
 
@@ -262,7 +260,7 @@ export default function BillingPage() {
                       </BlockStack>
                       <Box>
                         <Text as="p" variant="heading2xl" alignment="end">
-                          $19.99
+                          $14.99
                         </Text>
                         <Text as="p" tone="subdued" alignment="end">
                           per month
@@ -415,7 +413,7 @@ export default function BillingPage() {
                         <BlockStack gap="300" inlineAlign="center">
                           <InlineStack gap="200" blockAlign="baseline">
                             <Text as="p" variant="heading3xl">
-                              $19.99
+                              $14.99
                             </Text>
                             <Text as="span" variant="headingLg" tone="subdued">
                               /month

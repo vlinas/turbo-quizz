@@ -23,10 +23,9 @@ const shopify = shopifyApp({
   restResources,
   billing:{
     [PREMIUM_PLAN]: {
-      amount: 19.99,
+      amount: 14.99,
       trialDays: 7,
       currencyCode: "USD",
-      test: process.env.NODE_ENV !== 'production',
       interval: BillingInterval.Every30Days,
     }
   },
