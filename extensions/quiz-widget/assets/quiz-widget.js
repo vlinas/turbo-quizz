@@ -13,7 +13,7 @@
       this.selectedAnswerId = null;
 
       // Debug logging
-      console.log('[TurboQuiz] Initialized with:', {
+      console.log('[SimpleProductQuiz] Initialized with:', {
         quizId: this.quizId,
         appUrl: this.appUrl,
       });
@@ -61,10 +61,10 @@
     }
 
     async init() {
-      console.log('[TurboQuiz] init() called', { quizId: this.quizId, appUrl: this.appUrl });
+      console.log('[SimpleProductQuiz] init() called', { quizId: this.quizId, appUrl: this.appUrl });
 
       if (!this.quizId || !this.appUrl) {
-        console.error('[TurboQuiz] Missing quizId or appUrl');
+        console.error('[SimpleProductQuiz] Missing quizId or appUrl');
         this.showError('Quiz ID or App URL not configured');
         return;
       }
@@ -73,12 +73,12 @@
       const completedKey = `turbo_quiz_completed_${this.quizId}`;
       const wasCompleted = localStorage.getItem(completedKey);
 
-      console.log('[TurboQuiz] Checking completion status:', { completedKey, wasCompleted });
+      console.log('[SimpleProductQuiz] Checking completion status:', { completedKey, wasCompleted });
 
       if (wasCompleted) {
         // Hide the entire quiz widget if already completed
         this.container.style.display = 'none';
-        console.log('[TurboQuiz] Quiz already completed, hiding widget');
+        console.log('[SimpleProductQuiz] Quiz already completed, hiding widget');
         return;
       }
 
@@ -88,25 +88,25 @@
       this.retryBtn.addEventListener('click', () => this.init());
       this.restartBtn.addEventListener('click', () => this.restart());
 
-      console.log('[TurboQuiz] About to call loadQuiz()');
+      console.log('[SimpleProductQuiz] About to call loadQuiz()');
       await this.loadQuiz();
     }
 
     async loadQuiz() {
-      console.log('[TurboQuiz] loadQuiz() called');
+      console.log('[SimpleProductQuiz] loadQuiz() called');
       // Don't show loading state - keep it seamless
       try {
         // Add cache busting parameter to prevent browser caching old quiz data
         const cacheBuster = Date.now();
         const url = `${this.appUrl}/api/quiz/${this.quizId}?cb=${cacheBuster}`;
-        console.log('[TurboQuiz] Fetching from:', url);
+        console.log('[SimpleProductQuiz] Fetching from:', url);
 
         const response = await fetch(url);
-        console.log('[TurboQuiz] Response status:', response.status);
+        console.log('[SimpleProductQuiz] Response status:', response.status);
 
         const data = await response.json();
 
-        console.log('[TurboQuiz] API Response:', {
+        console.log('[SimpleProductQuiz] API Response:', {
           success: data.success,
           quizId: data.quiz?.quiz_id,
           title: data.quiz?.title,
@@ -119,13 +119,13 @@
         }
 
         this.quiz = data.quiz;
-        console.log('[TurboQuiz] Starting session...');
+        console.log('[SimpleProductQuiz] Starting session...');
         // Start session in background without blocking render
         this.startSession().catch(err => console.error('Session start error:', err));
-        console.log('[TurboQuiz] Rendering quiz...');
+        console.log('[SimpleProductQuiz] Rendering quiz...');
         this.renderQuiz();
       } catch (error) {
-        console.error('[TurboQuiz] Error loading quiz:', error);
+        console.error('[SimpleProductQuiz] Error loading quiz:', error);
         this.showError(error.message || 'Failed to load quiz. Please try again.');
       }
     }
@@ -136,7 +136,7 @@
 
       if (existingSessionId) {
         this.sessionId = existingSessionId;
-        console.log('[TurboQuiz] Using existing session:', this.sessionId);
+        console.log('[SimpleProductQuiz] Using existing session:', this.sessionId);
         return;
       }
 
@@ -163,7 +163,7 @@
           this.sessionId = data.session_id;
           // Store session ID in cookie for order attribution (30 days)
           this.setCookie('turbo_quiz_session', this.sessionId, 30);
-          console.log('[TurboQuiz] New session started:', this.sessionId);
+          console.log('[SimpleProductQuiz] New session started:', this.sessionId);
         } else {
           console.error('Failed to start session:', data.error);
         }
@@ -287,7 +287,7 @@
       // Mark quiz as completed in localStorage so it never shows again
       const completedKey = `turbo_quiz_completed_${this.quizId}`;
       localStorage.setItem(completedKey, 'true');
-      console.log('[TurboQuiz] Quiz marked as completed');
+      console.log('[SimpleProductQuiz] Quiz marked as completed');
 
       // Mark session as completed
       if (this.sessionId) {
@@ -456,12 +456,12 @@
         });
 
         if (response.ok) {
-          console.log('[TurboQuiz] Session added to cart attributes for attribution');
+          console.log('[SimpleProductQuiz] Session added to cart attributes for attribution');
         } else {
-          console.error('[TurboQuiz] Failed to add session to cart:', await response.text());
+          console.error('[SimpleProductQuiz] Failed to add session to cart:', await response.text());
         }
       } catch (error) {
-        console.error('[TurboQuiz] Error adding session to cart:', error);
+        console.error('[SimpleProductQuiz] Error adding session to cart:', error);
       }
     }
 
