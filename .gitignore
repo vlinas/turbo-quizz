@@ -16,3 +16,5 @@ yarn.lock
 shopify.app.toml
 *.toml
 shopify.app.turbo-quizz-local.toml
+.env
+.env
