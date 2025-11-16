@@ -175,6 +175,11 @@ export default function BillingPage() {
   const [showErrorBanner, setShowErrorBanner] = useState(false);
   const [customCssValue, setCustomCssValue] = useState(customCss);
 
+  // Update customCssValue when loader data changes (after save)
+  useEffect(() => {
+    setCustomCssValue(customCss);
+  }, [customCss]);
+
   useEffect(() => {
     if (actionData?.subscriptionCancelled) {
       setShowCancelToast(true);

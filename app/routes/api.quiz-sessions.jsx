@@ -51,6 +51,8 @@ export async function action({ request }) {
     }
 
     switch (actionType) {
+      case "impression":
+        return handleImpression(data);
       case "start":
         return handleStart(data);
       case "answer":
@@ -71,6 +73,72 @@ export async function action({ request }) {
     return json({
       success: false,
       error: "Internal server error"
+    }, {
+      status: 500,
+      headers: corsHeaders
+    });
+  }
+}
+
+/**
+ * Track quiz impression (view)
+ */
+async function handleImpression(data) {
+  const { quiz_id } = data;
+
+  if (!quiz_id) {
+    return json({
+      success: false,
+      error: "quiz_id is required"
+    }, {
+      status: 400,
+      headers: corsHeaders
+    });
+  }
+
+  const parsedQuizId = parseInt(quiz_id, 10);
+  if (isNaN(parsedQuizId)) {
+    return json({
+      success: false,
+      error: "Invalid quiz_id format"
+    }, {
+      status: 400,
+      headers: corsHeaders
+    });
+  }
+
+  try {
+    // Find quiz to get shop
+    const quiz = await prisma.quiz.findFirst({
+      where: {
+        quiz_id: parsedQuizId,
+        deleted_at: null,
+      },
+    });
+
+    if (!quiz) {
+      return json({
+        success: false,
+        error: "Quiz not found"
+      }, {
+        status: 404,
+        headers: corsHeaders
+      });
+    }
+
+    // Update daily analytics (impression only)
+    await updateDailyAnalytics(parsedQuizId, quiz.shop, 'impression');
+
+    return json({
+      success: true,
+    }, {
+      headers: corsHeaders
+    });
+  } catch (error) {
+    console.error("Error tracking impression:", error);
+    return json({
+      success: false,
+      error: "Failed to track impression"
     }, {
       status: 500,
       headers: corsHeaders
@@ -313,6 +381,9 @@ async function updateDailyAnalytics(quizId, shop, type) {
     await prisma.quizAnalyticsSummary.update({
       where: { id: existing.id },
       data: {
+        ...(type === 'impression' && {
+          impressions: existing.impressions + 1,
+        }),
         ...(type === 'start' && {
           impressions: existing.impressions + 1,
           starts: existing.starts + 1,
@@ -329,7 +400,7 @@ async function updateDailyAnalytics(quizId, shop, type) {
         quiz_id: quizId,
         shop: shop,
         date: today,
-        impressions: type === 'start' ? 1 : 0,
+        impressions: (type === 'start' || type === 'impression') ? 1 : 0,
         starts: type === 'start' ? 1 : 0,
         completions: type === 'complete' ? 1 : 0,
       },

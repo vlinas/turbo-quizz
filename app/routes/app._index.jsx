@@ -83,7 +83,7 @@ export const action = async ({ request }) => {
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
 
-  // Get subscription info
+  // Get subscription info and shop currency
   const result = await admin.graphql(
     `#graphql
     query Shop {
@@ -101,11 +101,15 @@ export const loader = async ({ request }) => {
           }
         }
       }
+      shop {
+        currencyCode
+      }
     }`,
     { variables: {} }
   );
   const resultJson = await result.json();
   const { activeSubscriptions } = resultJson.data.app.installation;
+  const shopCurrency = resultJson.data.shop.currencyCode;
 
   // Check for active subscription
   let limit = 3; // Default free tier limit
@@ -203,13 +207,29 @@ export const loader = async ({ request }) => {
     limit: limit,
     plan: activeSubscriptions.length > 0 ? activeSubscriptions : [],
     planid: planid,
+    currency: shopCurrency,
   };
 };
 
 export default function Index() {
   const submit = useSubmit();
   const navigate = useNavigate();
-  const { quizzes, limit, planid } = useLoaderData();
+  const { quizzes, limit, planid, currency } = useLoaderData();
+
+  // Helper function to format currency based on shop's currency
+  const formatCurrency = (amount) => {
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency || 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount);
+    } catch (error) {
+      // Fallback if currency code is invalid
+      return `${currency || '$'} ${amount.toFixed(2)}`;
+    }
+  };
 
   // State
   const [modalActive, setModalActive] = useState(false);
@@ -368,7 +388,7 @@ export default function Index() {
         </IndexTable.Cell>
         <IndexTable.Cell>
           <Box paddingBlockStart="300" paddingBlockEnd="300">
-            <Text as="span">${attributedRevenue.toFixed(2)}</Text>
+            <Text as="span">{formatCurrency(attributedRevenue)}</Text>
           </Box>
         </IndexTable.Cell>
         <IndexTable.Cell>
@@ -475,7 +495,7 @@ export default function Index() {
             </Text>
           </InlineStack>
           <Text as="p" variant="heading2xl">
-            ${metrics.totalAttributedRevenue.toFixed(2)}
+            {formatCurrency(metrics.totalAttributedRevenue)}
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
             Total from all quizzes

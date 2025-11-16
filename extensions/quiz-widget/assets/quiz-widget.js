@@ -119,6 +119,9 @@
           this.injectCustomCss(this.quiz.custom_css);
         }
 
+        // Track impression every time quiz is viewed
+        this.trackImpression().catch(err => console.error('Impression tracking error:', err));
+
         // Start session in background without blocking render
         this.startSession().catch(err => console.error('Session start error:', err));
         this.renderQuiz();
@@ -165,6 +168,23 @@
         }
       } catch (error) {
         console.error('Error starting session:', error);
+      }
+    }
+
+    async trackImpression() {
+      // Track impression every time the quiz is viewed
+      try {
+        await fetch(`${this.appUrl}/api/quiz-sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'impression',
+            quiz_id: this.quizId,
+          }),
+        });
+      } catch (error) {
+        // Silent fail - don't disrupt user experience
+        console.error('Error tracking impression:', error);
       }
     }
 
