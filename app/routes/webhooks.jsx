@@ -21,12 +21,8 @@ export const action = async ({ request }) => {
     case "ORDERS_CREATE":
       // QUIZ ATTRIBUTION: Attribute order to quiz session
       try {
-        console.log(`[Quiz Attribution] Processing order #${payload.order_number || payload.id}`);
-
         const customerEmail = payload.customer?.email || payload.email;
         const customerId = payload.customer?.id ? String(payload.customer.id) : null;
-
-        console.log(`[Quiz Attribution] Customer email: ${customerEmail}, ID: ${customerId}`);
 
         // Find the most recent completed quiz session for this customer
         let quizSession = null;
@@ -53,7 +49,6 @@ export const action = async ({ request }) => {
 
           if (sessionIdAttr && sessionIdAttr.value) {
             const sessionId = sessionIdAttr.value;
-            console.log(`[Quiz Attribution] Found session ID in cart attributes: ${sessionId}`);
 
             quizSession = await db.quizSession.findUnique({
               where: {
@@ -70,7 +65,6 @@ export const action = async ({ request }) => {
 
           if (sessionIdMatch) {
             const sessionId = sessionIdMatch[1];
-            console.log(`[Quiz Attribution] Found session ID in order note: ${sessionId}`);
 
             quizSession = await db.quizSession.findUnique({
               where: {
@@ -82,8 +76,6 @@ export const action = async ({ request }) => {
 
         // If we found a quiz session, attribute this order to it
         if (quizSession) {
-          console.log(`[Quiz Attribution] Attributing order to session ${quizSession.session_id}`);
-
           // Check if this order was already attributed
           const existingAttribution = await db.quizOrderAttribution.findUnique({
             where: {
@@ -112,20 +104,13 @@ export const action = async ({ request }) => {
                 order_created_at: new Date(payload.created_at),
               },
             });
-
-            console.log(`[Quiz Attribution] Successfully attributed order #${payload.order_number} ($${totalPrice}) to quiz session ${quizSession.session_id}`);
-          } else {
-            console.log(`[Quiz Attribution] Order already attributed`);
           }
-        } else {
-          console.log(`[Quiz Attribution] No quiz session found for this order`);
         }
       } catch (error) {
         console.error("[Quiz Attribution] Error:", error);
       }
 
       break;
-    // console.log(order_id, total_price, currency);
 
     case "CUSTOMERS_DATA_REQUEST":
     case "CUSTOMERS_REDACT":

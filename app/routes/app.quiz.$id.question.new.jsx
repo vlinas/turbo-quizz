@@ -154,9 +154,6 @@ export default function NewQuestion() {
   const submit = useSubmit();
   const actionData = useActionData();
 
-  // Debug logging
-  console.log('NewQuestion component rendered', { quiz });
-
   const [questionText, setQuestionText] = useState("");
 
   // Answer 1

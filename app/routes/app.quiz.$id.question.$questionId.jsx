@@ -101,24 +101,17 @@ export const action = async ({ request, params }) => {
     const answer2_custom_text = formData.get("answer2_custom_text") || "";
 
     const buildData = async (type, raw, customTextDefault) => {
-      console.log('[buildData] type:', type, 'raw:', raw);
       if (type === "show_text") return { text: raw };
       if (type === "show_products") {
         const ids = (raw || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 3);
-        console.log('[buildData] split IDs:', ids);
         const gids = toGids(ids);
-        console.log('[buildData] converted GIDs:', gids);
         const nodes = await fetchNodesByIds(gids);
-        console.log('[buildData] fetched nodes:', JSON.stringify(nodes));
         return { products: nodes, custom_text: customTextDefault || "Based on your answers, we recommend these products:" };
       }
       if (type === "show_collections") {
         const ids = (raw || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 3);
-        console.log('[buildData] split IDs:', ids);
         const gids = toCollectionGids(ids);
-        console.log('[buildData] converted GIDs:', gids);
         const nodes = await fetchNodesByIds(gids);
-        console.log('[buildData] fetched nodes:', JSON.stringify(nodes));
         return { collections: nodes, custom_text: customTextDefault || "Based on your answers, check out these collections:" };
       }
       return {};
@@ -126,14 +119,6 @@ export const action = async ({ request, params }) => {
 
     const answer1Data = await buildData(answer1_action_type, answer1_action_data, answer1_custom_text);
     const answer2Data = await buildData(answer2_action_type, answer2_action_data, answer2_custom_text);
-
-    // Debug logging
-    console.log('[Edit Question] answer1_action_type:', answer1_action_type);
-    console.log('[Edit Question] answer1_action_data (raw):', answer1_action_data);
-    console.log('[Edit Question] answer1Data (built):', JSON.stringify(answer1Data));
-    console.log('[Edit Question] answer2_action_type:', answer2_action_type);
-    console.log('[Edit Question] answer2_action_data (raw):', answer2_action_data);
-    console.log('[Edit Question] answer2Data (built):', JSON.stringify(answer2Data));
 
     try {
       // Update question and answers in transaction

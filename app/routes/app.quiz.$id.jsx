@@ -209,20 +209,8 @@ export const loader = async ({ request, params }) => {
         },
       });
       answerStats[answer.answer_id] = selectionCount;
-
-      // Debug logging
-      console.log(`[Answer Stats] answer_id: ${answer.answer_id}, quiz_id: ${quizId}, shop: ${session.shop}, threshold: ${dateThreshold.toISOString()}, count: ${selectionCount}`);
     }
   }
-
-  // Also log total answer selections for this quiz (without date filter)
-  const totalAnswerSelections = await prisma.answerSelection.count({
-    where: {
-      quiz_id: quizId,
-      shop: session.shop,
-    },
-  });
-  console.log(`[Answer Stats] Total answer selections for quiz ${quizId}: ${totalAnswerSelections}`);
 
   // Calculate percentages for each answer within its question
   const answerStatsWithPercentages = {};
@@ -374,21 +362,15 @@ export const action = async ({ request, params }) => {
         // Resolve IDs to full nodes and cap to 3
         try {
           const parsed = JSON.parse(answer1_action_data || "{}");
-          console.log("[Answer 1] Parsed data:", parsed);
           if (answer1_action_type === "show_products") {
             const ids = (parsed.products || []).map((p) => p.id || p).slice(0, 3);
-            console.log("[Answer 1] Product IDs to fetch:", ids);
             const nodes = await fetchNodesByIds(toGids(ids), admin);
-            console.log("[Answer 1] Fetched product nodes:", nodes);
             answer1Data = { products: nodes, custom_text: (formData.get("answer1_custom_text") || parsed.custom_text || "Based on your answers, we recommend these products:") };
           } else {
             const ids = (parsed.collections || []).map((c) => c.id || c).slice(0, 3);
-            console.log("[Answer 1] Collection IDs to fetch:", ids);
             const nodes = await fetchNodesByIds(toCollectionGids(ids), admin);
-            console.log("[Answer 1] Fetched collection nodes:", nodes);
             answer1Data = { collections: nodes, custom_text: (formData.get("answer1_custom_text") || parsed.custom_text || "Based on your answers, check out these collections:") };
           }
-          console.log("[Answer 1] Final answer1Data:", answer1Data);
         } catch (e) {
           console.error("[Answer 1] Error parsing/fetching:", e);
           answer1Data = answer1_action_type === "show_products" ? {
@@ -507,21 +489,15 @@ export const action = async ({ request, params }) => {
         // Resolve IDs to full nodes and cap to 3 (same as add_question)
         try {
           const parsed = JSON.parse(answer1_action_data || "{}");
-          console.log("[Update Answer 1] Parsed data:", parsed);
           if (answer1_action_type === "show_products") {
             const ids = (parsed.products || []).map((p) => p.id || p).slice(0, 3);
-            console.log("[Update Answer 1] Product IDs to fetch:", ids);
             const nodes = await fetchNodesByIds(toGids(ids), admin);
-            console.log("[Update Answer 1] Fetched product nodes:", nodes);
             answer1Data = { products: nodes, custom_text: (formData.get("answer1_custom_text") || parsed.custom_text || "Based on your answers, we recommend these products:") };
           } else {
             const ids = (parsed.collections || []).map((c) => c.id || c).slice(0, 3);
-            console.log("[Update Answer 1] Collection IDs to fetch:", ids);
             const nodes = await fetchNodesByIds(toCollectionGids(ids), admin);
-            console.log("[Update Answer 1] Fetched collection nodes:", nodes);
             answer1Data = { collections: nodes, custom_text: (formData.get("answer1_custom_text") || parsed.custom_text || "Based on your answers, check out these collections:") };
           }
-          console.log("[Update Answer 1] Final answer1Data:", answer1Data);
         } catch (e) {
           console.error("[Update Answer 1] Error parsing/fetching:", e);
           answer1Data = answer1_action_type === "show_products" ? {
@@ -542,21 +518,15 @@ export const action = async ({ request, params }) => {
         // Resolve IDs to full nodes and cap to 3 (same as add_question)
         try {
           const parsed = JSON.parse(answer2_action_data || "{}");
-          console.log("[Update Answer 2] Parsed data:", parsed);
           if (answer2_action_type === "show_products") {
             const ids = (parsed.products || []).map((p) => p.id || p).slice(0, 3);
-            console.log("[Update Answer 2] Product IDs to fetch:", ids);
             const nodes = await fetchNodesByIds(toGids(ids), admin);
-            console.log("[Update Answer 2] Fetched product nodes:", nodes);
             answer2Data = { products: nodes, custom_text: (formData.get("answer2_custom_text") || parsed.custom_text || "Based on your answers, we recommend these products:") };
           } else {
             const ids = (parsed.collections || []).map((c) => c.id || c).slice(0, 3);
-            console.log("[Update Answer 2] Collection IDs to fetch:", ids);
             const nodes = await fetchNodesByIds(toCollectionGids(ids), admin);
-            console.log("[Update Answer 2] Fetched collection nodes:", nodes);
             answer2Data = { collections: nodes, custom_text: (formData.get("answer2_custom_text") || parsed.custom_text || "Based on your answers, check out these collections:") };
           }
-          console.log("[Update Answer 2] Final answer2Data:", answer2Data);
         } catch (e) {
           console.error("[Update Answer 2] Error parsing/fetching:", e);
           answer2Data = answer2_action_type === "show_products" ? {
