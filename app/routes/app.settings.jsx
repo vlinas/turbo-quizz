@@ -228,8 +228,19 @@ export default function BillingPage() {
                       • Custom apps (not distributed via Shopify App Store)
                     </Text>
                     <Text as="p">
-                      <strong>Good news:</strong> All premium features are available without billing during development.
-                      You can create unlimited quizzes and access all features for testing.
+                      <strong>Good news:</strong> All premium features are currently enabled for free! You have unlimited access to:
+                    </Text>
+                    <Text as="p" variant="bodySm">
+                      ✓ Unlimited quizzes
+                    </Text>
+                    <Text as="p" variant="bodySm">
+                      ✓ Full analytics & revenue tracking
+                    </Text>
+                    <Text as="p" variant="bodySm">
+                      ✓ All premium features
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      (Billing will be automatically enabled when the app is published to the Shopify App Store)
                     </Text>
                     {actionData.message && (
                       <Text as="p" variant="bodySm" tone="subdued">

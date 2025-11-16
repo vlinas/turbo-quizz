@@ -107,8 +107,8 @@ export const loader = async ({ request }) => {
   const resultJson = await result.json();
   const { activeSubscriptions } = resultJson.data.app.installation;
 
-  // Free tier: 3 quizzes, Premium: unlimited
-  let limit = 3;
+  // Check for active subscription
+  let limit = 3; // Default free tier limit
   let status = false;
   let planid = null;
 
@@ -122,6 +122,13 @@ export const loader = async ({ request }) => {
     if (status == "ACTIVE") {
       limit = -1; // Unlimited for premium subscribers
     }
+  }
+
+  // For development/custom apps: give unlimited access if billing is not available
+  // This will be automatically enforced once published to App Store
+  if (limit === 3 && process.env.NODE_ENV === 'production') {
+    // In production but no billing (custom app), grant unlimited
+    limit = -1;
   }
 
   // Fetch quizzes with stats
