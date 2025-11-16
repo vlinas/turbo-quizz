@@ -35,6 +35,19 @@ const shopify = shopifyApp({
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks",
     },
+    // Mandatory GDPR compliance webhooks
+    CUSTOMERS_DATA_REQUEST: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks",
+    },
+    CUSTOMERS_REDACT: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks",
+    },
+    SHOP_REDACT: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks",
+    },
     // Note: ORDERS_PAID and ORDERS_CREATE require protected customer data approval
     // Using API polling instead via /api/sync-orders endpoint
   },

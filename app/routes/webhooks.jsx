@@ -113,8 +113,52 @@ export const action = async ({ request }) => {
       break;
 
     case "CUSTOMERS_DATA_REQUEST":
+      // Handle customer data request (GDPR compliance)
+      // In a production app, you would:
+      // 1. Collect all customer data from your database
+      // 2. Return it in the required format
+      // For now, we'll just acknowledge receipt
+      console.log(`[GDPR] Customer data request for shop: ${shop}`);
+      break;
+
     case "CUSTOMERS_REDACT":
+      // Handle customer data deletion (GDPR compliance)
+      // Delete or anonymize customer data
+      try {
+        const customerId = payload.customer?.id ? String(payload.customer.id) : null;
+        if (customerId) {
+          // Delete quiz sessions for this customer
+          await db.quizSession.deleteMany({
+            where: {
+              shop,
+              customer_id: customerId,
+            },
+          });
+          console.log(`[GDPR] Deleted customer data for customer ${customerId} in shop ${shop}`);
+        }
+      } catch (error) {
+        console.error("[GDPR] Error deleting customer data:", error);
+      }
+      break;
+
     case "SHOP_REDACT":
+      // Handle shop data deletion (store uninstalled for 48+ hours)
+      // Delete all shop data
+      try {
+        // Delete all quiz sessions for this shop
+        await db.quizSession.deleteMany({ where: { shop } });
+        // Delete all quizzes for this shop
+        await db.quiz.deleteMany({ where: { shop } });
+        // Delete shop settings
+        await db.shopSettings.deleteMany({ where: { shop } });
+        // Delete sessions
+        await db.session.deleteMany({ where: { shop } });
+        console.log(`[GDPR] Deleted all data for shop ${shop}`);
+      } catch (error) {
+        console.error("[GDPR] Error deleting shop data:", error);
+      }
+      break;
+
     default:
       throw new Response("Unhandled webhook topic", { status: 404 });
   }
