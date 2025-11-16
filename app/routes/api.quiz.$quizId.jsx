@@ -93,12 +93,18 @@ export async function loader({ params, request }) {
       );
     }
 
+    // Fetch shop settings to get custom CSS
+    const shopSettings = await prisma.shopSettings.findUnique({
+      where: { shop: quiz.shop },
+    });
+
     // Format response for storefront
     const formattedQuiz = {
       quiz_id: quiz.quiz_id,
       title: quiz.title,
       description: quiz.description,
       theme_settings: quiz.theme_settings,
+      custom_css: shopSettings?.customCss || null,
       questions: quiz.questions.map((question) => ({
         question_id: question.question_id,
         question_text: question.question_text,

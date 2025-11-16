@@ -54,6 +54,24 @@
       document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
     }
 
+    // Inject custom CSS into the page
+    injectCustomCss(css) {
+      if (!css || css.trim() === '') return;
+
+      // Check if style element already exists
+      const existingStyle = document.getElementById(`turbo-quiz-custom-css-${this.quizId}`);
+      if (existingStyle) {
+        existingStyle.textContent = css;
+        return;
+      }
+
+      // Create new style element
+      const styleElement = document.createElement('style');
+      styleElement.id = `turbo-quiz-custom-css-${this.quizId}`;
+      styleElement.textContent = css;
+      document.head.appendChild(styleElement);
+    }
+
     async init() {
       if (!this.quizId || !this.appUrl) {
         console.error('[SimpleProductQuiz] Missing quizId or appUrl');
@@ -95,6 +113,12 @@
         }
 
         this.quiz = data.quiz;
+
+        // Inject custom CSS if provided
+        if (this.quiz.custom_css) {
+          this.injectCustomCss(this.quiz.custom_css);
+        }
+
         // Start session in background without blocking render
         this.startSession().catch(err => console.error('Session start error:', err));
         this.renderQuiz();
