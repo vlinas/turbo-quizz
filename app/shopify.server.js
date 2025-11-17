@@ -54,9 +54,12 @@ const shopify = shopifyApp({
   hooks: {
     afterAuth: async ({ session }) => {
       try {
-        await shopify.registerWebhooks({ session });
+        console.log('[afterAuth] Registering webhooks for shop:', session.shop);
+        const result = await shopify.registerWebhooks({ session });
+        console.log('[afterAuth] Webhook registration result:', JSON.stringify(result, null, 2));
       } catch (error) {
-        console.error('[afterAuth] Webhook registration failed (non-fatal):', error.message);
+        console.error('[afterAuth] Webhook registration failed:', error);
+        console.error('[afterAuth] Error details:', error.message, error.stack);
       }
     },
   },
