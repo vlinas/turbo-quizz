@@ -615,9 +615,10 @@ export default function BillingPage() {
                       </Text>
                       <InlineStack align="start">
                         <Button
-                          url="https://admin.shopify.com/themes/current/editor"
+                          onClick={() => {
+                            window.open('https://admin.shopify.com/themes/current/editor', '_top');
+                          }}
                           variant="primary"
-                          external
                         >
                           Open Theme Editor
                         </Button>
