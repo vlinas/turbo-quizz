@@ -79,23 +79,10 @@ export const loader = async ({ request }) => {
     });
   }
 
-  // Get shop domain for deep link
-  const shopResult = await admin.graphql(
-    `#graphql
-    query Shop {
-      shop {
-        myshopifyDomain
-      }
-    }`
-  );
-  const shopJson = await shopResult.json();
-  const shopDomain = shopJson.data.shop.myshopifyDomain.replace('.myshopify.com', '');
-
   return json({
     shop: session.shop,
     activePlan,
     customCss: shopSettings.customCss || "",
-    shopDomain,
   });
 };
 
@@ -184,7 +171,7 @@ export const action = async ({ request }) => {
 };
 
 export default function BillingPage() {
-  const { shop, activePlan, customCss, shopDomain } = useLoaderData();
+  const { shop, activePlan, customCss } = useLoaderData();
   const actionData = useActionData();
   const navigation = useNavigation();
   const navigate = useNavigate();
@@ -628,9 +615,9 @@ export default function BillingPage() {
                       </Text>
                       <InlineStack align="start">
                         <Button
-                          url={`https://admin.shopify.com/store/${shopDomain}/themes/current/editor`}
-                          external
+                          url="shopify:admin/themes/current/editor?context=apps"
                           variant="primary"
+                          target="_parent"
                         >
                           Open Theme Editor
                         </Button>

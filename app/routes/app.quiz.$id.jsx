@@ -244,19 +244,7 @@ export const loader = async ({ request, params }) => {
     days,
   };
 
-  // Get shop info for deep link
-  const shopResult = await admin.graphql(
-    `#graphql
-    query Shop {
-      shop {
-        myshopifyDomain
-      }
-    }`
-  );
-  const shopJson = await shopResult.json();
-  const shopDomain = shopJson.data.shop.myshopifyDomain.replace('.myshopify.com', '');
-
-  return json({ quiz, analytics, answerStats: answerStatsWithPercentages, shopDomain });
+  return json({ quiz, analytics, answerStats: answerStatsWithPercentages });
 };
 
 export const action = async ({ request, params }) => {
@@ -620,7 +608,7 @@ export const action = async ({ request, params }) => {
 };
 
 export default function QuizBuilder() {
-  const { quiz, analytics, answerStats, shopDomain } = useLoaderData();
+  const { quiz, analytics, answerStats } = useLoaderData();
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
@@ -1514,9 +1502,9 @@ export default function QuizBuilder() {
                     Click below to open the Theme Editor, then add the "Quiz Widget" app block to any page
                   </Text>
                   <Button
-                    url={`https://admin.shopify.com/store/${shopDomain}/themes/current/editor`}
-                    external
+                    url="shopify:admin/themes/current/editor?context=apps"
                     variant="primary"
+                    target="_parent"
                   >
                     Open Theme Editor
                   </Button>
