@@ -615,9 +615,9 @@ export default function BillingPage() {
                       </Text>
                       <InlineStack align="start">
                         <Button
-                          url="shopify:admin/themes/current/editor?context=apps"
+                          url="/admin/themes/current/editor?context=apps"
                           variant="primary"
-                          target="_parent"
+                          external
                         >
                           Open Theme Editor
                         </Button>

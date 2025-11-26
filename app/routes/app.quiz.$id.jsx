@@ -1502,9 +1502,9 @@ export default function QuizBuilder() {
                     Click below to open the Theme Editor, then add the "Quiz Widget" app block to any page
                   </Text>
                   <Button
-                    url="shopify:admin/themes/current/editor?context=apps"
+                    url="/admin/themes/current/editor?context=apps"
                     variant="primary"
-                    target="_parent"
+                    external
                   >
                     Open Theme Editor
                   </Button>
