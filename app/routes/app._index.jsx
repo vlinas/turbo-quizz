@@ -25,6 +25,7 @@ import {
   SkeletonBodyText,
   SkeletonDisplayText,
   Box,
+  Divider,
 } from "@shopify/polaris";
 import {
   PlayIcon,
@@ -233,6 +234,7 @@ export default function Index() {
 
   // State
   const [modalActive, setModalActive] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
   const [queryValue, setQueryValue] = useState("");
 
   const { mode, setMode} = useSetIndexFiltersMode();
@@ -410,18 +412,126 @@ export default function Index() {
 
   // Empty state
   const emptyStateMarkup = (
-    <EmptyState
-      heading="Create your first quiz"
-      action={{
-        content: "Create quiz",
-        onAction: () => navigate("/app/quiz/new"),
-      }}
-      image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-    >
-      <p>
-        Build interactive quizzes to engage customers and guide them to the perfect products.
-      </p>
-    </EmptyState>
+    <BlockStack gap="500">
+      <EmptyState
+        heading="Create your first quiz"
+        action={{
+          content: "Create quiz",
+          onAction: () => navigate("/app/quiz/new"),
+        }}
+        image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+      >
+        <p>
+          Build interactive quizzes to engage customers and guide them to the perfect products.
+        </p>
+      </EmptyState>
+
+      {/* Setup Guide */}
+      <Card>
+        <BlockStack gap="400">
+          <Text as="h2" variant="headingMd">
+            Quick Setup Guide
+          </Text>
+          <Text as="p" variant="bodySm" tone="subdued">
+            After creating your quiz, follow these steps to add it to your store:
+          </Text>
+
+          <Divider />
+
+          <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
+            {/* Step 1 */}
+            <BlockStack gap="200">
+              <Box width="fit-content">
+                <Box background="bg-surface-secondary" padding="200" borderRadius="100">
+                  <Text as="span" variant="bodySm" fontWeight="semibold">
+                    Step 1
+                  </Text>
+                </Box>
+              </Box>
+              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                Create a quiz
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Click "Create quiz" above to build your first quiz with questions and answers
+              </Text>
+            </BlockStack>
+
+            {/* Step 2 */}
+            <BlockStack gap="200">
+              <Box width="fit-content">
+                <Box background="bg-surface-secondary" padding="200" borderRadius="100">
+                  <Text as="span" variant="bodySm" fontWeight="semibold">
+                    Step 2
+                  </Text>
+                </Box>
+              </Box>
+              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                Copy the Quiz ID
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                After creating your quiz, copy the Quiz ID from the quiz details page
+              </Text>
+            </BlockStack>
+
+            {/* Step 3 */}
+            <BlockStack gap="200">
+              <Box width="fit-content">
+                <Box background="bg-surface-secondary" padding="200" borderRadius="100">
+                  <Text as="span" variant="bodySm" fontWeight="semibold">
+                    Step 3
+                  </Text>
+                </Box>
+              </Box>
+              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                Add to your theme
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Open the Theme Editor, add the "Quiz Widget" block, and paste your Quiz ID
+              </Text>
+            </BlockStack>
+          </InlineGrid>
+
+          <Divider />
+
+          {/* Screenshot */}
+          <BlockStack gap="200">
+            <Text as="p" variant="bodyMd" fontWeight="semibold">
+              Visual Guide
+            </Text>
+            <Box
+              background="bg-surface-secondary"
+              padding="400"
+              borderRadius="200"
+            >
+              <BlockStack gap="200" inlineAlign="center">
+                <div
+                  onClick={() => setShowImageModal(true)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <img
+                    src="/quiz-setup-guide.jpg"
+                    alt="Setup instructions - Click to enlarge"
+                    style={{
+                      width: "100%",
+                      maxWidth: "600px",
+                      height: "auto",
+                      border: "1px solid #e0e0e0",
+                      borderRadius: "8px",
+                      transition: "transform 0.2s",
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.02)"}
+                    onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
+                  />
+                </div>
+                <Text as="p" variant="bodySm" tone="subdued" alignment="center">
+                  Click image to enlarge
+                </Text>
+              </BlockStack>
+            </Box>
+          </BlockStack>
+        </BlockStack>
+      </Card>
+    </BlockStack>
   );
 
   // Metrics cards
@@ -619,6 +729,25 @@ export default function Index() {
               Price: $14.99 USD per month (7-day free trial)
             </Text>
           </BlockStack>
+        </Modal.Section>
+      </Modal>
+
+      {/* Image Modal */}
+      <Modal
+        open={showImageModal}
+        onClose={() => setShowImageModal(false)}
+        title="Setup Guide"
+        size="large"
+      >
+        <Modal.Section>
+          <img
+            src="/quiz-setup-guide.jpg"
+            alt="Setup instructions"
+            style={{
+              width: "100%",
+              height: "auto",
+            }}
+          />
         </Modal.Section>
       </Modal>
     </Page>

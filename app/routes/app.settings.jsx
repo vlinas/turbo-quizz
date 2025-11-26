@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { json, redirect } from "@remix-run/node";
-import { Form, useActionData, useLoaderData, useNavigation } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigation, useNavigate } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -18,6 +18,7 @@ import {
   Box,
   Banner,
   TextField,
+  Modal,
 } from "@shopify/polaris";
 import {
   CheckIcon,
@@ -78,10 +79,23 @@ export const loader = async ({ request }) => {
     });
   }
 
+  // Get shop domain for deep link
+  const shopResult = await admin.graphql(
+    `#graphql
+    query Shop {
+      shop {
+        myshopifyDomain
+      }
+    }`
+  );
+  const shopJson = await shopResult.json();
+  const shopDomain = shopJson.data.shop.myshopifyDomain.replace('.myshopify.com', '');
+
   return json({
     shop: session.shop,
     activePlan,
     customCss: shopSettings.customCss || "",
+    shopDomain,
   });
 };
 
@@ -170,14 +184,16 @@ export const action = async ({ request }) => {
 };
 
 export default function BillingPage() {
-  const { shop, activePlan, customCss } = useLoaderData();
+  const { shop, activePlan, customCss, shopDomain } = useLoaderData();
   const actionData = useActionData();
   const navigation = useNavigation();
+  const navigate = useNavigate();
 
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [showCancelToast, setShowCancelToast] = useState(false);
   const [showCssSavedToast, setShowCssSavedToast] = useState(false);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
   const [customCssValue, setCustomCssValue] = useState(customCss);
 
   // Update customCssValue when loader data changes (after save)
@@ -538,6 +554,149 @@ export default function BillingPage() {
                   </BlockStack>
                 </BlockStack>
               </Card>
+
+              {/* Setup Instructions */}
+              <Card>
+                <BlockStack gap="400">
+                  <Text as="h2" variant="headingLg">
+                    How to Add Quiz to Your Store
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Follow these steps to display your quiz on your storefront
+                  </Text>
+
+                  <Divider />
+
+                  <BlockStack gap="400">
+                    {/* Step 1 */}
+                    <BlockStack gap="200">
+                      <Box width="fit-content">
+                        <Box background="bg-surface-secondary" padding="200" borderRadius="100">
+                          <Text as="span" variant="bodySm" fontWeight="semibold">
+                            Step 1
+                          </Text>
+                        </Box>
+                      </Box>
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">
+                        Create a quiz
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Go to the Dashboard and create a quiz with your questions and answers
+                      </Text>
+                      <InlineStack align="start">
+                        <Button onClick={() => navigate("/app")}>
+                          Go to Dashboard
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+
+                    <Divider />
+
+                    {/* Step 2 */}
+                    <BlockStack gap="200">
+                      <Box width="fit-content">
+                        <Box background="bg-surface-secondary" padding="200" borderRadius="100">
+                          <Text as="span" variant="bodySm" fontWeight="semibold">
+                            Step 2
+                          </Text>
+                        </Box>
+                      </Box>
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">
+                        Copy your Quiz ID
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Each quiz has a unique ID shown on the quiz details page. You'll need this ID to display the quiz on your store.
+                      </Text>
+                    </BlockStack>
+
+                    <Divider />
+
+                    {/* Step 3 */}
+                    <BlockStack gap="200">
+                      <Box width="fit-content">
+                        <Box background="bg-surface-secondary" padding="200" borderRadius="100">
+                          <Text as="span" variant="bodySm" fontWeight="semibold">
+                            Step 3
+                          </Text>
+                        </Box>
+                      </Box>
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">
+                        Add Quiz Widget block to your theme
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Open the Theme Editor and add the "Quiz Widget" app block to any page where you want the quiz to appear
+                      </Text>
+                      <InlineStack align="start">
+                        <Button
+                          url={`https://admin.shopify.com/store/${shopDomain}/themes/current/editor`}
+                          external
+                          variant="primary"
+                        >
+                          Open Theme Editor
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+
+                    <Divider />
+
+                    {/* Step 4 */}
+                    <BlockStack gap="200">
+                      <Box width="fit-content">
+                        <Box background="bg-surface-secondary" padding="200" borderRadius="100">
+                          <Text as="span" variant="bodySm" fontWeight="semibold">
+                            Step 4
+                          </Text>
+                        </Box>
+                      </Box>
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">
+                        Paste the Quiz ID in block settings
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        In the Theme Editor, find the Quiz Widget block settings and enter your Quiz ID
+                      </Text>
+                    </BlockStack>
+
+                    <Divider />
+
+                    {/* Screenshot */}
+                    <BlockStack gap="200">
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">
+                        Visual Guide
+                      </Text>
+                      <Box
+                        background="bg-surface-secondary"
+                        padding="400"
+                        borderRadius="200"
+                      >
+                        <BlockStack gap="200" inlineAlign="center">
+                          <div
+                            onClick={() => setShowImageModal(true)}
+                            style={{ cursor: "pointer" }}
+                          >
+                            <img
+                              src="/quiz-setup-guide.jpg"
+                              alt="Setup instructions - Click to enlarge"
+                              style={{
+                                width: "100%",
+                                maxWidth: "600px",
+                                height: "auto",
+                                border: "1px solid #e0e0e0",
+                                borderRadius: "8px",
+                                transition: "transform 0.2s",
+                              }}
+                              onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.02)"}
+                              onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
+                            />
+                          </div>
+                          <Text as="p" variant="bodySm" tone="subdued" alignment="center">
+                            Click image to enlarge
+                          </Text>
+                        </BlockStack>
+                      </Box>
+                    </BlockStack>
+                  </BlockStack>
+                </BlockStack>
+              </Card>
             </BlockStack>
           </Layout.Section>
 
@@ -627,6 +786,25 @@ export default function BillingPage() {
             duration={4500}
           />
         )}
+
+        {/* Image Modal */}
+        <Modal
+          open={showImageModal}
+          onClose={() => setShowImageModal(false)}
+          title="Setup Guide"
+          size="large"
+        >
+          <Modal.Section>
+            <img
+              src="/quiz-setup-guide.jpg"
+              alt="Setup instructions"
+              style={{
+                width: "100%",
+                height: "auto",
+              }}
+            />
+          </Modal.Section>
+        </Modal>
       </Page>
     </Frame>
   );

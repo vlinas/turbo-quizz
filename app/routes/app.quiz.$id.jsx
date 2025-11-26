@@ -125,7 +125,7 @@ async function fetchNodesByIds(gids, admin) {
 }
 
 export const loader = async ({ request, params }) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const { id } = params;
   const url = new URL(request.url);
 
@@ -244,7 +244,19 @@ export const loader = async ({ request, params }) => {
     days,
   };
 
-  return json({ quiz, analytics, answerStats: answerStatsWithPercentages });
+  // Get shop info for deep link
+  const shopResult = await admin.graphql(
+    `#graphql
+    query Shop {
+      shop {
+        myshopifyDomain
+      }
+    }`
+  );
+  const shopJson = await shopResult.json();
+  const shopDomain = shopJson.data.shop.myshopifyDomain.replace('.myshopify.com', '');
+
+  return json({ quiz, analytics, answerStats: answerStatsWithPercentages, shopDomain });
 };
 
 export const action = async ({ request, params }) => {
@@ -608,7 +620,7 @@ export const action = async ({ request, params }) => {
 };
 
 export default function QuizBuilder() {
-  const { quiz, analytics, answerStats } = useLoaderData();
+  const { quiz, analytics, answerStats, shopDomain } = useLoaderData();
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
@@ -617,6 +629,7 @@ export default function QuizBuilder() {
   const [description, setDescription] = useState(quiz.description || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
   const [showAddQuestion, setShowAddQuestion] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const [dateRange, setDateRange] = useState(String(analytics.days));
@@ -1436,33 +1449,128 @@ export default function QuizBuilder() {
 
         <Layout.Section variant="oneThird">
           <BlockStack gap="500">
-            {/* Quiz ID Card */}
+            {/* Setup Instructions Card */}
             <Card>
-              <BlockStack gap="300">
+              <BlockStack gap="400">
                 <Text as="h2" variant="headingMd">
-                  Quiz ID
+                  Setup Instructions
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  Use this ID to embed the quiz in your theme using the Quiz Widget app block
+                  Follow these steps to add this quiz to your store
                 </Text>
-                <Box
-                  background="bg-surface-secondary"
-                  padding="400"
-                  borderRadius="200"
-                >
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="p" variant="headingLg" fontWeight="bold">
-                      {quiz.quiz_id}
-                    </Text>
-                    <Button
-                      onClick={() => {
-                        navigator.clipboard.writeText(String(quiz.quiz_id));
-                      }}
-                    >
-                      Copy ID
-                    </Button>
-                  </InlineStack>
-                </Box>
+
+                <Divider />
+
+                {/* Step 1: Copy Quiz ID */}
+                <BlockStack gap="200">
+                  <Box width="fit-content">
+                    <Box background="bg-surface-secondary" padding="200" borderRadius="100">
+                      <Text as="span" variant="bodySm" fontWeight="semibold">
+                        Step 1
+                      </Text>
+                    </Box>
+                  </Box>
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                    Copy your Quiz ID
+                  </Text>
+                  <Box
+                    background="bg-surface-secondary"
+                    padding="400"
+                    borderRadius="200"
+                  >
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text as="p" variant="headingLg" fontWeight="bold">
+                        {quiz.quiz_id}
+                      </Text>
+                      <Button
+                        onClick={() => {
+                          navigator.clipboard.writeText(String(quiz.quiz_id));
+                          setToastContent("Quiz ID copied!");
+                          setToastError(false);
+                          setToastActive(true);
+                        }}
+                      >
+                        Copy ID
+                      </Button>
+                    </InlineStack>
+                  </Box>
+                </BlockStack>
+
+                <Divider />
+
+                {/* Step 2: Open Theme Editor */}
+                <BlockStack gap="200">
+                  <Box width="fit-content">
+                    <Box background="bg-surface-secondary" padding="200" borderRadius="100">
+                      <Text as="span" variant="bodySm" fontWeight="semibold">
+                        Step 2
+                      </Text>
+                    </Box>
+                  </Box>
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                    Add Quiz Widget to your theme
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Click below to open the Theme Editor, then add the "Quiz Widget" app block to any page
+                  </Text>
+                  <Button
+                    url={`https://admin.shopify.com/store/${shopDomain}/themes/current/editor`}
+                    external
+                    variant="primary"
+                  >
+                    Open Theme Editor
+                  </Button>
+                </BlockStack>
+
+                <Divider />
+
+                {/* Step 3: Configure Block */}
+                <BlockStack gap="200">
+                  <Box width="fit-content">
+                    <Box background="bg-surface-secondary" padding="200" borderRadius="100">
+                      <Text as="span" variant="bodySm" fontWeight="semibold">
+                        Step 3
+                      </Text>
+                    </Box>
+                  </Box>
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                    Paste Quiz ID in block settings
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    In the Theme Editor, find the Quiz Widget block settings and paste your Quiz ID
+                  </Text>
+                  {/* Screenshot */}
+                  <Box
+                    background="bg-surface-secondary"
+                    padding="400"
+                    borderRadius="200"
+                  >
+                    <BlockStack gap="200" inlineAlign="center">
+                      <div
+                        onClick={() => setShowImageModal(true)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <img
+                          src="/quiz-setup-guide.jpg"
+                          alt="Setup instructions - Click to enlarge"
+                          style={{
+                            width: "100%",
+                            maxWidth: "300px",
+                            height: "auto",
+                            border: "1px solid #e0e0e0",
+                            borderRadius: "8px",
+                            transition: "transform 0.2s",
+                          }}
+                          onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.02)"}
+                          onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
+                        />
+                      </div>
+                      <Text as="p" variant="bodySm" tone="subdued" alignment="center">
+                        Click image to enlarge
+                      </Text>
+                    </BlockStack>
+                  </Box>
+                </BlockStack>
               </BlockStack>
             </Card>
 
@@ -1477,6 +1585,9 @@ export default function QuizBuilder() {
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
                   • Configure actions to show products, collections, or custom text based on answers
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  • The quiz will appear on your store wherever you place the Quiz Widget block
                 </Text>
               </BlockStack>
             </Card>
@@ -1515,6 +1626,26 @@ export default function QuizBuilder() {
           </BlockStack>
         </Modal.Section>
       </Modal>
+
+      {/* Image Modal */}
+      <Modal
+        open={showImageModal}
+        onClose={() => setShowImageModal(false)}
+        title="Setup Guide"
+        size="large"
+      >
+        <Modal.Section>
+          <img
+            src="/quiz-setup-guide.jpg"
+            alt="Setup instructions"
+            style={{
+              width: "100%",
+              height: "auto",
+            }}
+          />
+        </Modal.Section>
+      </Modal>
+
       {toastMarkup}
     </Page>
     </Frame>
