@@ -780,13 +780,9 @@ export default function BillingPage() {
                         <Text as="p" variant="bodySm" fontWeight="semibold">
                           Contact us:
                         </Text>
-                        <Button
-                          url="mailto:info@linveba.com"
-                          external
-                          variant="primary"
-                        >
+                        <Text as="p" variant="bodyLg" fontWeight="bold">
                           info@linveba.com
-                        </Button>
+                        </Text>
                       </BlockStack>
                     </Box>
                     <Divider />
