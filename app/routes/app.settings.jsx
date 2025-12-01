@@ -760,6 +760,42 @@ export default function BillingPage() {
                   </BlockStack>
                 </Card>
               )}
+
+              {/* Help & Support */}
+              <Card>
+                <BlockStack gap="400">
+                  <Text as="h3" variant="headingMd">
+                    Help & Support
+                  </Text>
+                  <Divider />
+                  <BlockStack gap="300">
+                    <Text as="p" variant="bodyMd">
+                      Need help with setup or have technical questions?
+                    </Text>
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Our team is here to help with all technical questions, setup assistance, and feature requests.
+                    </Text>
+                    <Box paddingBlockStart="200">
+                      <BlockStack gap="200">
+                        <Text as="p" variant="bodySm" fontWeight="semibold">
+                          Contact us:
+                        </Text>
+                        <Button
+                          url="mailto:info@linveba.com"
+                          external
+                          variant="primary"
+                        >
+                          info@linveba.com
+                        </Button>
+                      </BlockStack>
+                    </Box>
+                    <Divider />
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      We typically respond within 24 hours on business days.
+                    </Text>
+                  </BlockStack>
+                </BlockStack>
+              </Card>
             </BlockStack>
           </Layout.Section>
         </Layout>
