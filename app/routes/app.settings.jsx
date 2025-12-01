@@ -114,6 +114,8 @@ export const action = async ({ request }) => {
 
     } else if (_action === "startSubscription") {
       try {
+        console.log('[Billing] Starting subscription process for plan:', PREMIUM_PLAN);
+
         // Get the app installation launch URL for return
         const result = await admin.graphql(
           `#graphql
@@ -129,20 +131,29 @@ export const action = async ({ request }) => {
         const resultJson = await result.json();
         const launchUrl = resultJson.data.app.installation.launchUrl;
 
+        console.log('[Billing] Launch URL:', launchUrl);
+        console.log('[Billing] Requesting billing for plan:', PREMIUM_PLAN);
+
         // Request billing
         const billingResponse = await billing.request({
           plan: PREMIUM_PLAN,
           returnUrl: `${launchUrl}/settings?upgrade=success`,
         });
 
+        console.log('[Billing] Billing response received:', billingResponse);
+        console.log('[Billing] Confirmation URL:', billingResponse.confirmationUrl);
+
         // Redirect to confirmation URL
         return redirect(billingResponse.confirmationUrl);
       } catch (billingError) {
-        console.error("Billing request failed:", billingError);
+        console.error("[Billing] Billing request failed:", billingError);
+        console.error("[Billing] Error stack:", billingError.stack);
+        console.error("[Billing] Error details:", JSON.stringify(billingError, null, 2));
+
         // Return specific billing error
         return json({
           error: "billing_unavailable",
-          message: billingError.message
+          message: billingError.message || "Unable to initiate billing"
         }, { status: 400 });
       }
 
