@@ -52,11 +52,38 @@ const shopify = shopifyApp({
     // Using API polling instead via /api/sync-orders endpoint
   },
   hooks: {
-    afterAuth: async ({ session }) => {
+    afterAuth: async ({ session, admin }) => {
       try {
         console.log('[afterAuth] Registering webhooks for shop:', session.shop);
         const result = await shopify.registerWebhooks({ session });
         console.log('[afterAuth] Webhook registration result:', JSON.stringify(result, null, 2));
+
+        // Check if shop already has an active subscription
+        console.log('[afterAuth] Checking for existing subscription');
+        const subscriptionResult = await admin.graphql(
+          `#graphql
+          query {
+            app {
+              installation {
+                activeSubscriptions {
+                  id
+                  name
+                  status
+                }
+              }
+            }
+          }`
+        );
+
+        const subscriptionData = await subscriptionResult.json();
+        const activeSubscriptions = subscriptionData.data?.app?.installation?.activeSubscriptions || [];
+        const hasActiveSubscription = activeSubscriptions.some(sub => sub.status === 'ACTIVE');
+
+        if (!hasActiveSubscription) {
+          console.log('[afterAuth] No active subscription found - billing will be required when accessing app');
+        } else {
+          console.log('[afterAuth] Active subscription found:', activeSubscriptions[0].name);
+        }
       } catch (error) {
         console.error('[afterAuth] Webhook registration failed:', error);
         console.error('[afterAuth] Error details:', error.message, error.stack);
