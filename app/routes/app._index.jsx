@@ -84,33 +84,6 @@ export const action = async ({ request }) => {
 export const loader = async ({ request }) => {
   const { admin, session, billing } = await authenticate.admin(request);
 
-  // Check and require billing first
-  await billing.require({
-    plans: [PREMIUM_PLAN],
-    isTest: false,
-    onFailure: async () => {
-      // Get launch URL for return
-      const appResult = await admin.graphql(
-        `#graphql
-        query {
-          app {
-            installation {
-              launchUrl
-            }
-          }
-        }`
-      );
-      const appData = await appResult.json();
-      const launchUrl = appData.data.app.installation.launchUrl;
-
-      // Request billing with redirect
-      return billing.request({
-        plan: PREMIUM_PLAN,
-        returnUrl: launchUrl,
-      });
-    },
-  });
-
   // Get subscription info and shop currency
   const result = await admin.graphql(
     `#graphql
