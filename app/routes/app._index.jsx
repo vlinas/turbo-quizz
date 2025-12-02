@@ -24,6 +24,7 @@ import {
   SkeletonDisplayText,
   Box,
   Divider,
+  Modal,
 } from "@shopify/polaris";
 import {
   PlayIcon,

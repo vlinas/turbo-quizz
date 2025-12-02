@@ -1567,8 +1567,10 @@ export default function QuizBuilder() {
               {/* Help & Support */}
               <Card>
                 <BlockStack gap="400">
-                  <InlineStack gap="200" blockAlign="center">
-                    <Icon source={ChatIcon} tone="base" />
+                  <InlineStack gap="200" blockAlign="start">
+                    <Box minWidth="20px">
+                      <Icon source={ChatIcon} tone="base" />
+                    </Box>
                     <Text as="h3" variant="headingMd">
                       Help & Support
                     </Text>

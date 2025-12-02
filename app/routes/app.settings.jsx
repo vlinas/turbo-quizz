@@ -259,7 +259,6 @@ export default function BillingPage() {
                   <InlineStack align="space-between" blockAlign="start">
                     <BlockStack gap="200">
                       <InlineStack gap="300" blockAlign="center">
-                        <Icon source={StarFilledIcon} tone="warning" />
                         <Text as="h2" variant="headingXl">
                           Premium Plan
                         </Text>
@@ -288,8 +287,10 @@ export default function BillingPage() {
                         <Text as="p" variant="bodySm" tone="subdued">
                           Status
                         </Text>
-                        <InlineStack gap="200" blockAlign="center">
-                          <Icon source={CheckCircleIcon} tone="success" />
+                        <InlineStack gap="200" blockAlign="start" align="start">
+                          <Box minWidth="20px">
+                            <Icon source={CheckCircleIcon} tone="success" />
+                          </Box>
                           <Text as="p" variant="bodyMd" fontWeight="semibold">
                             Active Subscription
                           </Text>
@@ -329,41 +330,24 @@ export default function BillingPage() {
                   {/* Features Section */}
                   <BlockStack gap="400">
                     <Text as="h3" variant="headingMd">
-                      Your Pro Features
+                      Premium Features
                     </Text>
                     <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
-                      <InlineStack gap="300" blockAlign="center">
-                        <Icon source={CheckCircleIcon} tone="success" />
-                        <Text as="span">Unlimited quizzes</Text>
-                      </InlineStack>
-                      <InlineStack gap="300" blockAlign="center">
-                        <Icon source={CheckCircleIcon} tone="success" />
-                        <Text as="span">Unlimited questions & answers</Text>
-                      </InlineStack>
-                      <InlineStack gap="300" blockAlign="center">
-                        <Icon source={CheckCircleIcon} tone="success" />
-                        <Text as="span">Product recommendations</Text>
-                      </InlineStack>
-                      <InlineStack gap="300" blockAlign="center">
-                        <Icon source={CheckCircleIcon} tone="success" />
-                        <Text as="span">Collection recommendations</Text>
-                      </InlineStack>
-                      <InlineStack gap="300" blockAlign="center">
-                        <Icon source={CheckCircleIcon} tone="success" />
-                        <Text as="span">Order attribution tracking</Text>
-                      </InlineStack>
-                      <InlineStack gap="300" blockAlign="center">
-                        <Icon source={CheckCircleIcon} tone="success" />
-                        <Text as="span">Revenue analytics</Text>
-                      </InlineStack>
-                      <InlineStack gap="300" blockAlign="center">
-                        <Icon source={CheckCircleIcon} tone="success" />
-                        <Text as="span">Answer statistics & insights</Text>
-                      </InlineStack>
-                      <InlineStack gap="300" blockAlign="center">
-                        <Icon source={CheckCircleIcon} tone="success" />
-                        <Text as="span">Priority email support</Text>
-                      </InlineStack>
+                      {[
+                        "Unlimited quizzes",
+                        "Unlimited questions & answers",
+                        "Order attribution tracking",
+                        "Revenue analytics",
+                        "Answer statistics & insights",
+                        "Priority email support"
+                      ].map((feature, index) => (
+                        <InlineStack key={index} gap="300" blockAlign="start" wrap={false} align="start">
+                          <Box minWidth="20px">
+                            <Icon source={CheckCircleIcon} tone="success" />
+                          </Box>
+                          <Text as="span">{feature}</Text>
+                        </InlineStack>
+                      ))}
                     </InlineGrid>
                   </BlockStack>
 
@@ -610,8 +594,10 @@ export default function BillingPage() {
               {/* Help & Support */}
               <Card>
                 <BlockStack gap="400">
-                  <InlineStack gap="200" blockAlign="center">
-                    <Icon source={ChatIcon} tone="base" />
+                  <InlineStack gap="200" align="start" blockAlign="start">
+                    <Box minWidth="20px">
+                      <Icon source={ChatIcon} tone="base" />
+                    </Box>
                     <Text as="h3" variant="headingMd">
                       Help & Support
                     </Text>
@@ -634,10 +620,6 @@ export default function BillingPage() {
                         </Text>
                       </BlockStack>
                     </Box>
-                    <Divider />
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      We typically respond within 24 hours on business days.
-                    </Text>
                   </BlockStack>
                 </BlockStack>
               </Card>
