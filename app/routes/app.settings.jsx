@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { json, redirect } from "@remix-run/node";
-import { Form, useActionData, useLoaderData, useNavigation, useNavigate } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigate } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -21,14 +21,10 @@ import {
   Modal,
 } from "@shopify/polaris";
 import {
-  CheckIcon,
   StarFilledIcon,
   CheckCircleIcon,
-  CashDollarIcon,
-  ChartVerticalIcon,
-  PlayIcon,
 } from "@shopify/polaris-icons";
-import { authenticate, PREMIUM_PLAN } from "../shopify.server";
+import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
 export const loader = async ({ request }) => {
@@ -89,7 +85,7 @@ export const loader = async ({ request }) => {
 export const action = async ({ request }) => {
   const formData = await request.formData();
   const _action = formData.get("_action");
-  const { billing, admin, session } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
 
   console.log("[Settings Action] Action type:", _action);
 
@@ -100,7 +96,7 @@ export const action = async ({ request }) => {
       console.log("[Settings Action] CSS length:", customCss?.length || 0);
 
       // Update or create shop settings
-      const result = await prisma.shopSettings.upsert({
+      await prisma.shopSettings.upsert({
         where: { shop: session.shop },
         update: { customCss },
         create: {
@@ -112,117 +108,9 @@ export const action = async ({ request }) => {
       console.log("[Settings Action] Custom CSS saved successfully, returning JSON response");
       return json({ customCssSaved: true });
 
-    } else if (_action === "startSubscription") {
-      try {
-        console.log('[Billing] Starting subscription process');
-
-        // Get the app installation launch URL for return
-        const shopQuery = await admin.graphql(
-          `#graphql
-          query {
-            app {
-              installation {
-                launchUrl
-              }
-            }
-          }`
-        );
-        const shopData = await shopQuery.json();
-        const launchUrl = shopData.data.app.installation.launchUrl;
-        const returnUrl = `${launchUrl}/settings?upgrade=success`;
-
-        console.log('[Billing] Launch URL:', launchUrl);
-        console.log('[Billing] Return URL:', returnUrl);
-
-        // Create subscription using GraphQL mutation
-        const mutation = await admin.graphql(
-          `#graphql
-          mutation CreateSubscription($name: String!, $returnUrl: URL!, $trialDays: Int, $test: Boolean) {
-            appSubscriptionCreate(
-              name: $name
-              returnUrl: $returnUrl
-              trialDays: $trialDays
-              test: $test
-              lineItems: [
-                {
-                  plan: {
-                    appRecurringPricingDetails: {
-                      price: { amount: 14.99, currencyCode: USD }
-                      interval: EVERY_30_DAYS
-                    }
-                  }
-                }
-              ]
-            ) {
-              userErrors {
-                field
-                message
-              }
-              confirmationUrl
-              appSubscription {
-                id
-                status
-              }
-            }
-          }`,
-          {
-            variables: {
-              name: PREMIUM_PLAN,
-              returnUrl: returnUrl,
-              trialDays: 7,
-              test: false
-            }
-          }
-        );
-
-        const mutationData = await mutation.json();
-        console.log('[Billing] Mutation response:', JSON.stringify(mutationData, null, 2));
-
-        if (mutationData.data?.appSubscriptionCreate?.userErrors?.length > 0) {
-          const errors = mutationData.data.appSubscriptionCreate.userErrors;
-          console.error('[Billing] User errors:', errors);
-          throw new Error(errors.map(e => e.message).join(', '));
-        }
-
-        const confirmationUrl = mutationData.data?.appSubscriptionCreate?.confirmationUrl;
-
-        if (!confirmationUrl) {
-          throw new Error('No confirmation URL returned from Shopify');
-        }
-
-        console.log('[Billing] Confirmation URL:', confirmationUrl);
-
-        // Redirect to confirmation URL
-        return redirect(confirmationUrl);
-      } catch (billingError) {
-        console.error("[Billing] Billing request failed:", billingError);
-        console.error("[Billing] Error stack:", billingError.stack);
-
-        // Return specific billing error
-        return json({
-          error: "billing_unavailable",
-          message: billingError.message || "Unable to initiate billing"
-        }, { status: 400 });
-      }
-
-    } else if (_action === "cancelSubscription") {
-      const billingCheck = await billing.require({
-        plans: [PREMIUM_PLAN],
-        onFailure: async () => {
-          return json({ error: "No active subscription found" }, { status: 400 });
-        },
-      });
-
-      const subscription = billingCheck.appSubscriptions[0];
-      await billing.cancel({
-        subscriptionId: subscription.id,
-        prorate: true,
-      });
-
-      return json({ subscriptionCancelled: true });
     }
   } catch (error) {
-    console.error("Billing action error:", error);
+    console.error("Settings action error:", error);
     return json({ error: error.message || "An error occurred" }, { status: 500 });
   }
 
@@ -232,11 +120,8 @@ export const action = async ({ request }) => {
 export default function BillingPage() {
   const { shop, activePlan, customCss } = useLoaderData();
   const actionData = useActionData();
-  const navigation = useNavigation();
   const navigate = useNavigate();
 
-  const [showSuccessToast, setShowSuccessToast] = useState(false);
-  const [showCancelToast, setShowCancelToast] = useState(false);
   const [showCssSavedToast, setShowCssSavedToast] = useState(false);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -248,10 +133,6 @@ export default function BillingPage() {
   }, [customCss]);
 
   useEffect(() => {
-    if (actionData?.subscriptionCancelled) {
-      setShowCancelToast(true);
-    }
-
     if (actionData?.customCssSaved) {
       setShowCssSavedToast(true);
     }
@@ -259,21 +140,20 @@ export default function BillingPage() {
     if (actionData?.error) {
       setShowErrorBanner(true);
     }
-
-    // Check URL params for upgrade success
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('upgrade') === 'success') {
-      setShowSuccessToast(true);
-      // Clean up URL
-      window.history.replaceState({}, '', '/app/settings');
-    }
   }, [actionData]);
 
   const isSubscribed = activePlan && activePlan.status === "ACTIVE";
-  const isSubmitting = navigation.state === "submitting";
 
-  const toggleSuccessToast = useCallback(() => setShowSuccessToast(false), []);
-  const toggleCancelToast = useCallback(() => setShowCancelToast(false), []);
+  // Function to open Shopify's hosted plan selection page (Managed Pricing)
+  const openPlanSelection = useCallback(() => {
+    // Extract store handle from shop domain (e.g., "mystore.myshopify.com" -> "mystore")
+    const storeHandle = shop.replace('.myshopify.com', '');
+    // App handle from the app URL (use the app name in kebab-case)
+    const appHandle = 'simple-product-quiz-survey';
+    const planSelectionUrl = `https://admin.shopify.com/store/${storeHandle}/charges/${appHandle}/pricing_plans`;
+    window.open(planSelectionUrl, '_top');
+  }, [shop]);
+
   const toggleCssSavedToast = useCallback(() => setShowCssSavedToast(false), []);
 
   return (
@@ -451,17 +331,12 @@ export default function BillingPage() {
                           Cancel anytime with no long-term commitment
                         </Text>
                       </BlockStack>
-                      <Form method="post">
-                        <Button
-                          tone="critical"
-                          submit
-                          name="_action"
-                          value="cancelSubscription"
-                          loading={isSubmitting}
-                        >
-                          Cancel Subscription
-                        </Button>
-                      </Form>
+                      <Button
+                        tone="critical"
+                        onClick={openPlanSelection}
+                      >
+                        Manage Subscription
+                      </Button>
                     </InlineStack>
                   </BlockStack>
                 </Card>
@@ -511,22 +386,18 @@ export default function BillingPage() {
 
                       {/* CTA Section */}
                       <BlockStack gap="300">
-                        <Form method="post">
-                          <input type="hidden" name="_action" value="startSubscription" />
-                          <InlineStack align="center">
-                            <Box width="400px">
-                              <Button
-                                variant="primary"
-                                size="large"
-                                fullWidth
-                                submit
-                                loading={isSubmitting}
-                              >
-                                Start 7-Day Free Trial
-                              </Button>
-                            </Box>
-                          </InlineStack>
-                        </Form>
+                        <InlineStack align="center">
+                          <Box width="400px">
+                            <Button
+                              variant="primary"
+                              size="large"
+                              fullWidth
+                              onClick={openPlanSelection}
+                            >
+                              Start 7-Day Free Trial
+                            </Button>
+                          </Box>
+                        </InlineStack>
                         <Text as="p" variant="bodySm" tone="subdued" alignment="center">
                           No long-term commitment • Cancel anytime
                         </Text>
@@ -844,20 +715,6 @@ export default function BillingPage() {
           </Layout.Section>
         </Layout>
 
-        {showSuccessToast && (
-          <Toast
-            content="Successfully upgraded to Pro!"
-            onDismiss={toggleSuccessToast}
-            duration={5000}
-          />
-        )}
-        {showCancelToast && (
-          <Toast
-            content="Subscription cancelled successfully"
-            onDismiss={toggleCancelToast}
-            duration={4500}
-          />
-        )}
         {showCssSavedToast && (
           <Toast
             content="Custom CSS saved successfully"
