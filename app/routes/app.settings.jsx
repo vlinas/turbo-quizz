@@ -114,41 +114,89 @@ export const action = async ({ request }) => {
 
     } else if (_action === "startSubscription") {
       try {
-        console.log('[Billing] Starting subscription process for plan:', PREMIUM_PLAN);
+        console.log('[Billing] Starting subscription process');
 
         // Get the app installation launch URL for return
-        const result = await admin.graphql(
+        const shopQuery = await admin.graphql(
           `#graphql
-          query Shop {
+          query {
             app {
               installation {
                 launchUrl
               }
             }
-          }`,
-          { variables: {} }
+          }`
         );
-        const resultJson = await result.json();
-        const launchUrl = resultJson.data.app.installation.launchUrl;
+        const shopData = await shopQuery.json();
+        const launchUrl = shopData.data.app.installation.launchUrl;
+        const returnUrl = `${launchUrl}/settings?upgrade=success`;
 
         console.log('[Billing] Launch URL:', launchUrl);
-        console.log('[Billing] Requesting billing for plan:', PREMIUM_PLAN);
+        console.log('[Billing] Return URL:', returnUrl);
 
-        // Request billing
-        const billingResponse = await billing.request({
-          plan: PREMIUM_PLAN,
-          returnUrl: `${launchUrl}/settings?upgrade=success`,
-        });
+        // Create subscription using GraphQL mutation
+        const mutation = await admin.graphql(
+          `#graphql
+          mutation CreateSubscription($name: String!, $returnUrl: URL!, $trialDays: Int, $test: Boolean) {
+            appSubscriptionCreate(
+              name: $name
+              returnUrl: $returnUrl
+              trialDays: $trialDays
+              test: $test
+              lineItems: [
+                {
+                  plan: {
+                    appRecurringPricingDetails: {
+                      price: { amount: 14.99, currencyCode: USD }
+                      interval: EVERY_30_DAYS
+                    }
+                  }
+                }
+              ]
+            ) {
+              userErrors {
+                field
+                message
+              }
+              confirmationUrl
+              appSubscription {
+                id
+                status
+              }
+            }
+          }`,
+          {
+            variables: {
+              name: PREMIUM_PLAN,
+              returnUrl: returnUrl,
+              trialDays: 7,
+              test: false
+            }
+          }
+        );
 
-        console.log('[Billing] Billing response received:', billingResponse);
-        console.log('[Billing] Confirmation URL:', billingResponse.confirmationUrl);
+        const mutationData = await mutation.json();
+        console.log('[Billing] Mutation response:', JSON.stringify(mutationData, null, 2));
+
+        if (mutationData.data?.appSubscriptionCreate?.userErrors?.length > 0) {
+          const errors = mutationData.data.appSubscriptionCreate.userErrors;
+          console.error('[Billing] User errors:', errors);
+          throw new Error(errors.map(e => e.message).join(', '));
+        }
+
+        const confirmationUrl = mutationData.data?.appSubscriptionCreate?.confirmationUrl;
+
+        if (!confirmationUrl) {
+          throw new Error('No confirmation URL returned from Shopify');
+        }
+
+        console.log('[Billing] Confirmation URL:', confirmationUrl);
 
         // Redirect to confirmation URL
-        return redirect(billingResponse.confirmationUrl);
+        return redirect(confirmationUrl);
       } catch (billingError) {
         console.error("[Billing] Billing request failed:", billingError);
         console.error("[Billing] Error stack:", billingError.stack);
-        console.error("[Billing] Error details:", JSON.stringify(billingError, null, 2));
 
         // Return specific billing error
         return json({
