@@ -73,31 +73,17 @@ export const loader = async ({ request }) => {
   let limit = 3; // Default free tier limit
   let status = false;
   let planid = null;
-  let hasActiveSubscription = false;
 
   if (activeSubscriptions.length > 0) {
     activeSubscriptions.forEach((plan, index) => {
       if (plan.status == "ACTIVE") {
         status = plan.status;
         planid = index;
-        hasActiveSubscription = true;
       }
     });
     if (status == "ACTIVE") {
       limit = -1; // Unlimited for premium subscribers
     }
-  }
-
-  // For Managed Pricing: Redirect to plan selection if no active subscription
-  // Only in production and only if they haven't selected a plan yet
-  if (!hasActiveSubscription && process.env.NODE_ENV === 'production') {
-    // Extract store handle from shop domain
-    const storeHandle = session.shop.replace('.myshopify.com', '');
-    const appHandle = 'simple-product-quiz-survey';
-    const planSelectionUrl = `https://admin.shopify.com/store/${storeHandle}/charges/${appHandle}/pricing_plans`;
-
-    // Redirect to Shopify's hosted plan selection page
-    return Response.redirect(planSelectionUrl, 302);
   }
 
   // For development: give unlimited access if billing is not available
