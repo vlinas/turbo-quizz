@@ -23,6 +23,7 @@ import {
 import {
   StarFilledIcon,
   CheckCircleIcon,
+  ChatIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -252,216 +253,145 @@ export default function BillingPage() {
               )}
 
               {/* Current Plan Status - Full Width */}
-              {isSubscribed ? (
-                <Card>
-                  <BlockStack gap="500">
-                    {/* Header Section */}
-                    <InlineStack align="space-between" blockAlign="start">
+              <Card>
+                <BlockStack gap="500">
+                  {/* Header Section */}
+                  <InlineStack align="space-between" blockAlign="start">
+                    <BlockStack gap="200">
+                      <InlineStack gap="300" blockAlign="center">
+                        <Icon source={StarFilledIcon} tone="warning" />
+                        <Text as="h2" variant="headingXl">
+                          Premium Plan
+                        </Text>
+                        <Badge tone="success" size="large">Active</Badge>
+                      </InlineStack>
+                      <Text as="p" variant="bodyLg" tone="subdued">
+                        You have full access to all Premium features
+                      </Text>
+                    </BlockStack>
+                    <Box>
+                      <Text as="p" variant="heading2xl" alignment="end">
+                        $14.99
+                      </Text>
+                      <Text as="p" tone="subdued" alignment="end">
+                        per month
+                      </Text>
+                    </Box>
+                  </InlineStack>
+
+                  <Divider />
+
+                  {/* Plan Details Grid */}
+                  <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
+                    <Box>
                       <BlockStack gap="200">
-                        <InlineStack gap="300" blockAlign="center">
-                          <Icon source={StarFilledIcon} tone="warning" />
-                          <Text as="h2" variant="headingXl">
-                            Premium Plan
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Status
+                        </Text>
+                        <InlineStack gap="200" blockAlign="center">
+                          <Icon source={CheckCircleIcon} tone="success" />
+                          <Text as="p" variant="bodyMd" fontWeight="semibold">
+                            Active Subscription
                           </Text>
-                          <Badge tone="success" size="large">Active</Badge>
                         </InlineStack>
-                        <Text as="p" variant="bodyLg" tone="subdued">
-                          You have full access to all Premium features
+                      </BlockStack>
+                    </Box>
+                    <Box>
+                      <BlockStack gap="200">
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Billing Cycle
+                        </Text>
+                        <Text as="p" variant="bodyMd" fontWeight="semibold">
+                          Monthly
                         </Text>
                       </BlockStack>
-                      <Box>
-                        <Text as="p" variant="heading2xl" alignment="end">
-                          $14.99
-                        </Text>
-                        <Text as="p" tone="subdued" alignment="end">
-                          per month
-                        </Text>
-                      </Box>
-                    </InlineStack>
-
-                    <Divider />
-
-                    {/* Plan Details Grid */}
-                    <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
+                    </Box>
+                    {activePlan?.currentPeriodEnd && (
                       <Box>
                         <BlockStack gap="200">
                           <Text as="p" variant="bodySm" tone="subdued">
-                            Status
-                          </Text>
-                          <InlineStack gap="200" blockAlign="center">
-                            <Icon source={CheckCircleIcon} tone="success" />
-                            <Text as="p" variant="bodyMd" fontWeight="semibold">
-                              Active Subscription
-                            </Text>
-                          </InlineStack>
-                        </BlockStack>
-                      </Box>
-                      <Box>
-                        <BlockStack gap="200">
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            Billing Cycle
+                            Next Billing Date
                           </Text>
                           <Text as="p" variant="bodyMd" fontWeight="semibold">
-                            Monthly
+                            {new Date(activePlan.currentPeriodEnd).toLocaleDateString('en-US', {
+                              month: 'long',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
                           </Text>
                         </BlockStack>
                       </Box>
-                      {activePlan.currentPeriodEnd && (
-                        <Box>
-                          <BlockStack gap="200">
-                            <Text as="p" variant="bodySm" tone="subdued">
-                              Next Billing Date
-                            </Text>
-                            <Text as="p" variant="bodyMd" fontWeight="semibold">
-                              {new Date(activePlan.currentPeriodEnd).toLocaleDateString('en-US', {
-                                month: 'long',
-                                day: 'numeric',
-                                year: 'numeric'
-                              })}
-                            </Text>
-                          </BlockStack>
-                        </Box>
-                      )}
+                    )}
+                  </InlineGrid>
+
+                  <Divider />
+
+                  {/* Features Section */}
+                  <BlockStack gap="400">
+                    <Text as="h3" variant="headingMd">
+                      Your Pro Features
+                    </Text>
+                    <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
+                      <InlineStack gap="300" blockAlign="center">
+                        <Icon source={CheckCircleIcon} tone="success" />
+                        <Text as="span">Unlimited quizzes</Text>
+                      </InlineStack>
+                      <InlineStack gap="300" blockAlign="center">
+                        <Icon source={CheckCircleIcon} tone="success" />
+                        <Text as="span">Unlimited questions & answers</Text>
+                      </InlineStack>
+                      <InlineStack gap="300" blockAlign="center">
+                        <Icon source={CheckCircleIcon} tone="success" />
+                        <Text as="span">Product recommendations</Text>
+                      </InlineStack>
+                      <InlineStack gap="300" blockAlign="center">
+                        <Icon source={CheckCircleIcon} tone="success" />
+                        <Text as="span">Collection recommendations</Text>
+                      </InlineStack>
+                      <InlineStack gap="300" blockAlign="center">
+                        <Icon source={CheckCircleIcon} tone="success" />
+                        <Text as="span">Order attribution tracking</Text>
+                      </InlineStack>
+                      <InlineStack gap="300" blockAlign="center">
+                        <Icon source={CheckCircleIcon} tone="success" />
+                        <Text as="span">Revenue analytics</Text>
+                      </InlineStack>
+                      <InlineStack gap="300" blockAlign="center">
+                        <Icon source={CheckCircleIcon} tone="success" />
+                        <Text as="span">Answer statistics & insights</Text>
+                      </InlineStack>
+                      <InlineStack gap="300" blockAlign="center">
+                        <Icon source={CheckCircleIcon} tone="success" />
+                        <Text as="span">Priority email support</Text>
+                      </InlineStack>
                     </InlineGrid>
-
-                    <Divider />
-
-                    {/* Features Section */}
-                    <BlockStack gap="400">
-                      <Text as="h3" variant="headingMd">
-                        Your Pro Features
-                      </Text>
-                      <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
-                        <InlineStack gap="300" blockAlign="center">
-                          <Icon source={CheckCircleIcon} tone="success" />
-                          <Text as="span">Unlimited quizzes</Text>
-                        </InlineStack>
-                        <InlineStack gap="300" blockAlign="center">
-                          <Icon source={CheckCircleIcon} tone="success" />
-                          <Text as="span">Unlimited questions & answers</Text>
-                        </InlineStack>
-                        <InlineStack gap="300" blockAlign="center">
-                          <Icon source={CheckCircleIcon} tone="success" />
-                          <Text as="span">Product recommendations</Text>
-                        </InlineStack>
-                        <InlineStack gap="300" blockAlign="center">
-                          <Icon source={CheckCircleIcon} tone="success" />
-                          <Text as="span">Collection recommendations</Text>
-                        </InlineStack>
-                        <InlineStack gap="300" blockAlign="center">
-                          <Icon source={CheckCircleIcon} tone="success" />
-                          <Text as="span">Order attribution tracking</Text>
-                        </InlineStack>
-                        <InlineStack gap="300" blockAlign="center">
-                          <Icon source={CheckCircleIcon} tone="success" />
-                          <Text as="span">Revenue analytics</Text>
-                        </InlineStack>
-                        <InlineStack gap="300" blockAlign="center">
-                          <Icon source={CheckCircleIcon} tone="success" />
-                          <Text as="span">Answer statistics & insights</Text>
-                        </InlineStack>
-                        <InlineStack gap="300" blockAlign="center">
-                          <Icon source={CheckCircleIcon} tone="success" />
-                          <Text as="span">Priority email support</Text>
-                        </InlineStack>
-                      </InlineGrid>
-                    </BlockStack>
-
-                    <Divider />
-
-                    {/* Manage Section */}
-                    <InlineStack align="space-between" blockAlign="center">
-                      <BlockStack gap="100">
-                        <Text as="p" variant="bodyMd">
-                          Need to cancel your subscription?
-                        </Text>
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          Cancel anytime with no long-term commitment
-                        </Text>
-                      </BlockStack>
-                      <Form method="post">
-                        <input type="hidden" name="_action" value="cancelSubscription" />
-                        <Button
-                          tone="critical"
-                          submit
-                          loading={isSubmitting}
-                        >
-                          Cancel Subscription
-                        </Button>
-                      </Form>
-                    </InlineStack>
                   </BlockStack>
-                </Card>
-              ) : (
-                <>
-                  {/* Upgrade to Pro Section */}
-                  <Card>
-                    <BlockStack gap="500">
-                      {/* Hero Section */}
-                      <Box paddingBlockEnd="400">
-                        <BlockStack gap="400" inlineAlign="center">
-                          <InlineStack gap="200">
-                            <Icon source={StarFilledIcon} tone="warning" />
-                            <Icon source={StarFilledIcon} tone="warning" />
-                            <Icon source={StarFilledIcon} tone="warning" />
-                            <Icon source={StarFilledIcon} tone="warning" />
-                            <Icon source={StarFilledIcon} tone="warning" />
-                          </InlineStack>
-                          <Text as="h1" variant="heading2xl" alignment="center">
-                            Unlock the Full Power of Simple Product Page Quiz
-                          </Text>
-                          <Text as="p" variant="bodyLg" tone="subdued" alignment="center">
-                            Create unlimited quizzes, track revenue, and grow your business with advanced analytics
-                          </Text>
-                        </BlockStack>
-                      </Box>
 
-                      <Divider />
+                  <Divider />
 
-                      {/* Pricing Display */}
-                      <Box paddingBlockStart="200" paddingBlockEnd="200">
-                        <BlockStack gap="300" inlineAlign="center">
-                          <InlineStack gap="200" blockAlign="baseline">
-                            <Text as="p" variant="heading3xl">
-                              $14.99
-                            </Text>
-                            <Text as="span" variant="headingLg" tone="subdued">
-                              /month
-                            </Text>
-                          </InlineStack>
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            Billed monthly • 7-day free trial • Cancel anytime
-                          </Text>
-                        </BlockStack>
-                      </Box>
-
-
-                      {/* CTA Section */}
-                      <BlockStack gap="300">
-                        <Form method="post">
-                          <input type="hidden" name="_action" value="startSubscription" />
-                          <InlineStack align="center">
-                            <Box width="400px">
-                              <Button
-                                variant="primary"
-                                size="large"
-                                fullWidth
-                                submit
-                                loading={isSubmitting}
-                              >
-                                Start 7-Day Free Trial
-                              </Button>
-                            </Box>
-                          </InlineStack>
-                        </Form>
-                        <Text as="p" variant="bodySm" tone="subdued" alignment="center">
-                          No long-term commitment • Cancel anytime
-                        </Text>
-                      </BlockStack>
+                  {/* Manage Section */}
+                  <InlineStack align="space-between" blockAlign="center">
+                    <BlockStack gap="100">
+                      <Text as="p" variant="bodyMd">
+                        Need to cancel your subscription?
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Cancel anytime with no long-term commitment
+                      </Text>
                     </BlockStack>
-                  </Card>
-                </>
-              )}
+                    <Form method="post">
+                      <input type="hidden" name="_action" value="cancelSubscription" />
+                      <Button
+                        tone="critical"
+                        submit
+                        loading={isSubmitting}
+                      >
+                        Cancel Subscription
+                      </Button>
+                    </Form>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
 
               {/* Custom CSS Section */}
               <Card>
@@ -677,71 +607,15 @@ export default function BillingPage() {
           {/* Sidebar with App Info */}
           <Layout.Section variant="oneThird">
             <BlockStack gap="400">
-              {/* App Information */}
-              <Card>
-                <BlockStack gap="400">
-                  <Text as="h3" variant="headingMd">
-                    App Information
-                  </Text>
-                  <Divider />
-                  <BlockStack gap="300">
-                    <Box>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Shop Domain
-                      </Text>
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">
-                        {shop}
-                      </Text>
-                    </Box>
-                    <Box>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Current Plan
-                      </Text>
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">
-                        {isSubscribed ? "Premium Plan" : "Trial"}
-                      </Text>
-                    </Box>
-                    <Box>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        App Version
-                      </Text>
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">
-                        1.0.0
-                      </Text>
-                    </Box>
-                  </BlockStack>
-                </BlockStack>
-              </Card>
-
-              {/* Quick Tips */}
-              {!isSubscribed && (
-                <Card>
-                  <BlockStack gap="300">
-                    <Text as="h3" variant="headingSm">
-                      Why Upgrade?
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      • No limits on quizzes or questions
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      • See exactly how much revenue each quiz generates
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      • Make data-driven decisions with detailed analytics
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      • Get priority support when you need it
-                    </Text>
-                  </BlockStack>
-                </Card>
-              )}
-
               {/* Help & Support */}
               <Card>
                 <BlockStack gap="400">
-                  <Text as="h3" variant="headingMd">
-                    Help & Support
-                  </Text>
+                  <InlineStack gap="200" blockAlign="center">
+                    <Icon source={ChatIcon} tone="base" />
+                    <Text as="h3" variant="headingMd">
+                      Help & Support
+                    </Text>
+                  </InlineStack>
                   <Divider />
                   <BlockStack gap="300">
                     <Text as="p" variant="bodyMd">

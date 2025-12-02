@@ -11,7 +11,20 @@ export const links = () => [
 ];
 
 export const loader = async ({ request }) => {
-  await authenticate.admin(request);
+  const { billing, session } = await authenticate.admin(request);
+
+  // Require billing for all pages
+  await billing.require({
+    plans: ["premium"],
+    onFailure: async () => {
+      return await billing.request({
+        plan: "premium",
+        isTest: false,
+        returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/?subscribed=true`,
+      });
+    },
+  });
+
   return json({ apiKey: process.env.SHOPIFY_API_KEY || "" });
 };
 
@@ -21,13 +34,13 @@ export default function App() {
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
       <Frame>
-      <ui-nav-menu>
-        <Link to="/app" rel="home">
-          Home
-        </Link>
-        <Link to="/app/settings">Billing & Settings</Link>
-      </ui-nav-menu>
-      <Outlet />
+        <ui-nav-menu>
+          <Link to="/app" rel="home">
+            Home
+          </Link>
+          <Link to="/app/settings">Billing & Settings</Link>
+        </ui-nav-menu>
+        <Outlet />
       </Frame>
     </AppProvider>
   );
