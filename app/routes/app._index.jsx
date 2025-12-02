@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { json } from "@remix-run/node";
 import { useLoaderData, useSubmit } from "@remix-run/react";
 import {
   Page,
@@ -167,6 +168,28 @@ export const loader = async ({ request }) => {
   };
 };
 
+export const action = async ({ request }) => {
+  const { billing, session } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const _action = formData.get("_action");
+
+  if (_action === "startSubscription") {
+    await billing.require({
+      plans: ["premium"],
+      onFailure: async () => {
+        const response = await billing.request({
+          plan: "premium",
+          isTest: false,
+          returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/?subscribed=true`,
+        });
+        return response;
+      },
+    });
+  }
+
+  return json({});
+};
+
 export default function Index() {
   const submit = useSubmit();
   const navigate = useNavigate();
@@ -272,7 +295,7 @@ export default function Index() {
   const handleUpgradePlan = () => setModalActive(true);
   const handleApprove = () => {
     setModalActive(false);
-    submit(1, { replace: true, method: "POST" });
+    submit({ _action: "startSubscription" }, { replace: true, method: "POST" });
   };
   const handleModalClose = () => setModalActive(false);
 
