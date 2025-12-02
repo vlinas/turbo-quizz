@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { json, redirect } from "@remix-run/node";
-import { Form, useActionData, useLoaderData, useNavigate } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigate, useNavigation } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -121,6 +121,7 @@ export default function BillingPage() {
   const { shop, activePlan, customCss } = useLoaderData();
   const actionData = useActionData();
   const navigate = useNavigate();
+  const navigation = useNavigation();
 
   const [showCssSavedToast, setShowCssSavedToast] = useState(false);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
@@ -143,6 +144,7 @@ export default function BillingPage() {
   }, [actionData]);
 
   const isSubscribed = activePlan && activePlan.status === "ACTIVE";
+  const isSubmitting = navigation.state === "submitting";
 
   // Function to open Shopify's hosted plan selection page (Managed Pricing)
   const openPlanSelection = useCallback(() => {
