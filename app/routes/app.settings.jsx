@@ -121,9 +121,9 @@ export const action = async ({ request }) => {
 
         console.log("[Billing] Billing response:", billingResponse);
 
-        // Return the confirmation URL to redirect the user
+        // Redirect directly to confirmation URL (server-side redirect for embedded apps)
         if (billingResponse && billingResponse.confirmationUrl) {
-          return json({ confirmationUrl: billingResponse.confirmationUrl });
+          return redirect(billingResponse.confirmationUrl);
         } else {
           throw new Error("No confirmation URL returned from billing API");
         }
@@ -193,12 +193,6 @@ export default function BillingPage() {
 
     if (actionData?.error) {
       setShowErrorBanner(true);
-    }
-
-    // Handle billing confirmation URL redirect
-    if (actionData?.confirmationUrl) {
-      console.log("[Billing UI] Redirecting to confirmation URL:", actionData.confirmationUrl);
-      window.open(actionData.confirmationUrl, '_top');
     }
 
     // Handle subscription cancelled
