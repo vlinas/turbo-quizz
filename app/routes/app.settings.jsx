@@ -111,29 +111,22 @@ export const action = async ({ request }) => {
     } else if (_action === "startSubscription") {
       console.log("[Billing] Starting subscription with Billing API");
 
-      try {
-        // Use billing.require() with onFailure pattern for Manual Pricing
-        await billing.require({
-          plans: ["premium"],
-          onFailure: async () => {
-            const response = await billing.request({
-              plan: "premium",
-              isTest: false,
-              returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/settings?subscribed=true`,
-            });
-            return response;
-          },
-        });
+      // Use billing.require() with onFailure pattern for Manual Pricing
+      // Don't wrap in try-catch - let billing.require handle the flow
+      await billing.require({
+        plans: ["premium"],
+        onFailure: async () => {
+          const response = await billing.request({
+            plan: "premium",
+            isTest: false,
+            returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/settings?subscribed=true`,
+          });
+          return response;
+        },
+      });
 
-        // If we get here, user already has subscription
-        return json({ alreadySubscribed: true });
-      } catch (billingError) {
-        console.error("[Billing] Billing request failed:", billingError);
-        return json({
-          error: "billing_unavailable",
-          message: billingError.message || "Unable to initiate billing"
-        }, { status: 400 });
-      }
+      // If we get here, user already has subscription
+      return json({ alreadySubscribed: true });
     } else if (_action === "cancelSubscription") {
       console.log("[Billing] Cancelling subscription");
 
