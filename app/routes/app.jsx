@@ -15,7 +15,7 @@ export const loader = async ({ request }) => {
   try {
     const { billing, session } = await authenticate.admin(request);
 
-    // Check installation date for 7-day free trial (no CC required)
+    // Get or create shop settings
     let shopSettings = await prisma.shopSettings.findUnique({
       where: { shop: session.shop },
     });
@@ -25,21 +25,26 @@ export const loader = async ({ request }) => {
         data: {
           shop: session.shop,
           customCss: "",
+          trialActivatedAt: null,
         },
       });
     }
 
-    const daysSinceInstall = (new Date() - new Date(shopSettings.createdAt)) / (1000 * 60 * 60 * 24);
-    const isTrialExpired = daysSinceInstall > 7;
+    // Check if trial has been activated and if it's expired
+    let isTrialExpired = false;
+    if (shopSettings.trialActivatedAt) {
+      const daysSinceTrialStart = (new Date() - new Date(shopSettings.trialActivatedAt)) / (1000 * 60 * 60 * 24);
+      isTrialExpired = daysSinceTrialStart > 7;
+    }
 
-    // Only require billing if trial has expired
-    if (isTrialExpired) {
+    // Only require billing if trial has been activated and expired
+    if (shopSettings.trialActivatedAt && isTrialExpired) {
       await billing.require({
         plans: ["premium"],
         onFailure: async () => {
           return await billing.request({
             plan: "premium",
-            isTest: true,
+            isTest: false,
             returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/?subscribed=true`,
           });
         },
