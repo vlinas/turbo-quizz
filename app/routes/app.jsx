@@ -15,41 +15,18 @@ export const loader = async ({ request }) => {
   try {
     const { billing, session } = await authenticate.admin(request);
 
-    // Get or create shop settings
-    let shopSettings = await prisma.shopSettings.findUnique({
-      where: { shop: session.shop },
+    // Require billing for all users - standard Shopify model
+    // Trial is built into the billing plan (7 days)
+    await billing.require({
+      plans: ["premium"],
+      onFailure: async () => {
+        return await billing.request({
+          plan: "premium",
+          isTest: false,
+          returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/?subscribed=true`,
+        });
+      },
     });
-
-    if (!shopSettings) {
-      shopSettings = await prisma.shopSettings.create({
-        data: {
-          shop: session.shop,
-          customCss: "",
-          trialActivatedAt: null,
-        },
-      });
-    }
-
-    // Check if trial has been activated and if it's expired
-    let isTrialExpired = false;
-    if (shopSettings.trialActivatedAt) {
-      const daysSinceTrialStart = (new Date() - new Date(shopSettings.trialActivatedAt)) / (1000 * 60 * 60 * 24);
-      isTrialExpired = daysSinceTrialStart > 7;
-    }
-
-    // Only require billing if trial has been activated and expired
-    if (shopSettings.trialActivatedAt && isTrialExpired) {
-      await billing.require({
-        plans: ["premium"],
-        onFailure: async () => {
-          return await billing.request({
-            plan: "premium",
-            isTest: false,
-            returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/?subscribed=true`,
-          });
-        },
-      });
-    }
 
     return json({ apiKey: process.env.SHOPIFY_API_KEY || "" });
   } catch (error) {

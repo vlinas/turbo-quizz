@@ -72,36 +72,14 @@ export const loader = async ({ request }) => {
       data: {
         shop: session.shop,
         customCss: "",
-        trialActivatedAt: null,
       },
     });
-  }
-
-  // Calculate trial status
-  let trialStatus = null;
-  if (shopSettings.trialActivatedAt) {
-    const daysSinceTrialStart = (new Date() - new Date(shopSettings.trialActivatedAt)) / (1000 * 60 * 60 * 24);
-    const daysRemaining = Math.max(0, 7 - Math.floor(daysSinceTrialStart));
-    const isTrialActive = daysSinceTrialStart <= 7;
-    trialStatus = {
-      activated: true,
-      daysRemaining,
-      isActive: isTrialActive,
-      startDate: shopSettings.trialActivatedAt,
-    };
-  } else {
-    trialStatus = {
-      activated: false,
-      daysRemaining: 7,
-      isActive: false,
-    };
   }
 
   return json({
     shop: session.shop,
     activePlan,
     customCss: shopSettings.customCss || "",
-    trialStatus,
   });
 };
 
@@ -113,24 +91,7 @@ export const action = async ({ request }) => {
   console.log("[Settings Action] Action type:", _action);
 
   try {
-    if (_action === "activateTrial") {
-      console.log("[Settings Action] Activating free trial for shop:", session.shop);
-
-      // Activate the trial by setting trialActivatedAt to now
-      await prisma.shopSettings.upsert({
-        where: { shop: session.shop },
-        update: { trialActivatedAt: new Date() },
-        create: {
-          shop: session.shop,
-          customCss: "",
-          trialActivatedAt: new Date(),
-        },
-      });
-
-      console.log("[Settings Action] Trial activated successfully");
-      return json({ trialActivated: true });
-
-    } else if (_action === "saveCustomCss") {
+    if (_action === "saveCustomCss") {
       const customCss = formData.get("customCss");
       console.log("[Settings Action] Saving custom CSS for shop:", session.shop);
       console.log("[Settings Action] CSS length:", customCss?.length || 0);
@@ -208,7 +169,7 @@ export const action = async ({ request }) => {
 };
 
 export default function BillingPage() {
-  const { shop, activePlan, customCss, trialStatus } = useLoaderData();
+  const { activePlan, customCss } = useLoaderData();
   const actionData = useActionData();
   const navigate = useNavigate();
   const navigation = useNavigation();
@@ -232,14 +193,13 @@ export default function BillingPage() {
       setShowErrorBanner(true);
     }
 
-    // Handle subscription cancelled or trial activated - reload page
-    if (actionData?.subscriptionCancelled || actionData?.trialActivated) {
-      console.log("[Billing UI] Action completed, reloading page");
+    // Handle subscription cancelled - reload page
+    if (actionData?.subscriptionCancelled) {
+      console.log("[Billing UI] Subscription cancelled, reloading page");
       window.location.reload();
     }
   }, [actionData]);
 
-  const isSubscribed = activePlan && activePlan.status === "ACTIVE";
   const isSubmitting = navigation.state === "submitting";
 
   const toggleCssSavedToast = useCallback(() => setShowCssSavedToast(false), []);
@@ -291,277 +251,130 @@ export default function BillingPage() {
                 </Banner>
               )}
 
-              {/* Trial Not Activated - Show Activation UI */}
-              {!trialStatus.activated && !isSubscribed && (
-                <Card>
-                  <BlockStack gap="500">
-                    <InlineStack align="space-between" blockAlign="start">
-                      <BlockStack gap="200">
+              {/* Subscription Status */}
+              <Card>
+                <BlockStack gap="500">
+                  {/* Header Section */}
+                  <InlineStack align="space-between" blockAlign="start">
+                    <BlockStack gap="200">
+                      <InlineStack gap="300" blockAlign="center">
                         <Text as="h2" variant="headingXl">
-                          Start Your 7-Day Free Trial
+                          Premium Plan
                         </Text>
-                        <Text as="p" variant="bodyLg" tone="subdued">
-                          Try all Premium features free for 7 days
-                        </Text>
-                      </BlockStack>
-                      <Box>
-                        <Text as="p" variant="heading2xl" alignment="end">
-                          $14.99
-                        </Text>
-                        <Text as="p" tone="subdued" alignment="end">
-                          per month after trial
-                        </Text>
-                      </Box>
-                    </InlineStack>
-
-                    <Divider />
-
-                    <Banner tone="info">
-                      <BlockStack gap="200">
-                        <Text as="p" fontWeight="semibold">
-                          No credit card required for trial
-                        </Text>
-                        <Text as="p" variant="bodySm">
-                          Start your free 7-day trial now. You'll only be asked to enter payment details after the trial ends.
-                        </Text>
-                      </BlockStack>
-                    </Banner>
-
-                    {/* Features Section */}
-                    <BlockStack gap="400">
-                      <Text as="h3" variant="headingMd">
-                        What's Included
-                      </Text>
-                      <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
-                        {[
-                          "Unlimited quizzes",
-                          "Unlimited questions & answers",
-                          "Order attribution tracking",
-                          "Revenue analytics",
-                          "Answer statistics & insights",
-                          "Priority email support"
-                        ].map((feature, index) => (
-                          <InlineStack key={index} gap="300" blockAlign="start" wrap={false} align="start">
-                            <Box minWidth="20px">
-                              <Icon source={CheckCircleIcon} tone="success" />
-                            </Box>
-                            <Text as="span">{feature}</Text>
-                          </InlineStack>
-                        ))}
-                      </InlineGrid>
-                    </BlockStack>
-
-                    <Divider />
-
-                    <Form method="post">
-                      <input type="hidden" name="_action" value="activateTrial" />
-                      <InlineStack align="center">
-                        <Button
-                          variant="primary"
-                          size="large"
-                          submit
-                          loading={isSubmitting}
-                        >
-                          Start Free Trial
-                        </Button>
+                        <Badge tone="success" size="large">Active</Badge>
                       </InlineStack>
-                    </Form>
-                  </BlockStack>
-                </Card>
-              )}
-
-              {/* Trial Active - Show Trial Status */}
-              {trialStatus.activated && trialStatus.isActive && !isSubscribed && (
-                <Card>
-                  <BlockStack gap="500">
-                    <InlineStack align="space-between" blockAlign="start">
-                      <BlockStack gap="200">
-                        <InlineStack gap="300" blockAlign="center">
-                          <Text as="h2" variant="headingXl">
-                            Free Trial Active
-                          </Text>
-                          <Badge tone="info" size="large">Trial</Badge>
-                        </InlineStack>
-                        <Text as="p" variant="bodyLg" tone="subdued">
-                          {trialStatus.daysRemaining} day{trialStatus.daysRemaining !== 1 ? 's' : ''} remaining in your trial
-                        </Text>
-                      </BlockStack>
-                      <Box>
-                        <Text as="p" variant="heading2xl" alignment="end">
-                          $14.99
-                        </Text>
-                        <Text as="p" tone="subdued" alignment="end">
-                          per month after trial
-                        </Text>
-                      </Box>
-                    </InlineStack>
-
-                    <Divider />
-
-                    <Banner tone="success">
-                      <BlockStack gap="200">
-                        <Text as="p" fontWeight="semibold">
-                          You have full access to all Premium features during your trial
-                        </Text>
-                        <Text as="p" variant="bodySm">
-                          Trial started: {new Date(trialStatus.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                        </Text>
-                      </BlockStack>
-                    </Banner>
-
-                    {/* Features Section */}
-                    <BlockStack gap="400">
-                      <Text as="h3" variant="headingMd">
-                        Premium Features
+                      <Text as="p" variant="bodyLg" tone="subdued">
+                        {activePlan?.trialDays ? `Includes ${activePlan.trialDays}-day free trial` : 'You have full access to all Premium features'}
                       </Text>
-                      <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
-                        {[
-                          "Unlimited quizzes",
-                          "Unlimited questions & answers",
-                          "Order attribution tracking",
-                          "Revenue analytics",
-                          "Answer statistics & insights",
-                          "Priority email support"
-                        ].map((feature, index) => (
-                          <InlineStack key={index} gap="300" blockAlign="start" wrap={false} align="start">
-                            <Box minWidth="20px">
-                              <Icon source={CheckCircleIcon} tone="success" />
-                            </Box>
-                            <Text as="span">{feature}</Text>
-                          </InlineStack>
-                        ))}
-                      </InlineGrid>
                     </BlockStack>
-                  </BlockStack>
-                </Card>
-              )}
+                    <Box>
+                      <Text as="p" variant="heading2xl" alignment="end">
+                        $14.99
+                      </Text>
+                      <Text as="p" tone="subdued" alignment="end">
+                        per month
+                      </Text>
+                    </Box>
+                  </InlineStack>
 
-              {/* Paid Subscription Active */}
-              {isSubscribed && (
-                <Card>
-                  <BlockStack gap="500">
-                    {/* Header Section */}
-                    <InlineStack align="space-between" blockAlign="start">
+                  <Divider />
+
+                  {/* Plan Details Grid */}
+                  <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
+                    <Box>
                       <BlockStack gap="200">
-                        <InlineStack gap="300" blockAlign="center">
-                          <Text as="h2" variant="headingXl">
-                            Premium Plan
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Status
+                        </Text>
+                        <InlineStack gap="200" blockAlign="start" align="start">
+                          <Box minWidth="20px">
+                            <Icon source={CheckCircleIcon} tone="success" />
+                          </Box>
+                          <Text as="p" variant="bodyMd" fontWeight="semibold">
+                            Active Subscription
                           </Text>
-                          <Badge tone="success" size="large">Active</Badge>
                         </InlineStack>
-                        <Text as="p" variant="bodyLg" tone="subdued">
-                          You have full access to all Premium features
+                      </BlockStack>
+                    </Box>
+                    <Box>
+                      <BlockStack gap="200">
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Billing Cycle
+                        </Text>
+                        <Text as="p" variant="bodyMd" fontWeight="semibold">
+                          Monthly
                         </Text>
                       </BlockStack>
-                      <Box>
-                        <Text as="p" variant="heading2xl" alignment="end">
-                          $14.99
-                        </Text>
-                        <Text as="p" tone="subdued" alignment="end">
-                          per month
-                        </Text>
-                      </Box>
-                    </InlineStack>
-
-                    <Divider />
-
-                    {/* Plan Details Grid */}
-                    <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
+                    </Box>
+                    {activePlan?.currentPeriodEnd && (
                       <Box>
                         <BlockStack gap="200">
                           <Text as="p" variant="bodySm" tone="subdued">
-                            Status
-                          </Text>
-                          <InlineStack gap="200" blockAlign="start" align="start">
-                            <Box minWidth="20px">
-                              <Icon source={CheckCircleIcon} tone="success" />
-                            </Box>
-                            <Text as="p" variant="bodyMd" fontWeight="semibold">
-                              Active Subscription
-                            </Text>
-                          </InlineStack>
-                        </BlockStack>
-                      </Box>
-                      <Box>
-                        <BlockStack gap="200">
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            Billing Cycle
+                            Next Billing Date
                           </Text>
                           <Text as="p" variant="bodyMd" fontWeight="semibold">
-                            Monthly
+                            {new Date(activePlan.currentPeriodEnd).toLocaleDateString('en-US', {
+                              month: 'long',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
                           </Text>
                         </BlockStack>
                       </Box>
-                      {activePlan?.currentPeriodEnd && (
-                        <Box>
-                          <BlockStack gap="200">
-                            <Text as="p" variant="bodySm" tone="subdued">
-                              Next Billing Date
-                            </Text>
-                            <Text as="p" variant="bodyMd" fontWeight="semibold">
-                              {new Date(activePlan.currentPeriodEnd).toLocaleDateString('en-US', {
-                                month: 'long',
-                                day: 'numeric',
-                                year: 'numeric'
-                              })}
-                            </Text>
-                          </BlockStack>
-                        </Box>
-                      )}
+                    )}
+                  </InlineGrid>
+
+                  <Divider />
+
+                  {/* Features Section */}
+                  <BlockStack gap="400">
+                    <Text as="h3" variant="headingMd">
+                      Premium Features
+                    </Text>
+                    <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
+                      {[
+                        "Unlimited quizzes",
+                        "Unlimited questions & answers",
+                        "Order attribution tracking",
+                        "Revenue analytics",
+                        "Answer statistics & insights",
+                        "Priority email support"
+                      ].map((feature, index) => (
+                        <InlineStack key={index} gap="300" blockAlign="start" wrap={false} align="start">
+                          <Box minWidth="20px">
+                            <Icon source={CheckCircleIcon} tone="success" />
+                          </Box>
+                          <Text as="span">{feature}</Text>
+                        </InlineStack>
+                      ))}
                     </InlineGrid>
-
-                    <Divider />
-
-                    {/* Features Section */}
-                    <BlockStack gap="400">
-                      <Text as="h3" variant="headingMd">
-                        Premium Features
-                      </Text>
-                      <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
-                        {[
-                          "Unlimited quizzes",
-                          "Unlimited questions & answers",
-                          "Order attribution tracking",
-                          "Revenue analytics",
-                          "Answer statistics & insights",
-                          "Priority email support"
-                        ].map((feature, index) => (
-                          <InlineStack key={index} gap="300" blockAlign="start" wrap={false} align="start">
-                            <Box minWidth="20px">
-                              <Icon source={CheckCircleIcon} tone="success" />
-                            </Box>
-                            <Text as="span">{feature}</Text>
-                          </InlineStack>
-                        ))}
-                      </InlineGrid>
-                    </BlockStack>
-
-                    <Divider />
-
-                    {/* Manage Section */}
-                    <InlineStack align="space-between" blockAlign="center">
-                      <BlockStack gap="100">
-                        <Text as="p" variant="bodyMd">
-                          Need to cancel your subscription?
-                        </Text>
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          Cancel anytime with no long-term commitment
-                        </Text>
-                      </BlockStack>
-                      <Form method="post">
-                        <input type="hidden" name="_action" value="cancelSubscription" />
-                        <Button
-                          tone="critical"
-                          submit
-                          loading={isSubmitting}
-                        >
-                          Cancel Subscription
-                        </Button>
-                      </Form>
-                    </InlineStack>
                   </BlockStack>
-                </Card>
-              )}
+
+                  <Divider />
+
+                  {/* Manage Section */}
+                  <InlineStack align="space-between" blockAlign="center">
+                    <BlockStack gap="100">
+                      <Text as="p" variant="bodyMd">
+                        Need to cancel your subscription?
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Cancel anytime with no long-term commitment
+                      </Text>
+                    </BlockStack>
+                    <Form method="post">
+                      <input type="hidden" name="_action" value="cancelSubscription" />
+                      <Button
+                        tone="critical"
+                        submit
+                        loading={isSubmitting}
+                      >
+                        Cancel Subscription
+                      </Button>
+                    </Form>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
 
               {/* Custom CSS Section */}
               <Card>

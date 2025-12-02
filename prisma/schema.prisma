@@ -22,12 +22,11 @@ model Session {
 }
 
 model ShopSettings {
-  id               Int       @id @default(autoincrement())
-  shop             String    @unique
-  customCss        String?   @db.Text
-  trialActivatedAt DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id        Int      @id @default(autoincrement())
+  shop      String   @unique
+  customCss String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Quiz {
