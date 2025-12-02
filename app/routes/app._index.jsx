@@ -35,54 +35,11 @@ import {
   EditIcon,
 } from "@shopify/polaris-icons";
 
-import { authenticate, PREMIUM_PLAN } from "../shopify.server";
+import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
-export const action = async ({ request }) => {
-  const { billing, admin } = await authenticate.admin(request);
-  const result = await admin.graphql(
-    `#graphql
-    query Shop {
-      app {
-        installation {
-          launchUrl
-          activeSubscriptions {
-            id
-            name
-            createdAt
-            returnUrl
-            status
-            currentPeriodEnd
-            trialDays
-          }
-        }
-      }
-    }`,
-    { variables: {} }
-  );
-  const resultJson = await result.json();
-  const { launchUrl, activeSubscriptions } = resultJson.data.app.installation;
-
-  if (
-    activeSubscriptions.length === 0 ||
-    !activeSubscriptions ||
-    activeSubscriptions.status != "ACTIVE"
-  ) {
-    await billing.require({
-      plans: [PREMIUM_PLAN],
-      onFailure: async () =>
-        billing.request({
-          plan: PREMIUM_PLAN,
-          returnUrl: launchUrl,
-        }),
-    });
-  } else {
-    return activeSubscriptions;
-  }
-};
-
 export const loader = async ({ request }) => {
-  const { admin, session, billing } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
 
   // Get subscription info and shop currency
   const result = await admin.graphql(
@@ -116,12 +73,14 @@ export const loader = async ({ request }) => {
   let limit = 3; // Default free tier limit
   let status = false;
   let planid = null;
+  let hasActiveSubscription = false;
 
   if (activeSubscriptions.length > 0) {
     activeSubscriptions.forEach((plan, index) => {
       if (plan.status == "ACTIVE") {
         status = plan.status;
         planid = index;
+        hasActiveSubscription = true;
       }
     });
     if (status == "ACTIVE") {
@@ -129,10 +88,20 @@ export const loader = async ({ request }) => {
     }
   }
 
-  // For development/custom apps: give unlimited access if billing is not available
-  // This will be automatically enforced once published to App Store
-  if (limit === 3 && process.env.NODE_ENV === 'production') {
-    // In production but no billing (custom app), grant unlimited
+  // For Managed Pricing: Redirect to plan selection if no active subscription
+  // Only in production and only if they haven't selected a plan yet
+  if (!hasActiveSubscription && process.env.NODE_ENV === 'production') {
+    // Extract store handle from shop domain
+    const storeHandle = session.shop.replace('.myshopify.com', '');
+    const appHandle = 'simple-product-quiz-survey';
+    const planSelectionUrl = `https://admin.shopify.com/store/${storeHandle}/charges/${appHandle}/pricing_plans`;
+
+    // Redirect to Shopify's hosted plan selection page
+    return Response.redirect(planSelectionUrl, 302);
+  }
+
+  // For development: give unlimited access if billing is not available
+  if (limit === 3 && process.env.NODE_ENV !== 'production') {
     limit = -1;
   }
 
