@@ -85,7 +85,7 @@ export const loader = async ({ request }) => {
 export const action = async ({ request }) => {
   const formData = await request.formData();
   const _action = formData.get("_action");
-  const { session } = await authenticate.admin(request);
+  const { billing, session } = await authenticate.admin(request);
 
   console.log("[Settings Action] Action type:", _action);
 
@@ -108,6 +108,59 @@ export const action = async ({ request }) => {
       console.log("[Settings Action] Custom CSS saved successfully, returning JSON response");
       return json({ customCssSaved: true });
 
+    } else if (_action === "startSubscription") {
+      console.log("[Billing] Starting subscription with Billing API");
+
+      try {
+        // Use billing.request() for Manual Pricing
+        const billingResponse = await billing.request({
+          plan: "premium",
+          isTest: false,
+          returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/settings?subscribed=true`,
+        });
+
+        console.log("[Billing] Billing response:", billingResponse);
+
+        // Return the confirmation URL to redirect the user
+        if (billingResponse && billingResponse.confirmationUrl) {
+          return json({ confirmationUrl: billingResponse.confirmationUrl });
+        } else {
+          throw new Error("No confirmation URL returned from billing API");
+        }
+      } catch (billingError) {
+        console.error("[Billing] Billing request failed:", billingError);
+        return json({
+          error: "billing_unavailable",
+          message: billingError.message || "Unable to initiate billing"
+        }, { status: 400 });
+      }
+    } else if (_action === "cancelSubscription") {
+      console.log("[Billing] Cancelling subscription");
+
+      try {
+        const billingCheck = await billing.require({
+          plans: ["premium"],
+          onFailure: async () => {
+            throw new Error("No active subscription found");
+          },
+        });
+
+        const subscription = billingCheck.appSubscriptions[0];
+        await billing.cancel({
+          subscriptionId: subscription.id,
+          isTest: false,
+          prorate: true,
+        });
+
+        console.log("[Billing] Subscription cancelled successfully");
+        return json({ subscriptionCancelled: true });
+      } catch (cancelError) {
+        console.error("[Billing] Cancellation failed:", cancelError);
+        return json({
+          error: "cancellation_failed",
+          message: cancelError.message || "Unable to cancel subscription"
+        }, { status: 400 });
+      }
     }
   } catch (error) {
     console.error("Settings action error:", error);
@@ -141,20 +194,22 @@ export default function BillingPage() {
     if (actionData?.error) {
       setShowErrorBanner(true);
     }
+
+    // Handle billing confirmation URL redirect
+    if (actionData?.confirmationUrl) {
+      console.log("[Billing UI] Redirecting to confirmation URL:", actionData.confirmationUrl);
+      window.open(actionData.confirmationUrl, '_top');
+    }
+
+    // Handle subscription cancelled
+    if (actionData?.subscriptionCancelled) {
+      console.log("[Billing UI] Subscription cancelled, reloading page");
+      window.location.reload();
+    }
   }, [actionData]);
 
   const isSubscribed = activePlan && activePlan.status === "ACTIVE";
   const isSubmitting = navigation.state === "submitting";
-
-  // Function to open Shopify's hosted plan selection page (Managed Pricing)
-  const openPlanSelection = useCallback(() => {
-    // Extract store handle from shop domain (e.g., "mystore.myshopify.com" -> "mystore")
-    const storeHandle = shop.replace('.myshopify.com', '');
-    // App handle from the app URL (use the app name in kebab-case)
-    const appHandle = 'simple-product-quiz-survey';
-    const planSelectionUrl = `https://admin.shopify.com/store/${storeHandle}/charges/${appHandle}/pricing_plans`;
-    window.open(planSelectionUrl, '_top');
-  }, [shop]);
 
   const toggleCssSavedToast = useCallback(() => setShowCssSavedToast(false), []);
 
@@ -327,18 +382,22 @@ export default function BillingPage() {
                     <InlineStack align="space-between" blockAlign="center">
                       <BlockStack gap="100">
                         <Text as="p" variant="bodyMd">
-                          Need to make changes to your plan?
+                          Need to cancel your subscription?
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
                           Cancel anytime with no long-term commitment
                         </Text>
                       </BlockStack>
-                      <Button
-                        tone="critical"
-                        onClick={openPlanSelection}
-                      >
-                        Manage Subscription
-                      </Button>
+                      <Form method="post">
+                        <input type="hidden" name="_action" value="cancelSubscription" />
+                        <Button
+                          tone="critical"
+                          submit
+                          loading={isSubmitting}
+                        >
+                          Cancel Subscription
+                        </Button>
+                      </Form>
                     </InlineStack>
                   </BlockStack>
                 </Card>
@@ -388,18 +447,22 @@ export default function BillingPage() {
 
                       {/* CTA Section */}
                       <BlockStack gap="300">
-                        <InlineStack align="center">
-                          <Box width="400px">
-                            <Button
-                              variant="primary"
-                              size="large"
-                              fullWidth
-                              onClick={openPlanSelection}
-                            >
-                              Start 7-Day Free Trial
-                            </Button>
-                          </Box>
-                        </InlineStack>
+                        <Form method="post">
+                          <input type="hidden" name="_action" value="startSubscription" />
+                          <InlineStack align="center">
+                            <Box width="400px">
+                              <Button
+                                variant="primary"
+                                size="large"
+                                fullWidth
+                                submit
+                                loading={isSubmitting}
+                              >
+                                Start 7-Day Free Trial
+                              </Button>
+                            </Box>
+                          </InlineStack>
+                        </Form>
                         <Text as="p" variant="bodySm" tone="subdued" alignment="center">
                           No long-term commitment • Cancel anytime
                         </Text>
