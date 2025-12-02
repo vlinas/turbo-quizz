@@ -15,6 +15,11 @@ export const loader = async ({ request }) => {
   try {
     const { billing, session } = await authenticate.admin(request);
 
+    // Check if this is a development store (myshopify.com domain)
+    // Development stores require isTest: true, real stores use isTest: false
+    const isDevelopmentStore = session.shop.includes('.myshopify.com');
+    const isTest = isDevelopmentStore;
+
     // Require billing for all users - standard Shopify model
     // Trial is built into the billing plan (7 days)
     await billing.require({
@@ -22,7 +27,7 @@ export const loader = async ({ request }) => {
       onFailure: async () => {
         return await billing.request({
           plan: "premium",
-          isTest: false,
+          isTest,
           returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/?subscribed=true`,
         });
       },

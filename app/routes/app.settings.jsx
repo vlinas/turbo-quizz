@@ -112,6 +112,10 @@ export const action = async ({ request }) => {
     } else if (_action === "startSubscription") {
       console.log("[Billing] Starting subscription with Billing API");
 
+      // Check if this is a development store
+      const isDevelopmentStore = session.shop.includes('.myshopify.com');
+      const isTest = isDevelopmentStore;
+
       // Use billing.require() with onFailure pattern for Manual Pricing
       // Don't wrap in try-catch - let billing.require handle the flow
       await billing.require({
@@ -119,7 +123,7 @@ export const action = async ({ request }) => {
         onFailure: async () => {
           const response = await billing.request({
             plan: "premium",
-            isTest: false,
+            isTest,
             returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/settings?subscribed=true`,
           });
           return response;
