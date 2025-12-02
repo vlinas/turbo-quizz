@@ -169,25 +169,48 @@ export const loader = async ({ request }) => {
 };
 
 export const action = async ({ request }) => {
-  const { billing, session } = await authenticate.admin(request);
-  const formData = await request.formData();
-  const _action = formData.get("_action");
+  console.log("[Index Action] Action started");
+  try {
+    const { billing, session } = await authenticate.admin(request);
+    const formData = await request.formData();
+    const _action = formData.get("_action");
+    console.log("[Index Action] Received action:", _action);
+    console.log("[Index Action] Shop:", session.shop);
 
-  if (_action === "startSubscription") {
-    await billing.require({
-      plans: ["premium"],
-      onFailure: async () => {
-        const response = await billing.request({
-          plan: "premium",
-          isTest: false,
-          returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/?subscribed=true`,
-        });
-        return response;
-      },
-    });
+    if (_action === "startSubscription") {
+      console.log("[Index Action] Initiating billing.require for plan: premium");
+
+      // billing.require should throw a redirect response if the user doesn't have the plan
+      await billing.require({
+        plans: ["premium"],
+        onFailure: async () => {
+          console.log("[Index Action] Plan check failed (expected), requesting payment...");
+          const returnUrl = `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/?subscribed=true`;
+          console.log("[Index Action] Return URL:", returnUrl);
+
+          const response = await billing.request({
+            plan: "premium",
+            isTest: false, // This is overridden by Shopify for dev stores
+            returnUrl: returnUrl,
+          });
+          console.log("[Index Action] Billing request created, returning redirect");
+          return response;
+        },
+      });
+
+      console.log("[Index Action] User already has the plan (unexpected for upgrade flow)");
+    }
+
+    return json({});
+  } catch (error) {
+    // If it's a Response object (redirect), re-throw it so Remix handles it
+    if (error instanceof Response) {
+      console.log("[Index Action] Caught redirect response, re-throwing");
+      throw error;
+    }
+    console.error("[Index Action] Error:", error);
+    return json({ error: error.message });
   }
-
-  return json({});
 };
 
 export default function Index() {
@@ -215,7 +238,7 @@ export default function Index() {
   const [showImageModal, setShowImageModal] = useState(false);
   const [queryValue, setQueryValue] = useState("");
 
-  const { mode, setMode} = useSetIndexFiltersMode();
+  const { mode, setMode } = useSetIndexFiltersMode();
 
   const totalCount = quizzes.length;
   const totalSet = limit;
@@ -358,8 +381,8 @@ export default function Index() {
                 completionRate >= 70
                   ? "success"
                   : completionRate >= 40
-                  ? "info"
-                  : "attention"
+                    ? "info"
+                    : "attention"
               }
             >
               {completionRate}%
@@ -625,8 +648,8 @@ export default function Index() {
                         totalSet == -1
                           ? () => navigate("/app/quiz/new")
                           : totalCount < totalSet
-                          ? () => navigate("/app/quiz/new")
-                          : handleUpgradePlan
+                            ? () => navigate("/app/quiz/new")
+                            : handleUpgradePlan
                       }
                     >
                       Create quiz

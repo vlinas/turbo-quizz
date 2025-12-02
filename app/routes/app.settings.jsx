@@ -156,6 +156,10 @@ export const action = async ({ request }) => {
       }
     }
   } catch (error) {
+    // If it's a Response object (redirect), re-throw it so Remix handles it
+    if (error instanceof Response) {
+      throw error;
+    }
     console.error("Settings action error:", error);
     return json({ error: error.message || "An error occurred" }, { status: 500 });
   }
