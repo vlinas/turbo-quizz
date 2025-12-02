@@ -12,40 +12,49 @@ export const links = () => [
 ];
 
 export const loader = async ({ request }) => {
-  const { billing, session } = await authenticate.admin(request);
+  try {
+    const { billing, session } = await authenticate.admin(request);
 
-  // Check installation date for 7-day free trial (no CC required)
-  let shopSettings = await prisma.shopSettings.findUnique({
-    where: { shop: session.shop },
-  });
-
-  if (!shopSettings) {
-    shopSettings = await prisma.shopSettings.create({
-      data: {
-        shop: session.shop,
-        customCss: "",
-      },
+    // Check installation date for 7-day free trial (no CC required)
+    let shopSettings = await prisma.shopSettings.findUnique({
+      where: { shop: session.shop },
     });
+
+    if (!shopSettings) {
+      shopSettings = await prisma.shopSettings.create({
+        data: {
+          shop: session.shop,
+          customCss: "",
+        },
+      });
+    }
+
+    const daysSinceInstall = (new Date() - new Date(shopSettings.createdAt)) / (1000 * 60 * 60 * 24);
+    const isTrialExpired = daysSinceInstall > 7;
+
+    // Only require billing if trial has expired
+    if (isTrialExpired) {
+      await billing.require({
+        plans: ["premium"],
+        onFailure: async () => {
+          return await billing.request({
+            plan: "premium",
+            isTest: true,
+            returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/?subscribed=true`,
+          });
+        },
+      });
+    }
+
+    return json({ apiKey: process.env.SHOPIFY_API_KEY || "" });
+  } catch (error) {
+    // If it's a Response object (redirect), re-throw it so Remix handles it
+    if (error instanceof Response) {
+      throw error;
+    }
+    console.error("[App Loader Error]", error);
+    throw error;
   }
-
-  const daysSinceInstall = (new Date() - new Date(shopSettings.createdAt)) / (1000 * 60 * 60 * 24);
-  const isTrialExpired = daysSinceInstall > 7;
-
-  // Only require billing if trial has expired
-  if (isTrialExpired) {
-    await billing.require({
-      plans: ["premium"],
-      onFailure: async () => {
-        return await billing.request({
-          plan: "premium",
-          isTest: true,
-          returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/?subscribed=true`,
-        });
-      },
-    });
-  }
-
-  return json({ apiKey: process.env.SHOPIFY_API_KEY || "" });
 };
 
 export default function App() {
