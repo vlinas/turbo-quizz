@@ -112,21 +112,21 @@ export const action = async ({ request }) => {
       console.log("[Billing] Starting subscription with Billing API");
 
       try {
-        // Use billing.request() for Manual Pricing
-        const billingResponse = await billing.request({
-          plan: "premium",
-          isTest: false,
-          returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/settings?subscribed=true`,
+        // Use billing.require() with onFailure pattern for Manual Pricing
+        await billing.require({
+          plans: ["premium"],
+          onFailure: async () => {
+            const response = await billing.request({
+              plan: "premium",
+              isTest: false,
+              returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/settings?subscribed=true`,
+            });
+            return response;
+          },
         });
 
-        console.log("[Billing] Billing response:", billingResponse);
-
-        // Redirect directly to confirmation URL (server-side redirect for embedded apps)
-        if (billingResponse && billingResponse.confirmationUrl) {
-          return redirect(billingResponse.confirmationUrl);
-        } else {
-          throw new Error("No confirmation URL returned from billing API");
-        }
+        // If we get here, user already has subscription
+        return json({ alreadySubscribed: true });
       } catch (billingError) {
         console.error("[Billing] Billing request failed:", billingError);
         return json({
