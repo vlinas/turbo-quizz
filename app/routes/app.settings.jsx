@@ -112,9 +112,8 @@ export const action = async ({ request }) => {
     } else if (_action === "startSubscription") {
       console.log("[Billing] Starting subscription with Billing API");
 
-      // Check if this is a development store
-      const isDevelopmentStore = session.shop.includes('.myshopify.com');
-      const isTest = isDevelopmentStore;
+      // Use environment variable to control test mode
+      const isTest = process.env.BILLING_TEST_MODE === 'true';
 
       // Use billing.require() with onFailure pattern for Manual Pricing
       // Don't wrap in try-catch - let billing.require handle the flow

@@ -15,10 +15,9 @@ export const loader = async ({ request }) => {
   try {
     const { billing, session } = await authenticate.admin(request);
 
-    // Check if this is a development store (myshopify.com domain)
-    // Development stores require isTest: true, real stores use isTest: false
-    const isDevelopmentStore = session.shop.includes('.myshopify.com');
-    const isTest = isDevelopmentStore;
+    // Use environment variable to control test mode
+    // Set BILLING_TEST_MODE=true for development, false for production
+    const isTest = process.env.BILLING_TEST_MODE === 'true';
 
     // Require billing for all users - standard Shopify model
     // Trial is built into the billing plan (7 days)
