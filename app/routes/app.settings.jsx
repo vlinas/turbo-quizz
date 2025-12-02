@@ -128,33 +128,6 @@ export const action = async ({ request }) => {
 
       // If we get here, user already has subscription
       return json({ alreadySubscribed: true });
-    } else if (_action === "cancelSubscription") {
-      console.log("[Billing] Cancelling subscription");
-
-      try {
-        const billingCheck = await billing.require({
-          plans: ["premium"],
-          onFailure: async () => {
-            throw new Error("No active subscription found");
-          },
-        });
-
-        const subscription = billingCheck.appSubscriptions[0];
-        await billing.cancel({
-          subscriptionId: subscription.id,
-          isTest: false,
-          prorate: true,
-        });
-
-        console.log("[Billing] Subscription cancelled successfully");
-        return json({ subscriptionCancelled: true });
-      } catch (cancelError) {
-        console.error("[Billing] Cancellation failed:", cancelError);
-        return json({
-          error: "cancellation_failed",
-          message: cancelError.message || "Unable to cancel subscription"
-        }, { status: 400 });
-      }
     }
   } catch (error) {
     // If it's a Response object (redirect), re-throw it so Remix handles it
@@ -169,7 +142,7 @@ export const action = async ({ request }) => {
 };
 
 export default function BillingPage() {
-  const { activePlan, customCss } = useLoaderData();
+  const { shop, activePlan, customCss } = useLoaderData();
   const actionData = useActionData();
   const navigate = useNavigate();
   const navigation = useNavigation();
@@ -191,12 +164,6 @@ export default function BillingPage() {
 
     if (actionData?.error) {
       setShowErrorBanner(true);
-    }
-
-    // Handle subscription cancelled - reload page
-    if (actionData?.subscriptionCancelled) {
-      console.log("[Billing UI] Subscription cancelled, reloading page");
-      window.location.reload();
     }
   }, [actionData]);
 
@@ -353,26 +320,24 @@ export default function BillingPage() {
                   <Divider />
 
                   {/* Manage Section */}
-                  <InlineStack align="space-between" blockAlign="center">
-                    <BlockStack gap="100">
-                      <Text as="p" variant="bodyMd">
-                        Need to cancel your subscription?
-                      </Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Cancel anytime with no long-term commitment
-                      </Text>
-                    </BlockStack>
-                    <Form method="post">
-                      <input type="hidden" name="_action" value="cancelSubscription" />
+                  <BlockStack gap="300">
+                    <Text as="h3" variant="headingMd">
+                      Manage Subscription
+                    </Text>
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      To cancel or modify your subscription, please visit your Shopify Admin billing settings.
+                    </Text>
+                    <InlineStack align="start">
                       <Button
-                        tone="critical"
-                        submit
-                        loading={isSubmitting}
+                        onClick={() => {
+                          window.open(`https://${shop}/admin/settings/billing`, '_top');
+                        }}
+                        variant="secondary"
                       >
-                        Cancel Subscription
+                        Manage in Shopify Admin
                       </Button>
-                    </Form>
-                  </InlineStack>
+                    </InlineStack>
+                  </BlockStack>
                 </BlockStack>
               </Card>
 
