@@ -38,7 +38,7 @@ export const loader = async ({ request }) => {
       onFailure: async () => {
         return await billing.request({
           plan: "premium",
-          isTest: false,
+          isTest: true,
           returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/?subscribed=true`,
         });
       },
