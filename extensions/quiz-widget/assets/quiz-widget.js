@@ -1,6 +1,36 @@
 (function () {
   'use strict';
 
+  // Retry utility with exponential backoff for analytics tracking
+  async function fetchWithRetry(url, options, maxRetries = 3) {
+    let lastError;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, options);
+
+        // Only retry on network errors or 5xx errors
+        if (response.ok || (response.status >= 400 && response.status < 500)) {
+          return response;
+        }
+
+        // Server error - retry
+        lastError = new Error(`Server error: ${response.status}`);
+      } catch (error) {
+        // Network error - retry
+        lastError = error;
+      }
+
+      // Wait before retry with exponential backoff: 500ms, 1s, 2s
+      if (attempt < maxRetries - 1) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 4000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+
+    throw lastError;
+  }
+
   class TurboQuiz {
     constructor(container) {
       this.container = container;
@@ -140,12 +170,12 @@
         return;
       }
 
-      // Only create a new session if one doesn't exist
+      // Only create a new session if one doesn't exist (with retry)
       try {
         // Get customer ID from Shopify if available
         const customerId = window.Shopify?.customerId || window.meta?.page?.customerId;
 
-        const response = await fetch(`${this.appUrl}/api/quiz-sessions`, {
+        const response = await fetchWithRetry(`${this.appUrl}/api/quiz-sessions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -161,20 +191,20 @@
 
         if (data.success && data.session_id) {
           this.sessionId = data.session_id;
-          // Store session ID in cookie for order attribution (30 days)
-          this.setCookie('turbo_quiz_session', this.sessionId, 30);
+          // Store session ID in cookie for order attribution (90 days for longer attribution window)
+          this.setCookie('turbo_quiz_session', this.sessionId, 90);
         } else {
-          console.error('Failed to start session:', data.error);
+          console.error('[SimpleProductQuiz] Failed to start session:', data.error);
         }
       } catch (error) {
-        console.error('Error starting session:', error);
+        console.error('[SimpleProductQuiz] Session start failed after retries:', error);
       }
     }
 
     async trackImpression() {
-      // Track impression every time the quiz is viewed
+      // Track impression every time the quiz is viewed (with retry)
       try {
-        await fetch(`${this.appUrl}/api/quiz-sessions`, {
+        await fetchWithRetry(`${this.appUrl}/api/quiz-sessions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -183,8 +213,8 @@
           }),
         });
       } catch (error) {
-        // Silent fail - don't disrupt user experience
-        console.error('Error tracking impression:', error);
+        // After all retries failed - log but don't disrupt user experience
+        console.error('[SimpleProductQuiz] Impression tracking failed after retries:', error);
       }
     }
 
@@ -253,7 +283,7 @@
       const question = this.quiz.questions[this.currentQuestionIndex];
 
       try {
-        await fetch(`${this.appUrl}/api/quiz-sessions`, {
+        await fetchWithRetry(`${this.appUrl}/api/quiz-sessions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -265,7 +295,7 @@
           }),
         });
       } catch (error) {
-        console.error('Error recording answer:', error);
+        console.error('[SimpleProductQuiz] Answer recording failed after retries:', error);
       }
     }
 
@@ -304,10 +334,10 @@
       const completedKey = `turbo_quiz_completed_${this.quizId}`;
       localStorage.setItem(completedKey, 'true');
 
-      // Mark session as completed
+      // Mark session as completed (with retry)
       if (this.sessionId) {
         try {
-          await fetch(`${this.appUrl}/api/quiz-sessions`, {
+          await fetchWithRetry(`${this.appUrl}/api/quiz-sessions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -319,7 +349,7 @@
           // Add session_id to cart attributes for order attribution
           await this.addSessionToCart(this.sessionId);
         } catch (error) {
-          console.error('Error completing session:', error);
+          console.error('[SimpleProductQuiz] Session completion failed after retries:', error);
         }
       }
 

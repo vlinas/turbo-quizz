@@ -192,20 +192,45 @@ async function handleStart(data) {
     });
   }
 
-  // Create session
-  const session = await prisma.quizSession.create({
-    data: {
-      session_id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      quiz_id: parsedQuizId,
-      shop: quiz.shop,
-      customer_id: customer_id || null,
-      page_url: page_url || null,
-      user_agent: user_agent || null,
-    },
-  });
+  // Check if there's a recent incomplete session from this customer/browser
+  // to prevent duplicate session creation on retry
+  let session = null;
 
-  // Update daily analytics (impressions/starts)
-  await updateDailyAnalytics(parsedQuizId, quiz.shop, 'start');
+  if (customer_id) {
+    // Look for recent incomplete session from same customer
+    session = await prisma.quizSession.findFirst({
+      where: {
+        quiz_id: parsedQuizId,
+        shop: quiz.shop,
+        customer_id: customer_id,
+        is_completed: false,
+        started_at: {
+          // Within last 5 minutes
+          gte: new Date(Date.now() - 5 * 60 * 1000),
+        },
+      },
+      orderBy: {
+        started_at: 'desc',
+      },
+    });
+  }
+
+  // Create session only if no recent one exists
+  if (!session) {
+    session = await prisma.quizSession.create({
+      data: {
+        session_id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        quiz_id: parsedQuizId,
+        shop: quiz.shop,
+        customer_id: customer_id || null,
+        page_url: page_url || null,
+        user_agent: user_agent || null,
+      },
+    });
+
+    // Update daily analytics (impressions/starts) only for new sessions
+    await updateDailyAnalytics(parsedQuizId, quiz.shop, 'start');
+  }
 
   return json({
     success: true,
@@ -365,8 +390,24 @@ async function updateDailyAnalytics(quizId, shop, type) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Find or create today's analytics record
-  const existing = await prisma.quizAnalyticsSummary.findUnique({
+  // Use atomic upsert with increment to prevent race conditions
+  // Impression = customer sees quiz (one event only)
+  // Start = customer starts quiz (also counts as impression)
+  // Complete = customer finishes quiz
+
+  const incrementData = {};
+
+  if (type === 'impression') {
+    incrementData.impressions = { increment: 1 };
+  } else if (type === 'start') {
+    // Start is also an impression (customer sees quiz when starting)
+    incrementData.impressions = { increment: 1 };
+    incrementData.starts = { increment: 1 };
+  } else if (type === 'complete') {
+    incrementData.completions = { increment: 1 };
+  }
+
+  await prisma.quizAnalyticsSummary.upsert({
     where: {
       quiz_id_shop_date: {
         quiz_id: quizId,
@@ -374,36 +415,14 @@ async function updateDailyAnalytics(quizId, shop, type) {
         date: today,
       },
     },
+    update: incrementData,
+    create: {
+      quiz_id: quizId,
+      shop: shop,
+      date: today,
+      impressions: type === 'impression' || type === 'start' ? 1 : 0,
+      starts: type === 'start' ? 1 : 0,
+      completions: type === 'complete' ? 1 : 0,
+    },
   });
-
-  if (existing) {
-    // Update existing record
-    await prisma.quizAnalyticsSummary.update({
-      where: { id: existing.id },
-      data: {
-        ...(type === 'impression' && {
-          impressions: existing.impressions + 1,
-        }),
-        ...(type === 'start' && {
-          impressions: existing.impressions + 1,
-          starts: existing.starts + 1,
-        }),
-        ...(type === 'complete' && {
-          completions: existing.completions + 1,
-        }),
-      },
-    });
-  } else {
-    // Create new record
-    await prisma.quizAnalyticsSummary.create({
-      data: {
-        quiz_id: quizId,
-        shop: shop,
-        date: today,
-        impressions: (type === 'start' || type === 'impression') ? 1 : 0,
-        starts: type === 'start' ? 1 : 0,
-        completions: type === 'complete' ? 1 : 0,
-      },
-    });
-  }
 }
