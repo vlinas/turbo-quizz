@@ -10,19 +10,17 @@ We have two separate environments:
 
 ### Production
 - **App Name:** Simple Product Quiz Survey
-- **Client ID:** `b6946453d658cb87dd6962999aec6fd0`
 - **Heroku:** `turbo-quizz`
 - **URL:** https://turbo-quizz-1660bbe41f52.herokuapp.com
 - **Config File:** `shopify.app.toml`
-- **Env File:** `.env.production`
+- **Env File:** `.env.production` (local only, git-ignored)
 
 ### Staging
 - **App Name:** Product Quiz - Staging
-- **Client ID:** `5a35555b83652bfd2816f258dd1145e8`
 - **Heroku:** `turbo-quizz-staging`
 - **URL:** https://turbo-quizz-staging-4bd0e4ee4b32.herokuapp.com
 - **Config File:** `shopify.app.staging.toml`
-- **Env File:** `.env.staging`
+- **Env File:** `.env.staging` (local only, git-ignored)
 
 ## Safe Deployment Commands
 
