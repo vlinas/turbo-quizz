@@ -112,6 +112,13 @@ export const action = async ({ request }) => {
     } else if (_action === "startSubscription") {
       console.log("[Billing] Starting subscription with Billing API");
 
+      // Skip billing entirely for staging/dev apps (non-public distribution)
+      const skipBilling = process.env.SKIP_BILLING === 'true';
+      if (skipBilling) {
+        console.log("[Billing] Skipping billing (SKIP_BILLING=true)");
+        return json({ alreadySubscribed: true, skipped: true });
+      }
+
       // Use environment variable to control test mode
       // Defaults to true if not set (safe for development)
       const isTest = process.env.BILLING_TEST_MODE !== 'false';
