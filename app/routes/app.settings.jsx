@@ -113,7 +113,8 @@ export const action = async ({ request }) => {
       console.log("[Billing] Starting subscription with Billing API");
 
       // Use environment variable to control test mode
-      const isTest = process.env.BILLING_TEST_MODE === 'true';
+      // Defaults to true if not set (safe for development)
+      const isTest = process.env.BILLING_TEST_MODE !== 'false';
 
       // Use billing.require() with onFailure pattern for Manual Pricing
       // Don't wrap in try-catch - let billing.require handle the flow

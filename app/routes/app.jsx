@@ -17,7 +17,8 @@ export const loader = async ({ request }) => {
 
     // Use environment variable to control test mode
     // Set BILLING_TEST_MODE=true for development, false for production
-    const isTest = process.env.BILLING_TEST_MODE === 'true';
+    // Defaults to true if not set (safe for development)
+    const isTest = process.env.BILLING_TEST_MODE !== 'false';
 
     // Require billing for all users - standard Shopify model
     // Trial is built into the billing plan (7 days)
