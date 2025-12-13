@@ -64,6 +64,26 @@ const shopify = shopifyApp({
           const appUrl = process.env.SHOPIFY_APP_URL || '';
 
           if (appUrl) {
+            // First, get the shop's GID
+            const shopResult = await admin.graphql(
+              `#graphql
+              query {
+                shop {
+                  id
+                }
+              }`
+            );
+
+            const shopData = await shopResult.json();
+            const shopGid = shopData.data?.shop?.id;
+
+            if (!shopGid) {
+              console.error('[afterAuth] Could not get shop GID');
+              throw new Error('Could not get shop GID');
+            }
+
+            console.log('[afterAuth] Shop GID:', shopGid);
+
             const metafieldResult = await admin.graphql(
               `#graphql
               mutation CreateShopMetafield($metafields: [MetafieldsSetInput!]!) {
@@ -88,7 +108,7 @@ const shopify = shopifyApp({
                       key: "app_url",
                       type: "single_line_text_field",
                       value: appUrl,
-                      ownerId: `gid://shopify/Shop/${session.shop.replace('.myshopify.com', '')}`
+                      ownerId: shopGid
                     }
                   ]
                 }
