@@ -10,11 +10,13 @@ node_modules
 /prisma/dev.sqlite-journal
 database.sqlite
 
+# Environment files
 .env
+.env.local
+
+# Lock files
 package-lock.json
 yarn.lock
-shopify.app.toml
-*.toml
+
+# Shopify CLI generated files (keep manually created toml files)
 shopify.app.turbo-quizz-local.toml
-.env
-.env

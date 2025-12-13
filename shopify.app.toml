@@ -1,0 +1,38 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "b6946453d658cb87dd6962999aec6fd0"
+name = "Simple Product Quiz Survey"
+application_url = "https://turbo-quizz-1660bbe41f52.herokuapp.com"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2025-10"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks"
+
+  # Mandatory GDPR compliance webhooks - must use compliance_topics for Remix apps
+  [[webhooks.subscriptions]]
+  compliance_topics = [
+    "customers/data_request",
+    "customers/redact",
+    "shop/redact"
+  ]
+  uri = "/webhooks"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_analytics,read_customers,read_online_store_pages,read_orders,read_product_listings,read_products,write_customers"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://turbo-quizz-1660bbe41f52.herokuapp.com/auth/callback",
+  "https://turbo-quizz-1660bbe41f52.herokuapp.com/auth/shopify/callback",
+  "https://turbo-quizz-1660bbe41f52.herokuapp.com/api/auth/callback"
+]
