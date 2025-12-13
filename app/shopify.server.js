@@ -58,6 +58,56 @@ const shopify = shopifyApp({
         const result = await shopify.registerWebhooks({ session });
         console.log('[afterAuth] Webhook registration result:', JSON.stringify(result, null, 2));
 
+        // Set app URL metafield for theme extension
+        try {
+          console.log('[afterAuth] Setting app URL metafield');
+          const appUrl = process.env.SHOPIFY_APP_URL || '';
+
+          if (appUrl) {
+            const metafieldResult = await admin.graphql(
+              `#graphql
+              mutation CreateShopMetafield($metafields: [MetafieldsSetInput!]!) {
+                metafieldsSet(metafields: $metafields) {
+                  metafields {
+                    id
+                    namespace
+                    key
+                    value
+                  }
+                  userErrors {
+                    field
+                    message
+                  }
+                }
+              }`,
+              {
+                variables: {
+                  metafields: [
+                    {
+                      namespace: "turbo_quiz",
+                      key: "app_url",
+                      type: "single_line_text_field",
+                      value: appUrl,
+                      ownerId: `gid://shopify/Shop/${session.shop.replace('.myshopify.com', '')}`
+                    }
+                  ]
+                }
+              }
+            );
+
+            const metafieldData = await metafieldResult.json();
+            if (metafieldData.data?.metafieldsSet?.userErrors?.length > 0) {
+              console.error('[afterAuth] Metafield creation errors:', metafieldData.data.metafieldsSet.userErrors);
+            } else {
+              console.log('[afterAuth] App URL metafield set successfully:', appUrl);
+            }
+          } else {
+            console.warn('[afterAuth] SHOPIFY_APP_URL not set - skipping metafield creation');
+          }
+        } catch (metafieldError) {
+          console.error('[afterAuth] Failed to set app URL metafield:', metafieldError);
+        }
+
         // Check if shop already has an active subscription
         console.log('[afterAuth] Checking for existing subscription');
         const subscriptionResult = await admin.graphql(
