@@ -1077,10 +1077,6 @@ export default function QuizBuilder() {
                           {editingQuestionId ? "Edit Question" : "New Question"}
                         </Text>
 
-                        <Text as="p" variant="bodySm" tone="critical">
-                          🔴 TEST: If you see this red text, the UI is updating correctly!
-                        </Text>
-
                         <TextField
                           label="Question text"
                           value={newQuestionText}
