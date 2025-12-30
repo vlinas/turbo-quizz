@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "5a35555b83652bfd2816f258dd1145e8"
-name = "Product Quiz - Staging"
+name = "Product Quiz - STAGING"
 application_url = "https://turbo-quizz-staging-4bd0e4ee4b32.herokuapp.com"
 embedded = true
 

@@ -114,8 +114,17 @@
       const wasCompleted = localStorage.getItem(completedKey);
 
       if (wasCompleted) {
-        // Hide the entire quiz widget if already completed
-        this.container.style.display = 'none';
+        // Show the stored result from previous completion
+        this.questionEl.style.display = 'none';
+        this.resultEl.style.display = 'block';
+        try {
+          const resultData = JSON.parse(wasCompleted);
+          this.resultContentEl.innerHTML = this.renderActionResult(resultData.actionType, resultData.actionData);
+        } catch (e) {
+          // Fallback for old format (just 'true' string)
+          this.resultContentEl.innerHTML = '<p style="color: #666; font-style: italic;">Quiz already completed.</p>';
+        }
+        this.showResetButton();
         return;
       }
 
@@ -330,9 +339,17 @@
     }
 
     async showResult() {
-      // Mark quiz as completed in localStorage so it never shows again
+      // Get the final answer's action data
+      const finalAnswer = this.answers[this.currentQuestionIndex];
+      const actionData = finalAnswer.action_data;
+
+      // Mark quiz as completed and store result in localStorage
       const completedKey = `turbo_quiz_completed_${this.quizId}`;
-      localStorage.setItem(completedKey, 'true');
+      const resultData = {
+        actionType: finalAnswer.action_type,
+        actionData: actionData
+      };
+      localStorage.setItem(completedKey, JSON.stringify(resultData));
 
       // Mark session as completed (with retry)
       if (this.sessionId) {
@@ -353,19 +370,51 @@
         }
       }
 
-      // Get the final answer's action data
-      const finalAnswer = this.answers[this.currentQuestionIndex];
-      const actionData = finalAnswer.action_data;
-
       // Render result based on action type
       this.resultContentEl.innerHTML = this.renderActionResult(finalAnswer.action_type, actionData);
 
-      // Hide question, show result, hide restart button
+      // Hide question, show result
       this.questionEl.style.display = 'none';
       this.resultEl.style.display = 'block';
       this.backBtn.style.display = 'none';
       this.nextBtn.style.display = 'none';
       if (this.restartBtn) this.restartBtn.style.display = 'none';
+
+      // Show reset button for testing
+      this.showResetButton();
+    }
+
+    showResetButton() {
+      // Check if reset button already exists
+      let resetBtn = this.container.querySelector('.turbo-quiz-reset-btn');
+      if (!resetBtn) {
+        resetBtn = document.createElement('button');
+        resetBtn.className = 'turbo-quiz-reset-btn';
+        resetBtn.textContent = 'Reset Quiz (Testing)';
+        resetBtn.style.cssText = 'margin-top: 16px; padding: 8px 16px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 12px; color: #666;';
+        resetBtn.addEventListener('click', () => this.resetForTesting());
+        this.resultEl.appendChild(resetBtn);
+      }
+      resetBtn.style.display = 'block';
+    }
+
+    resetForTesting() {
+      // Clear localStorage completion flag
+      const completedKey = `turbo_quiz_completed_${this.quizId}`;
+      localStorage.removeItem(completedKey);
+
+      // Clear session cookie
+      this.deleteCookie('turbo_quiz_session');
+
+      // Reset state
+      this.currentQuestionIndex = 0;
+      this.answers = [];
+      this.selectedAnswerId = null;
+      this.sessionId = null;
+
+      // Re-show the container and re-initialize
+      this.container.style.display = '';
+      this.loadQuiz();
     }
 
     renderActionResult(actionType, actionData) {
