@@ -108,6 +108,7 @@ export async function loader({ params, request }) {
       questions: quiz.questions.map((question) => ({
         question_id: question.question_id,
         question_text: question.question_text,
+        metafield_key: question.metafield_key,
         order: question.order,
         answers: question.answers,
       })),

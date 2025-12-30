@@ -532,16 +532,27 @@
 
     async addSessionToCart(sessionId) {
       try {
+        // Build attributes object with session info and quiz answers
+        const attributes = {
+          'turbo_quiz_session': sessionId,
+          'quiz_id': this.quizId,
+        };
+
+        // Add quiz answers as attributes (using metafield_key if set)
+        this.quiz.questions.forEach((question, index) => {
+          const answer = this.answers[index];
+          if (answer && question.metafield_key) {
+            // Use the metafield_key as the attribute key with quiz_ prefix
+            const key = `quiz_${question.metafield_key}`;
+            attributes[key] = answer.answer_text;
+          }
+        });
+
         // Add quiz session ID as cart attribute for order attribution
         const response = await fetch('/cart/update.js', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            attributes: {
-              'turbo_quiz_session': sessionId,
-              'quiz_id': this.quizId,
-            },
-          }),
+          body: JSON.stringify({ attributes }),
         });
 
         if (!response.ok) {

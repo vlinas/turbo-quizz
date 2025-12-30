@@ -323,6 +323,7 @@ export const action = async ({ request, params }) => {
 
   if (actionType === "add_question") {
     const question_text = formData.get("question_text");
+    const metafield_key = formData.get("metafield_key") || null;
     const answer1_text = formData.get("answer1_text");
     const answer1_action_type = formData.get("answer1_action_type");
     const answer1_action_data = formData.get("answer1_action_data");
@@ -419,6 +420,7 @@ export const action = async ({ request, params }) => {
           quiz_id: quizId,
           shop: session.shop,
           question_text,
+          metafield_key,
           order: 1,
           answers: {
             create: [
@@ -452,6 +454,7 @@ export const action = async ({ request, params }) => {
   if (actionType === "update_question") {
     const question_id = formData.get("question_id");
     const question_text = formData.get("question_text");
+    const metafield_key = formData.get("metafield_key") || null;
     const answer1_text = formData.get("answer1_text");
     const answer1_action_type = formData.get("answer1_action_type");
     const answer1_action_data = formData.get("answer1_action_data");
@@ -544,10 +547,10 @@ export const action = async ({ request, params }) => {
 
       // Update question and answers in a transaction
       await prisma.$transaction([
-        // Update question text
+        // Update question text and metafield_key
         prisma.question.update({
           where: { question_id },
-          data: { question_text },
+          data: { question_text, metafield_key },
         }),
         // Update answer 1
         prisma.answer.update({
@@ -643,6 +646,7 @@ export default function QuizBuilder() {
 
   // New/Edit question form state
   const [newQuestionText, setNewQuestionText] = useState("");
+  const [newMetafieldKey, setNewMetafieldKey] = useState("");
   const [newAnswer1Text, setNewAnswer1Text] = useState("");
   const [newAnswer1ActionType, setNewAnswer1ActionType] = useState("show_text");
   const [newAnswer1ActionData, setNewAnswer1ActionData] = useState("");
@@ -794,6 +798,7 @@ export default function QuizBuilder() {
     }
 
     formData.append("question_text", newQuestionText);
+    formData.append("metafield_key", newMetafieldKey);
     formData.append("answer1_text", newAnswer1Text);
     formData.append("answer1_action_type", newAnswer1ActionType);
     formData.append("answer1_action_data", newAnswer1ActionData);
@@ -812,6 +817,7 @@ export default function QuizBuilder() {
 
     // Reset form
     setNewQuestionText("");
+    setNewMetafieldKey("");
     setNewAnswer1Text("");
     setNewAnswer1ActionType("show_text");
     setNewAnswer1ActionData("");
@@ -825,6 +831,7 @@ export default function QuizBuilder() {
   const handleCancelNewQuestion = () => {
     setShowAddQuestion(false);
     setNewQuestionText("");
+    setNewMetafieldKey("");
     setNewAnswer1Text("");
     setNewAnswer1ActionType("show_text");
     setNewAnswer1ActionData("");
@@ -846,6 +853,7 @@ export default function QuizBuilder() {
   const handleEditQuestion = (question) => {
     // Populate form with existing question data
     setNewQuestionText(question.question_text);
+    setNewMetafieldKey(question.metafield_key || "");
 
     // Answer 1
     const answer1 = question.answers[0];
@@ -1069,6 +1077,10 @@ export default function QuizBuilder() {
                           {editingQuestionId ? "Edit Question" : "New Question"}
                         </Text>
 
+                        <Text as="p" variant="bodySm" tone="critical">
+                          🔴 TEST: If you see this red text, the UI is updating correctly!
+                        </Text>
+
                         <TextField
                           label="Question text"
                           value={newQuestionText}
@@ -1076,6 +1088,15 @@ export default function QuizBuilder() {
                           placeholder="e.g., What's your preferred style?"
                           autoComplete="off"
                           requiredIndicator
+                        />
+
+                        <TextField
+                          label="Metafield Key (optional)"
+                          value={newMetafieldKey}
+                          onChange={setNewMetafieldKey}
+                          placeholder="e.g., gender, skin_type, style_preference"
+                          autoComplete="off"
+                          helpText="Used for customer personalization. The selected answer will be saved as customer.metafields.quiz.[key]. Use lowercase with underscores."
                         />
 
                         <Divider />

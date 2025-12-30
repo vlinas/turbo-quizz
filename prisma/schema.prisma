@@ -53,6 +53,7 @@ model Question {
   shop          String
   question_id   String   @unique @default(uuid())
   question_text String
+  metafield_key String?  // e.g., "gender", "skin_type" - used for customer metafields
   order         Int
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt

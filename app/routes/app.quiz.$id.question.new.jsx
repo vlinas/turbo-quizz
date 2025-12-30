@@ -46,6 +46,7 @@ export const action = async ({ request, params }) => {
   const formData = await request.formData();
 
   const question_text = formData.get("question_text");
+  const metafield_key = formData.get("metafield_key") || null;
   const answer1_text = formData.get("answer1_text");
   const answer1_action_type = formData.get("answer1_action_type");
   const answer1_action_data = formData.get("answer1_action_data");
@@ -117,7 +118,9 @@ export const action = async ({ request, params }) => {
     const question = await prisma.question.create({
       data: {
         quiz_id: id,
+        shop: session.shop,
         question_text,
+        metafield_key,
         order: questionCount + 1,
         answers: {
           create: [
@@ -155,6 +158,7 @@ export default function NewQuestion() {
   const actionData = useActionData();
 
   const [questionText, setQuestionText] = useState("");
+  const [metafieldKey, setMetafieldKey] = useState("");
 
   // Answer 1
   const [answer1Text, setAnswer1Text] = useState("");
@@ -191,6 +195,7 @@ export default function NewQuestion() {
     setIsSubmitting(true);
     const formData = new FormData();
     formData.append("question_text", questionText);
+    formData.append("metafield_key", metafieldKey);
     formData.append("answer1_text", answer1Text);
     formData.append("answer1_action_type", answer1ActionType);
     formData.append("answer1_action_data", answer1ActionData);
@@ -269,6 +274,15 @@ export default function NewQuestion() {
                 autoComplete="off"
                 helpText="Ask a clear question that will help guide customers"
                 requiredIndicator
+              />
+
+              <TextField
+                label="Metafield Key (optional)"
+                value={metafieldKey}
+                onChange={setMetafieldKey}
+                placeholder="e.g., gender, skin_type, style_preference"
+                autoComplete="off"
+                helpText="Used for customer personalization. The selected answer will be saved as customer.metafields.quiz.[key]. Use lowercase with underscores."
               />
             </BlockStack>
           </Card>

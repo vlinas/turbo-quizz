@@ -159,6 +159,63 @@ export const action = async ({ request }) => {
             });
           }
         }
+
+        // Write quiz answers to customer metafields (if customer exists)
+        if (payload.customer?.id && payload.note_attributes) {
+          try {
+            const quizAnswers = payload.note_attributes.filter(
+              attr => attr.name.startsWith('quiz_') && attr.name !== 'quiz_id' && attr.name !== 'quiz_session'
+            );
+
+            if (quizAnswers.length > 0) {
+              const customerGid = `gid://shopify/Customer/${payload.customer.id}`;
+
+              // Build metafield mutations for each quiz answer
+              const metafields = quizAnswers.map(attr => {
+                // Remove 'quiz_' prefix to get the key
+                const key = attr.name.replace('quiz_', '');
+                return {
+                  ownerId: customerGid,
+                  namespace: 'quiz',
+                  key: key,
+                  type: 'single_line_text_field',
+                  value: attr.value,
+                };
+              });
+
+              // Use metafieldsSet mutation to upsert metafields
+              const mutation = `
+                mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+                  metafieldsSet(metafields: $metafields) {
+                    metafields {
+                      id
+                      key
+                      value
+                    }
+                    userErrors {
+                      field
+                      message
+                    }
+                  }
+                }
+              `;
+
+              const response = await admin.graphql(mutation, {
+                variables: { metafields },
+              });
+
+              const result = await response.json();
+
+              if (result.data?.metafieldsSet?.userErrors?.length > 0) {
+                console.error('[Quiz Metafields] Errors:', result.data.metafieldsSet.userErrors);
+              } else {
+                console.log(`[Quiz Metafields] Saved ${metafields.length} metafields for customer ${payload.customer.id}`);
+              }
+            }
+          } catch (metafieldError) {
+            console.error('[Quiz Metafields] Error saving customer metafields:', metafieldError);
+          }
+        }
       } catch (error) {
         console.error("[Quiz Attribution] Error:", error);
       }
