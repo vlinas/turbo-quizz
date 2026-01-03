@@ -1,0 +1,3 @@
+# Keep environment-specific files unchanged during merges
+# These files have different values per branch (staging vs production)
+extensions/quiz-widget/blocks/quiz.liquid merge=ours
