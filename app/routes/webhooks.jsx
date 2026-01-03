@@ -141,8 +141,12 @@ export const action = async ({ request }) => {
 
           if (!existingAttribution) {
             const totalPrice = parseFloat(payload.total_price || payload.current_total_price || 0);
+            const orderDate = new Date(payload.created_at);
+            // Set to start of day for consistent daily aggregations
+            orderDate.setUTCHours(0, 0, 0, 0);
 
-            await db.quizOrderAttribution.create({
+            // Create the order attribution
+            const orderAttribution = await db.quizOrderAttribution.create({
               data: {
                 order_id: String(payload.id),
                 order_number: String(payload.order_number || payload.name || payload.id),
@@ -157,6 +161,44 @@ export const action = async ({ request }) => {
                 order_created_at: new Date(payload.created_at),
               },
             });
+
+            // Create answer-level attributions for data warehouse queries
+            // Get all answer selections for this session with their question/answer details
+            const answerSelections = await db.answerSelection.findMany({
+              where: {
+                session_id: quizSession.session_id,
+              },
+              include: {
+                answer: {
+                  include: {
+                    question: true,
+                  },
+                },
+              },
+            });
+
+            // Create attribution records for each answer selected in this session
+            if (answerSelections.length > 0) {
+              await db.answerOrderAttribution.createMany({
+                data: answerSelections.map((selection) => ({
+                  order_attribution_id: orderAttribution.id,
+                  answer_id: selection.answer_id,
+                  question_id: selection.question_id,
+                  quiz_id: quizSession.quiz_id,
+                  shop,
+                  // Denormalized fields for efficient querying
+                  answer_text: selection.answer.answer_text,
+                  question_text: selection.answer.question.question_text,
+                  order_id: String(payload.id),
+                  order_total: totalPrice,
+                  currency: payload.currency || "USD",
+                  order_date: orderDate,
+                  selected_at: selection.selected_at,
+                })),
+              });
+
+              console.log(`[Quiz Attribution] Created ${answerSelections.length} answer-level attributions for order ${payload.id}`);
+            }
           }
         }
 

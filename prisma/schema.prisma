@@ -64,17 +64,18 @@ model Question {
 }
 
 model Answer {
-  id                Int               @id @default(autoincrement())
-  question_id       String
-  answer_id         String            @unique @default(uuid())
-  answer_text       String
-  order             Int
-  action_type       String
-  action_data       Json
-  created_at        DateTime          @default(now())
-  updated_at        DateTime          @updatedAt
-  question          Question          @relation(fields: [question_id], references: [question_id], onDelete: Cascade)
-  answer_selections AnswerSelection[]
+  id                    Int                      @id @default(autoincrement())
+  question_id           String
+  answer_id             String                   @unique @default(uuid())
+  answer_text           String
+  order                 Int
+  action_type           String
+  action_data           Json
+  created_at            DateTime                 @default(now())
+  updated_at            DateTime                 @updatedAt
+  question              Question                 @relation(fields: [question_id], references: [question_id], onDelete: Cascade)
+  answer_selections     AnswerSelection[]
+  order_attributions    AnswerOrderAttribution[]
 
   @@index([question_id])
 }
@@ -147,9 +148,43 @@ model QuizOrderAttribution {
   order_created_at DateTime
   attributed_at    DateTime    @default(now())
   session          QuizSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
+  answer_attributions AnswerOrderAttribution[]
 
   @@unique([order_id, shop])
   @@index([session_id])
   @@index([quiz_id, shop])
   @@index([shop, order_created_at])
+}
+
+// Answer-level order attribution for detailed revenue analytics
+// Enables data warehouse queries like:
+// - Revenue per answer per day
+// - Answer conversion rates over time
+// - A/B testing of answer performance
+model AnswerOrderAttribution {
+  id                    Int                  @id @default(autoincrement())
+  order_attribution_id  Int
+  answer_id             String
+  question_id           String
+  quiz_id               Int
+  shop                  String
+  // Denormalized for efficient querying without joins
+  answer_text           String               // Snapshot of answer text at time of selection
+  question_text         String               // Snapshot of question text
+  order_id              String               // Denormalized from parent
+  order_total           Decimal              @db.Decimal(10, 2) // Denormalized from parent
+  currency              String               @default("USD")
+  order_date            DateTime             @db.Date // Date for daily aggregations
+  selected_at           DateTime             // When the answer was selected
+  attributed_at         DateTime             @default(now())
+  order_attribution     QuizOrderAttribution @relation(fields: [order_attribution_id], references: [id], onDelete: Cascade)
+  answer                Answer               @relation(fields: [answer_id], references: [answer_id], onDelete: Cascade)
+
+  // Indexes optimized for data warehouse queries
+  @@unique([order_attribution_id, answer_id]) // Prevent duplicate answer attributions per order
+  @@index([answer_id, order_date])            // Revenue per answer per day
+  @@index([question_id, order_date])          // Revenue per question per day
+  @@index([quiz_id, shop, order_date])        // Revenue per quiz per day
+  @@index([shop, order_date])                 // Shop-level daily revenue
+  @@index([answer_id, shop])                  // Answer performance by shop
 }
