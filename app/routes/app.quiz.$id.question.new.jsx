@@ -47,17 +47,31 @@ export const action = async ({ request, params }) => {
 
   const question_text = formData.get("question_text");
   const metafield_key = formData.get("metafield_key") || null;
-  const answer1_text = formData.get("answer1_text");
-  const answer1_action_type = formData.get("answer1_action_type");
-  const answer1_action_data = formData.get("answer1_action_data");
-  const answer2_text = formData.get("answer2_text");
-  const answer2_action_type = formData.get("answer2_action_type");
-  const answer2_action_data = formData.get("answer2_action_data");
 
-  if (!question_text || !answer1_text || !answer2_text) {
+  // Parse dynamic answers from form data (supports 2-5 answers)
+  const answers = [];
+  for (let i = 0; i < 5; i++) {
+    const text = formData.get(`answers[${i}][text]`);
+    const actionType = formData.get(`answers[${i}][action_type]`);
+    const actionData = formData.get(`answers[${i}][action_data]`);
+    const customText = formData.get(`answers[${i}][custom_text]`);
+
+    if (text && actionType) {
+      answers.push({ text, actionType, actionData, customText });
+    }
+  }
+
+  if (!question_text || answers.length < 2) {
     return json({
       success: false,
-      error: "Question and both answers are required",
+      error: "Question and at least 2 answers are required",
+    }, { status: 400 });
+  }
+
+  if (answers.length > 5) {
+    return json({
+      success: false,
+      error: "Maximum 5 answers allowed per question",
     }, { status: 400 });
   }
 
@@ -77,36 +91,43 @@ export const action = async ({ request, params }) => {
     }, { status: 404 });
   }
 
-  // Build action data objects
-  const answer1Data = {
-    type: answer1_action_type,
-    ...(answer1_action_type === "show_text" && {
-      text: answer1_action_data
-    }),
-    ...(answer1_action_type === "show_products" && {
-      product_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
-      display_style: "grid"
-    }),
-    ...(answer1_action_type === "show_collections" && {
-      collection_ids: answer1_action_data ? answer1_action_data.split(",").filter(Boolean) : [],
-      display_style: "grid"
-    }),
-  };
+  // Build answer create data array
+  const answerCreateData = answers.map((answer, index) => {
+    let actionDataObj = {};
 
-  const answer2Data = {
-    type: answer2_action_type,
-    ...(answer2_action_type === "show_text" && {
-      text: answer2_action_data
-    }),
-    ...(answer2_action_type === "show_products" && {
-      product_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
-      display_style: "grid"
-    }),
-    ...(answer2_action_type === "show_collections" && {
-      collection_ids: answer2_action_data ? answer2_action_data.split(",").filter(Boolean) : [],
-      display_style: "grid"
-    }),
-  };
+    if (answer.actionType === "show_text") {
+      actionDataObj = { text: answer.actionData };
+    } else if (answer.actionType === "show_html") {
+      actionDataObj = { html: answer.actionData };
+    } else if (answer.actionType === "show_products") {
+      try {
+        const parsed = JSON.parse(answer.actionData || "{}");
+        actionDataObj = {
+          products: parsed.products || [],
+          custom_text: answer.customText || parsed.custom_text || "Based on your answers, we recommend these products:",
+        };
+      } catch {
+        actionDataObj = { products: [], custom_text: answer.customText || "Based on your answers, we recommend these products:" };
+      }
+    } else if (answer.actionType === "show_collections") {
+      try {
+        const parsed = JSON.parse(answer.actionData || "{}");
+        actionDataObj = {
+          collections: parsed.collections || [],
+          custom_text: answer.customText || parsed.custom_text || "Based on your answers, check out these collections:",
+        };
+      } catch {
+        actionDataObj = { collections: [], custom_text: answer.customText || "Based on your answers, check out these collections:" };
+      }
+    }
+
+    return {
+      answer_text: answer.text,
+      action_type: answer.actionType,
+      action_data: actionDataObj,
+      order: index + 1,
+    };
+  });
 
   try {
     // Get current question count for ordering
@@ -123,20 +144,7 @@ export const action = async ({ request, params }) => {
         metafield_key,
         order: questionCount + 1,
         answers: {
-          create: [
-            {
-              answer_text: answer1_text,
-              action_type: answer1_action_type,
-              action_data: answer1Data,
-              order: 1,
-            },
-            {
-              answer_text: answer2_text,
-              action_type: answer2_action_type,
-              action_data: answer2Data,
-              order: 2,
-            },
-          ],
+          create: answerCreateData,
         },
       },
     });
@@ -160,15 +168,41 @@ export default function NewQuestion() {
   const [questionText, setQuestionText] = useState("");
   const [metafieldKey, setMetafieldKey] = useState("");
 
-  // Answer 1
-  const [answer1Text, setAnswer1Text] = useState("");
-  const [answer1ActionType, setAnswer1ActionType] = useState("show_text");
-  const [answer1ActionData, setAnswer1ActionData] = useState("");
+  // Dynamic answers array (supports 2-5 answers)
+  const createEmptyAnswer = () => ({
+    text: "",
+    actionType: "show_text",
+    actionData: "",
+    customText: "",
+  });
 
-  // Answer 2
-  const [answer2Text, setAnswer2Text] = useState("");
-  const [answer2ActionType, setAnswer2ActionType] = useState("show_text");
-  const [answer2ActionData, setAnswer2ActionData] = useState("");
+  const [answers, setAnswers] = useState([createEmptyAnswer(), createEmptyAnswer()]);
+
+  // Helper functions for managing dynamic answers
+  const addAnswer = () => {
+    if (answers.length < 5) {
+      setAnswers([...answers, createEmptyAnswer()]);
+    }
+  };
+
+  const removeAnswer = (index) => {
+    if (answers.length > 2) {
+      setAnswers(answers.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateAnswer = (index, field, value) => {
+    setAnswers(answers.map((answer, i) =>
+      i === index ? { ...answer, [field]: value } : answer
+    ));
+  };
+
+  // Clear action data when action type changes
+  const handleAnswerActionTypeChange = (index, newType) => {
+    setAnswers(answers.map((answer, i) =>
+      i === index ? { ...answer, actionType: newType, actionData: "", customText: "" } : answer
+    ));
+  };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -186,9 +220,7 @@ export default function NewQuestion() {
 
   const actionTypeOptions = [
     { label: "Show text message", value: "show_text" },
-    // Products and collections temporarily disabled - coming soon
-    // { label: "Show products", value: "show_products" },
-    // { label: "Show collections", value: "show_collections" },
+    { label: "Show HTML", value: "show_html" },
   ];
 
   const handleSubmit = () => {
@@ -196,42 +228,21 @@ export default function NewQuestion() {
     const formData = new FormData();
     formData.append("question_text", questionText);
     formData.append("metafield_key", metafieldKey);
-    formData.append("answer1_text", answer1Text);
-    formData.append("answer1_action_type", answer1ActionType);
-    formData.append("answer1_action_data", answer1ActionData);
-    formData.append("answer2_text", answer2Text);
-    formData.append("answer2_action_type", answer2ActionType);
-    formData.append("answer2_action_data", answer2ActionData);
+
+    // Serialize answers array with indexed keys
+    answers.forEach((answer, i) => {
+      formData.append(`answers[${i}][text]`, answer.text);
+      formData.append(`answers[${i}][action_type]`, answer.actionType);
+      formData.append(`answers[${i}][action_data]`, answer.actionData);
+      if (answer.actionType === "show_products" || answer.actionType === "show_collections") {
+        formData.append(`answers[${i}][custom_text]`, answer.customText);
+      }
+    });
+
     submit(formData, { method: "post" });
   };
 
-  const getActionDataHelp = (actionType) => {
-    switch (actionType) {
-      case "show_text":
-        return "Enter the text message to show when this answer is selected";
-      case "show_products":
-        return "Enter product IDs separated by commas (e.g., gid://shopify/Product/123,gid://shopify/Product/456)";
-      case "show_collections":
-        return "Enter collection IDs separated by commas (e.g., gid://shopify/Collection/789)";
-      default:
-        return "";
-    }
-  };
-
-  const getActionDataPlaceholder = (actionType) => {
-    switch (actionType) {
-      case "show_text":
-        return "Great choice! Here are some products we think you'll love...";
-      case "show_products":
-        return "gid://shopify/Product/123,gid://shopify/Product/456";
-      case "show_collections":
-        return "gid://shopify/Collection/789";
-      default:
-        return "";
-    }
-  };
-
-  const isValid = questionText && answer1Text && answer2Text && answer1ActionData && answer2ActionData;
+  const isValid = questionText && answers.length >= 2 && answers.every((a) => a.text && a.actionData);
 
   const toastMarkup = toastActive ? (
     <Toast
@@ -287,83 +298,77 @@ export default function NewQuestion() {
             </BlockStack>
           </Card>
 
-          {/* Answer 1 */}
-          <Card>
-            <BlockStack gap="400">
-              <InlineStack gap="200" blockAlign="center">
-                <Badge tone="info">Answer 1</Badge>
-                <Text as="h2" variant="headingMd">
-                  First Answer Option
-                </Text>
-              </InlineStack>
+          {/* Dynamic Answers (2-5) */}
+          {answers.map((answer, index) => (
+            <Card key={index}>
+              <BlockStack gap="400">
+                <InlineStack align="space-between" blockAlign="center">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Badge tone={index === 0 ? "info" : "success"}>Answer {index + 1}</Badge>
+                    <Text as="h2" variant="headingMd">
+                      {index === 0 ? "First" : index === 1 ? "Second" : `Answer ${index + 1}`} Answer Option
+                    </Text>
+                  </InlineStack>
+                  {answers.length > 2 && (
+                    <Button variant="plain" tone="critical" onClick={() => removeAnswer(index)}>
+                      Remove
+                    </Button>
+                  )}
+                </InlineStack>
 
-              <TextField
-                label="Answer text"
-                value={answer1Text}
-                onChange={setAnswer1Text}
-                placeholder="e.g., Modern & Minimalist"
-                autoComplete="off"
-                requiredIndicator
-              />
+                <TextField
+                  label="Answer text"
+                  value={answer.text}
+                  onChange={(value) => updateAnswer(index, "text", value)}
+                  placeholder={index === 0 ? "e.g., Modern & Minimalist" : "e.g., Bold & Colorful"}
+                  autoComplete="off"
+                  requiredIndicator
+                />
 
-              <Select
-                label="What should happen when this answer is selected?"
-                options={actionTypeOptions}
-                value={answer1ActionType}
-                onChange={setAnswer1ActionType}
-              />
+                <Select
+                  label="What should happen when this answer is selected?"
+                  options={actionTypeOptions}
+                  value={answer.actionType}
+                  onChange={(value) => handleAnswerActionTypeChange(index, value)}
+                />
 
-              <TextField
-                label={answer1ActionType === "show_text" ? "Message to show" : "IDs"}
-                value={answer1ActionData}
-                onChange={setAnswer1ActionData}
-                placeholder={getActionDataPlaceholder(answer1ActionType)}
-                multiline={answer1ActionType === "show_text" ? 3 : 1}
-                autoComplete="off"
-                helpText={getActionDataHelp(answer1ActionType)}
-                requiredIndicator
-              />
-            </BlockStack>
-          </Card>
+                {answer.actionType === "show_text" && (
+                  <TextField
+                    label="Message to show"
+                    value={answer.actionData}
+                    onChange={(value) => updateAnswer(index, "actionData", value)}
+                    placeholder="Great choice! Here are some products we think you'll love..."
+                    multiline={3}
+                    autoComplete="off"
+                    helpText="Enter the text message to show when this answer is selected"
+                    requiredIndicator
+                  />
+                )}
 
-          {/* Answer 2 */}
-          <Card>
-            <BlockStack gap="400">
-              <InlineStack gap="200" blockAlign="center">
-                <Badge tone="success">Answer 2</Badge>
-                <Text as="h2" variant="headingMd">
-                  Second Answer Option
-                </Text>
-              </InlineStack>
+                {answer.actionType === "show_html" && (
+                  <TextField
+                    label="HTML Content"
+                    value={answer.actionData}
+                    onChange={(value) => updateAnswer(index, "actionData", value)}
+                    placeholder='<div class="result"><h2>Great choice!</h2><p>Perfect for your style.</p></div>'
+                    multiline={6}
+                    autoComplete="off"
+                    helpText="HTML content to display (supports all HTML tags)"
+                    requiredIndicator
+                  />
+                )}
+              </BlockStack>
+            </Card>
+          ))}
 
-              <TextField
-                label="Answer text"
-                value={answer2Text}
-                onChange={setAnswer2Text}
-                placeholder="e.g., Bold & Colorful"
-                autoComplete="off"
-                requiredIndicator
-              />
-
-              <Select
-                label="What should happen when this answer is selected?"
-                options={actionTypeOptions}
-                value={answer2ActionType}
-                onChange={setAnswer2ActionType}
-              />
-
-              <TextField
-                label={answer2ActionType === "show_text" ? "Message to show" : "IDs"}
-                value={answer2ActionData}
-                onChange={setAnswer2ActionData}
-                placeholder={getActionDataPlaceholder(answer2ActionType)}
-                multiline={answer2ActionType === "show_text" ? 3 : 1}
-                autoComplete="off"
-                helpText={getActionDataHelp(answer2ActionType)}
-                requiredIndicator
-              />
-            </BlockStack>
-          </Card>
+          {/* Add Answer Button */}
+          {answers.length < 5 && (
+            <Card>
+              <Button onClick={addAnswer} variant="plain" fullWidth>
+                + Add another answer ({answers.length}/5)
+              </Button>
+            </Card>
+          )}
         </Layout.Section>
 
         <Layout.Section variant="oneThird">

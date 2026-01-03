@@ -385,6 +385,12 @@
     }
 
     showResetButton() {
+      // Only show reset button in staging/development environments
+      const isProduction = this.appUrl && this.appUrl.includes('turbo-quizz-1660bbe41f52.herokuapp.com');
+      if (isProduction) {
+        return; // Don't show reset button in production
+      }
+
       // Check if reset button already exists
       let resetBtn = this.container.querySelector('.turbo-quiz-reset-btn');
       if (!resetBtn) {
