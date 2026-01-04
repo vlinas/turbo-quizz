@@ -805,6 +805,10 @@ export default function QuizBuilder() {
 
     // Serialize answers array with indexed keys
     answers.forEach((answer, i) => {
+      console.log(`[Frontend] Saving answer ${i}: text="${answer.text}", actionType="${answer.actionType}", actionData length=${answer.actionData?.length || 0}`);
+      if (answer.actionType === "show_html") {
+        console.log(`[Frontend] HTML preview: "${answer.actionData?.substring(0, 100)}..."`);
+      }
       formData.append(`answers[${i}][text]`, answer.text);
       formData.append(`answers[${i}][action_type]`, answer.actionType);
       formData.append(`answers[${i}][action_data]`, answer.actionData);
