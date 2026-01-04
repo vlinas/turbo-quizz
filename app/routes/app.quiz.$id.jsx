@@ -254,6 +254,9 @@ export const action = async ({ request, params }) => {
   const formData = await request.formData();
   const actionType = formData.get("_action");
 
+  // DEBUG: Log what action is being triggered
+  console.log(`=== ACTION TRIGGERED: ${actionType} ===`);
+
   // Convert id to integer
   const quizId = parseInt(id, 10);
   if (isNaN(quizId)) {
