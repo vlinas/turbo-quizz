@@ -1109,9 +1109,12 @@ export default function QuizBuilder() {
                               <TextField
                                 label="HTML Content"
                                 value={answer.actionData}
-                                onChange={(value) => updateAnswer(index, "actionData", value)}
+                                onChange={(value) => {
+                                  console.log(`[HTML Input] Answer ${index} onChange: length=${value?.length || 0}`);
+                                  updateAnswer(index, "actionData", value);
+                                }}
                                 placeholder='<div class="result"><h2>Great choice!</h2><p>Perfect for your style.</p></div>'
-                                multiline={6}
+                                multiline={10}
                                 autoComplete="off"
                                 helpText="HTML content to display (supports all HTML tags)"
                               />
