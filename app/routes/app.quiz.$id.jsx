@@ -384,8 +384,10 @@ export const action = async ({ request, params }) => {
 
         if (answer.actionType === "show_text") {
           actionDataObj = { text: answer.actionData };
+          console.log(`[Add Question] Answer ${i}: show_text, length=${answer.actionData?.length || 0}`);
         } else if (answer.actionType === "show_html") {
           actionDataObj = { html: answer.actionData };
+          console.log(`[Add Question] Answer ${i}: show_html, length=${answer.actionData?.length || 0}, preview="${answer.actionData?.substring(0, 80)}..."`);
         } else if (answer.actionType === "show_products" || answer.actionType === "show_collections") {
           try {
             const parsed = JSON.parse(answer.actionData || "{}");
@@ -399,7 +401,7 @@ export const action = async ({ request, params }) => {
               actionDataObj = { collections: nodes, custom_text: (answer.customText || parsed.custom_text || "Based on your answers, check out these collections:") };
             }
           } catch (e) {
-            console.error(`[Answer ${i + 1}] Error parsing/fetching:`, e);
+            console.error(`[Add Question Answer ${i + 1}] Error parsing/fetching:`, e);
             actionDataObj = answer.actionType === "show_products" ? {
               products: [],
               custom_text: "Based on your answers, we recommend these products:"
@@ -451,12 +453,14 @@ export const action = async ({ request, params }) => {
     const answers = [];
     for (let i = 0; i < 5; i++) {
       const text = formData.get(`answers[${i}][text]`);
-      const actionType = formData.get(`answers[${i}][action_type]`);
+      const answerActionType = formData.get(`answers[${i}][action_type]`);
       const actionData = formData.get(`answers[${i}][action_data]`);
       const customText = formData.get(`answers[${i}][custom_text]`);
 
-      if (text && actionType) {
-        answers.push({ text, actionType, actionData, customText });
+      console.log(`[Update Question] Answer ${i}: text="${text?.substring(0, 50)}", actionType="${answerActionType}", actionData length=${actionData?.length || 0}`);
+
+      if (text && answerActionType) {
+        answers.push({ text, actionType: answerActionType, actionData, customText });
       }
     }
 
@@ -504,8 +508,10 @@ export const action = async ({ request, params }) => {
 
         if (answer.actionType === "show_text") {
           actionDataObj = { text: answer.actionData };
+          console.log(`[Update Question] Answer ${i}: show_text, length=${answer.actionData?.length || 0}`);
         } else if (answer.actionType === "show_html") {
           actionDataObj = { html: answer.actionData };
+          console.log(`[Update Question] Answer ${i}: show_html, length=${answer.actionData?.length || 0}, preview="${answer.actionData?.substring(0, 80)}..."`);
         } else if (answer.actionType === "show_products" || answer.actionType === "show_collections") {
           try {
             const parsed = JSON.parse(answer.actionData || "{}");
@@ -519,7 +525,7 @@ export const action = async ({ request, params }) => {
               actionDataObj = { collections: nodes, custom_text: (answer.customText || parsed.custom_text || "Based on your answers, check out these collections:") };
             }
           } catch (e) {
-            console.error(`[Update Answer ${i + 1}] Error parsing/fetching:`, e);
+            console.error(`[Update Question Answer ${i + 1}] Error parsing/fetching:`, e);
             actionDataObj = answer.actionType === "show_products" ? {
               products: [],
               custom_text: "Based on your answers, we recommend these products:"

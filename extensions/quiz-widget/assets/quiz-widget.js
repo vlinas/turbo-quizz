@@ -396,7 +396,7 @@
       if (!resetBtn) {
         resetBtn = document.createElement('button');
         resetBtn.className = 'turbo-quiz-reset-btn';
-        resetBtn.textContent = 'Reset Quiz (Testing)';
+        resetBtn.textContent = 'Reset Quiz (for testing purposes only)';
         resetBtn.style.cssText = 'margin-top: 16px; padding: 8px 16px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 12px; color: #666;';
         resetBtn.addEventListener('click', () => this.resetForTesting());
         this.resultEl.appendChild(resetBtn);
