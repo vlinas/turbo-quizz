@@ -818,19 +818,28 @@ export default function QuizBuilder() {
     formData.append("metafield_key", newMetafieldKey);
 
     // Serialize answers array with indexed keys
+    console.log("=== FRONTEND SAVE START ===");
+    console.log("Total answers:", answers.length);
     answers.forEach((answer, i) => {
-      console.log(`[Frontend] Saving answer ${i}: text="${answer.text}", actionType="${answer.actionType}", actionData length=${answer.actionData?.length || 0}`);
+      console.log(`[Frontend] Saving answer ${i}:`);
+      console.log(`  text: "${answer.text}"`);
+      console.log(`  actionType: "${answer.actionType}"`);
+      console.log(`  actionData type: ${typeof answer.actionData}`);
+      console.log(`  actionData length: ${answer.actionData?.length || 0}`);
+      console.log(`  actionData hasClass: ${answer.actionData?.includes('class=')}`);
+      console.log(`  actionData hasQuotes: ${answer.actionData?.includes('"')}`);
       if (answer.actionType === "show_html") {
-        console.log(`[Frontend] HTML preview: "${answer.actionData?.substring(0, 100)}..."`);
+        console.log(`  HTML FULL CONTENT: ${JSON.stringify(answer.actionData)}`);
       }
       formData.append(`answers[${i}][text]`, answer.text);
       formData.append(`answers[${i}][action_type]`, answer.actionType);
-      formData.append(`answers[${i}][action_data]`, answer.actionData);
+      formData.append(`answers[${i}][action_data]`, answer.actionData || "");
       if (answer.actionType === "show_products" || answer.actionType === "show_collections") {
         formData.append(`answers[${i}][custom_text]`, answer.customText);
       }
     });
 
+    console.log("=== FRONTEND SAVE END - Submitting FormData ===");
     submit(formData, { method: "post" });
 
     // Reset form
