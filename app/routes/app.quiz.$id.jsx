@@ -449,6 +449,17 @@ export const action = async ({ request, params }) => {
     const question_text = formData.get("question_text");
     const metafield_key = formData.get("metafield_key") || null;
 
+    // DEBUG: Log all form data entries to understand what's being received
+    console.log("=== UPDATE_QUESTION DEBUG START ===");
+    console.log("question_id:", question_id);
+    console.log("question_text:", question_text?.substring(0, 50));
+    for (const [key, value] of formData.entries()) {
+      if (key.includes("action_data")) {
+        console.log(`FormData ${key}: length=${value?.length || 0}, preview="${String(value).substring(0, 100)}"`);
+      }
+    }
+    console.log("=== UPDATE_QUESTION DEBUG END ===");
+
     // Parse dynamic answers from form data (supports 2-5 answers)
     const answers = [];
     for (let i = 0; i < 5; i++) {
@@ -457,7 +468,10 @@ export const action = async ({ request, params }) => {
       const actionData = formData.get(`answers[${i}][action_data]`);
       const customText = formData.get(`answers[${i}][custom_text]`);
 
-      console.log(`[Update Question] Answer ${i}: text="${text?.substring(0, 50)}", actionType="${answerActionType}", actionData length=${actionData?.length || 0}`);
+      console.log(`[Update Question] Answer ${i}: text="${text?.substring(0, 50)}", actionType="${answerActionType}", actionData length=${actionData?.length || 0}, hasClass=${actionData?.includes('class=')}`);
+      if (answerActionType === "show_html" && actionData) {
+        console.log(`[Update Question] HTML content for answer ${i}: "${actionData.substring(0, 200)}"`);
+      }
 
       if (text && answerActionType) {
         answers.push({ text, actionType: answerActionType, actionData, customText });
