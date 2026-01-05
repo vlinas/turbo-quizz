@@ -538,28 +538,63 @@ export const action = async ({ request, params }) => {
         });
       }
 
-      // Update question and recreate answers in a transaction
-      // Delete old answers and create new ones (simpler when count changes)
-      await prisma.$transaction([
+      // Smart update: preserve answer IDs when possible to keep analytics
+      const existingAnswers = existingQuestion.answers.sort((a, b) => a.order - b.order);
+      const newAnswerCount = answerCreateData.length;
+      const existingAnswerCount = existingAnswers.length;
+
+      // Build transaction operations
+      const operations = [
         // Update question text and metafield_key
         prisma.question.update({
           where: { question_id },
           data: { question_text, metafield_key },
         }),
-        // Delete all existing answers
-        prisma.answer.deleteMany({
-          where: { question_id },
-        }),
-        // Create new answers
-        ...answerCreateData.map((answerData) =>
-          prisma.answer.create({
+      ];
+
+      // Update existing answers that have a matching position
+      const answersToUpdate = Math.min(existingAnswerCount, newAnswerCount);
+      for (let i = 0; i < answersToUpdate; i++) {
+        operations.push(
+          prisma.answer.update({
+            where: { answer_id: existingAnswers[i].answer_id },
             data: {
-              question_id,
-              ...answerData,
+              answer_text: answerCreateData[i].answer_text,
+              action_type: answerCreateData[i].action_type,
+              action_data: answerCreateData[i].action_data,
+              order: answerCreateData[i].order,
             },
           })
-        ),
-      ]);
+        );
+      }
+
+      // If we have more new answers than existing, create new ones
+      if (newAnswerCount > existingAnswerCount) {
+        for (let i = existingAnswerCount; i < newAnswerCount; i++) {
+          operations.push(
+            prisma.answer.create({
+              data: {
+                question_id,
+                ...answerCreateData[i],
+              },
+            })
+          );
+        }
+      }
+
+      // If we have fewer new answers than existing, delete extras
+      if (newAnswerCount < existingAnswerCount) {
+        const answerIdsToDelete = existingAnswers
+          .slice(newAnswerCount)
+          .map((a) => a.answer_id);
+        operations.push(
+          prisma.answer.deleteMany({
+            where: { answer_id: { in: answerIdsToDelete } },
+          })
+        );
+      }
+
+      await prisma.$transaction(operations);
 
       return json({ success: true, message: "Question updated successfully" });
     } catch (error) {
