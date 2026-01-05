@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "b6946453d658cb87dd6962999aec6fd0"
-name = "Simple Product Quiz Survey"
+name = "Quizza: Product Quiz Builder"
 application_url = "https://turbo-quizz-1660bbe41f52.herokuapp.com"
 embedded = true
 
