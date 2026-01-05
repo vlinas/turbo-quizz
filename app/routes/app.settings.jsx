@@ -591,7 +591,7 @@ export default function BillingPage() {
                           Contact us:
                         </Text>
                         <Text as="p" variant="bodyLg" fontWeight="bold">
-                          info@linveba.com
+                          info@quizza.app
                         </Text>
                       </BlockStack>
                     </Box>
