@@ -254,9 +254,6 @@ export const action = async ({ request, params }) => {
   const formData = await request.formData();
   const actionType = formData.get("_action");
 
-  // DEBUG: Log what action is being triggered
-  console.log(`=== ACTION TRIGGERED: ${actionType} ===`);
-
   // Convert id to integer
   const quizId = parseInt(id, 10);
   if (isNaN(quizId)) {
@@ -387,10 +384,8 @@ export const action = async ({ request, params }) => {
 
         if (answer.actionType === "show_text") {
           actionDataObj = { text: answer.actionData };
-          console.log(`[Add Question] Answer ${i}: show_text, length=${answer.actionData?.length || 0}`);
         } else if (answer.actionType === "show_html") {
           actionDataObj = { html: answer.actionData };
-          console.log(`[Add Question] Answer ${i}: show_html, length=${answer.actionData?.length || 0}, preview="${answer.actionData?.substring(0, 80)}..."`);
         } else if (answer.actionType === "show_products" || answer.actionType === "show_collections") {
           try {
             const parsed = JSON.parse(answer.actionData || "{}");
@@ -452,17 +447,6 @@ export const action = async ({ request, params }) => {
     const question_text = formData.get("question_text");
     const metafield_key = formData.get("metafield_key") || null;
 
-    // DEBUG: Log all form data entries to understand what's being received
-    console.log("=== UPDATE_QUESTION DEBUG START ===");
-    console.log("question_id:", question_id);
-    console.log("question_text:", question_text?.substring(0, 50));
-    for (const [key, value] of formData.entries()) {
-      if (key.includes("action_data")) {
-        console.log(`FormData ${key}: length=${value?.length || 0}, preview="${String(value).substring(0, 100)}"`);
-      }
-    }
-    console.log("=== UPDATE_QUESTION DEBUG END ===");
-
     // Parse dynamic answers from form data (supports 2-5 answers)
     const answers = [];
     for (let i = 0; i < 5; i++) {
@@ -470,11 +454,6 @@ export const action = async ({ request, params }) => {
       const answerActionType = formData.get(`answers[${i}][action_type]`);
       const actionData = formData.get(`answers[${i}][action_data]`);
       const customText = formData.get(`answers[${i}][custom_text]`);
-
-      console.log(`[Update Question] Answer ${i}: text="${text?.substring(0, 50)}", actionType="${answerActionType}", actionData length=${actionData?.length || 0}, hasClass=${actionData?.includes('class=')}`);
-      if (answerActionType === "show_html" && actionData) {
-        console.log(`[Update Question] HTML content for answer ${i}: "${actionData.substring(0, 200)}"`);
-      }
 
       if (text && answerActionType) {
         answers.push({ text, actionType: answerActionType, actionData, customText });
@@ -525,10 +504,8 @@ export const action = async ({ request, params }) => {
 
         if (answer.actionType === "show_text") {
           actionDataObj = { text: answer.actionData };
-          console.log(`[Update Question] Answer ${i}: show_text, length=${answer.actionData?.length || 0}`);
         } else if (answer.actionType === "show_html") {
           actionDataObj = { html: answer.actionData };
-          console.log(`[Update Question] Answer ${i}: show_html, length=${answer.actionData?.length || 0}, preview="${answer.actionData?.substring(0, 80)}..."`);
         } else if (answer.actionType === "show_products" || answer.actionType === "show_collections") {
           try {
             const parsed = JSON.parse(answer.actionData || "{}");
@@ -634,7 +611,7 @@ export default function QuizBuilder() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
-  const [showAddQuestion, setShowAddQuestion] = useState(false);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const [dateRange, setDateRange] = useState(String(analytics.days));
 
@@ -802,7 +779,7 @@ export default function QuizBuilder() {
   };
 
   const handleAddQuestion = () => {
-    setShowAddQuestion(true);
+    setShowQuestionModal(true);
   };
 
   const handleSaveNewQuestion = () => {
@@ -821,19 +798,7 @@ export default function QuizBuilder() {
     formData.append("metafield_key", newMetafieldKey);
 
     // Serialize answers array with indexed keys
-    console.log("=== FRONTEND SAVE START ===");
-    console.log("Total answers:", answers.length);
     answers.forEach((answer, i) => {
-      console.log(`[Frontend] Saving answer ${i}:`);
-      console.log(`  text: "${answer.text}"`);
-      console.log(`  actionType: "${answer.actionType}"`);
-      console.log(`  actionData type: ${typeof answer.actionData}`);
-      console.log(`  actionData length: ${answer.actionData?.length || 0}`);
-      console.log(`  actionData hasClass: ${answer.actionData?.includes('class=')}`);
-      console.log(`  actionData hasQuotes: ${answer.actionData?.includes('"')}`);
-      if (answer.actionType === "show_html") {
-        console.log(`  HTML FULL CONTENT: ${JSON.stringify(answer.actionData)}`);
-      }
       formData.append(`answers[${i}][text]`, answer.text);
       formData.append(`answers[${i}][action_type]`, answer.actionType);
       formData.append(`answers[${i}][action_data]`, answer.actionData || "");
@@ -842,19 +807,18 @@ export default function QuizBuilder() {
       }
     });
 
-    console.log("=== FRONTEND SAVE END - Submitting FormData ===");
     submit(formData, { method: "post" });
 
     // Reset form
     setNewQuestionText("");
     setNewMetafieldKey("");
     setAnswers([createEmptyAnswer(), createEmptyAnswer()]);
-    setShowAddQuestion(false);
+    setShowQuestionModal(false);
     setEditingQuestionId(null);
   };
 
-  const handleCancelNewQuestion = () => {
-    setShowAddQuestion(false);
+  const handleCloseQuestionModal = () => {
+    setShowQuestionModal(false);
     setNewQuestionText("");
     setNewMetafieldKey("");
     setAnswers([createEmptyAnswer(), createEmptyAnswer()]);
@@ -916,7 +880,7 @@ export default function QuizBuilder() {
 
     setAnswers(mappedAnswers);
     setEditingQuestionId(question.question_id);
-    setShowAddQuestion(true);
+    setShowQuestionModal(true);
   };
 
   const toastMarkup = toastActive ? (
@@ -1057,219 +1021,7 @@ export default function QuizBuilder() {
                     )}
                   </InlineStack>
 
-                  {/* Inline Add/Edit Question Form */}
-                  {showAddQuestion && (
-                    <Card background="bg-surface-warning-subdued">
-                      <BlockStack gap="400">
-                        <Text as="h3" variant="headingMd">
-                          {editingQuestionId ? "Edit Question" : "New Question"}
-                        </Text>
-
-                        <TextField
-                          label="Question text"
-                          value={newQuestionText}
-                          onChange={setNewQuestionText}
-                          placeholder="e.g., What's your preferred style?"
-                          autoComplete="off"
-                          requiredIndicator
-                        />
-
-                        <TextField
-                          label="Metafield Key (optional)"
-                          value={newMetafieldKey}
-                          onChange={setNewMetafieldKey}
-                          placeholder="e.g., gender, skin_type, style_preference"
-                          autoComplete="off"
-                          helpText="Used for customer personalization. The selected answer will be saved as customer.metafields.quiz.[key]. Use lowercase with underscores."
-                        />
-
-                        <Divider />
-
-                        {/* Dynamic Answers (2-5) */}
-                        {answers.map((answer, index) => (
-                          <BlockStack gap="300" key={index}>
-                            <InlineStack align="space-between" blockAlign="center">
-                              <Text as="h4" variant="headingSm">
-                                Answer {index + 1}
-                              </Text>
-                              {answers.length > 2 && (
-                                <Button
-                                  variant="plain"
-                                  tone="critical"
-                                  onClick={() => removeAnswer(index)}
-                                >
-                                  Remove
-                                </Button>
-                              )}
-                            </InlineStack>
-                            <TextField
-                              label="Answer text"
-                              value={answer.text}
-                              onChange={(value) => updateAnswer(index, "text", value)}
-                              placeholder={index === 0 ? "e.g., Modern & Minimalist" : "e.g., Bold & Colorful"}
-                              autoComplete="off"
-                            />
-                            <Select
-                              label="Action type"
-                              options={[
-                                { label: "Show text message", value: "show_text" },
-                                { label: "Show HTML", value: "show_html" },
-                              ]}
-                              value={answer.actionType}
-                              onChange={(value) => handleAnswerActionTypeChange(index, value)}
-                            />
-
-                            {answer.actionType === "show_text" && (
-                              <TextField
-                                label="Message"
-                                value={answer.actionData}
-                                onChange={(value) => updateAnswer(index, "actionData", value)}
-                                placeholder="Great choice!"
-                                multiline={4}
-                                autoComplete="off"
-                                helpText="Plain text message to show"
-                              />
-                            )}
-
-                            {answer.actionType === "show_html" && (
-                              <TextField
-                                label="HTML Content"
-                                value={answer.actionData}
-                                onChange={(value) => {
-                                  console.log(`[HTML Input] Answer ${index} onChange: length=${value?.length || 0}`);
-                                  updateAnswer(index, "actionData", value);
-                                }}
-                                placeholder='<div class="result"><h2>Great choice!</h2><p>Perfect for your style.</p></div>'
-                                multiline={10}
-                                autoComplete="off"
-                                helpText="HTML content to display (supports all HTML tags)"
-                              />
-                            )}
-
-                            {answer.actionType === "show_products" && (
-                              <BlockStack gap="200">
-                                <InlineStack gap="200" blockAlign="center">
-                                  <Button onClick={() => handlePickProductsForAnswer(index)}>
-                                    {answer.previewItems?.length ? "Change products" : "Pick products"}
-                                  </Button>
-                                  <Text as="span" tone="subdued">
-                                    {answer.previewItems?.length || 0} / 3 selected
-                                  </Text>
-                                </InlineStack>
-                                <TextField
-                                  label="Custom text"
-                                  value={answer.customText}
-                                  onChange={(value) => updateAnswer(index, "customText", value)}
-                                  placeholder="Based on your answers, we recommend these products:"
-                                />
-                                {answer.previewItems?.length ? (
-                                  <BlockStack gap="200">
-                                    {answer.previewItems.map((p) => (
-                                      <Box key={p.id} padding="300" background="bg-surface-secondary" borderRadius="200">
-                                        <InlineStack gap="300" blockAlign="center" wrap={false}>
-                                          {p.image ? (
-                                            <img src={p.image} alt={p.title || p.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8, flexShrink: 0 }} />
-                                          ) : (
-                                            <Box style={{ width: 48, height: 48, background: "#e0e0e0", borderRadius: 8, flexShrink: 0 }} />
-                                          )}
-                                          <Box style={{ flex: 1, minWidth: 0 }}>
-                                            <Text as="span" variant="bodyMd" truncate>
-                                              {p.title || p.id}
-                                            </Text>
-                                          </Box>
-                                          <Button
-                                            icon={DeleteIcon}
-                                            variant="plain"
-                                            tone="critical"
-                                            onClick={() => handleRemoveItem(index, p.id, "products")}
-                                          />
-                                        </InlineStack>
-                                      </Box>
-                                    ))}
-                                  </BlockStack>
-                                ) : null}
-                              </BlockStack>
-                            )}
-
-                            {answer.actionType === "show_collections" && (
-                              <BlockStack gap="200">
-                                <InlineStack gap="200" blockAlign="center">
-                                  <Button onClick={() => handlePickCollectionsForAnswer(index)}>
-                                    {answer.previewItems?.length ? "Change collections" : "Pick collections"}
-                                  </Button>
-                                  <Text as="span" tone="subdued">
-                                    {answer.previewItems?.length || 0} / 3 selected
-                                  </Text>
-                                </InlineStack>
-                                <TextField
-                                  label="Custom text"
-                                  value={answer.customText}
-                                  onChange={(value) => updateAnswer(index, "customText", value)}
-                                  placeholder="Based on your answers, check out these collections:"
-                                />
-                                {answer.previewItems?.length ? (
-                                  <BlockStack gap="200">
-                                    {answer.previewItems.map((c) => (
-                                      <Box key={c.id} padding="300" background="bg-surface-secondary" borderRadius="200">
-                                        <InlineStack gap="300" blockAlign="center" wrap={false}>
-                                          {c.image ? (
-                                            <img src={c.image} alt={c.title || c.id} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8, flexShrink: 0 }} />
-                                          ) : (
-                                            <Box style={{ width: 48, height: 48, background: "#e0e0e0", borderRadius: 8, flexShrink: 0 }} />
-                                          )}
-                                          <Box style={{ flex: 1, minWidth: 0 }}>
-                                            <Text as="span" variant="bodyMd" truncate>
-                                              {c.title || c.id}
-                                            </Text>
-                                          </Box>
-                                          <Button
-                                            icon={DeleteIcon}
-                                            variant="plain"
-                                            tone="critical"
-                                            onClick={() => handleRemoveItem(index, c.id, "collections")}
-                                          />
-                                        </InlineStack>
-                                      </Box>
-                                    ))}
-                                  </BlockStack>
-                                ) : null}
-                              </BlockStack>
-                            )}
-
-                            {index < answers.length - 1 && <Divider />}
-                          </BlockStack>
-                        ))}
-
-                        {/* Add Answer Button */}
-                        {answers.length < 5 && (
-                          <Button onClick={addAnswer} variant="plain">
-                            + Add another answer
-                          </Button>
-                        )}
-
-                        <Divider />
-
-                        <InlineStack gap="200">
-                          <Button
-                            variant="primary"
-                            onClick={handleSaveNewQuestion}
-                            disabled={
-                              !newQuestionText ||
-                              answers.length < 2 ||
-                              answers.some((a) => !a.text || !a.actionData)
-                            }
-                          >
-                            Save question
-                          </Button>
-                          <Button onClick={handleCancelNewQuestion}>
-                            Cancel
-                          </Button>
-                        </InlineStack>
-                      </BlockStack>
-                    </Card>
-                  )}
-
-                  {quiz.questions.length === 0 && !showAddQuestion ? (
+                  {quiz.questions.length === 0 ? (
                     <Box padding="400">
                       <BlockStack gap="200" inlineAlign="center">
                         <Text as="p" tone="subdued" alignment="center">
@@ -1280,9 +1032,9 @@ export default function QuizBuilder() {
                         </Button>
                       </BlockStack>
                     </Box>
-                  ) : !showAddQuestion ? (
+                  ) : (
                     <BlockStack gap="400">
-                      {quiz.questions.map((question, index) => (
+                      {quiz.questions.map((question) => (
                         <Card key={question.id} background="bg-surface-secondary">
                           <BlockStack gap="300">
                             <InlineStack align="space-between" blockAlign="start">
@@ -1343,7 +1095,7 @@ export default function QuizBuilder() {
                         </Card>
                       ))}
                     </BlockStack>
-                  ) : null}
+                  )}
                 </BlockStack>
               </Card>
             </BlockStack>
@@ -1561,6 +1313,215 @@ export default function QuizBuilder() {
                 height: "auto",
               }}
             />
+          </Modal.Section>
+        </Modal>
+
+        {/* Question Add/Edit Modal */}
+        <Modal
+          open={showQuestionModal}
+          onClose={handleCloseQuestionModal}
+          title={editingQuestionId ? "Edit Question" : "Add Question"}
+          size="large"
+          primaryAction={{
+            content: "Save Question",
+            onAction: handleSaveNewQuestion,
+            disabled: !newQuestionText || answers.length < 2 || answers.some((a) => !a.text || !a.actionData),
+          }}
+          secondaryActions={[
+            {
+              content: "Cancel",
+              onAction: handleCloseQuestionModal,
+            },
+          ]}
+        >
+          <Modal.Section>
+            <BlockStack gap="400">
+              <TextField
+                label="Question text"
+                value={newQuestionText}
+                onChange={setNewQuestionText}
+                placeholder="e.g., What's your preferred style?"
+                autoComplete="off"
+                requiredIndicator
+              />
+
+              <TextField
+                label="Metafield Key (optional)"
+                value={newMetafieldKey}
+                onChange={setNewMetafieldKey}
+                placeholder="e.g., gender, skin_type, style_preference"
+                autoComplete="off"
+                helpText="Used for customer personalization. The selected answer will be saved as customer.metafields.quiz.[key]. Use lowercase with underscores."
+              />
+            </BlockStack>
+          </Modal.Section>
+
+          <Modal.Section>
+            <BlockStack gap="400">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h3" variant="headingMd">Answers</Text>
+                {answers.length < 5 && (
+                  <Button onClick={addAnswer} icon={PlusIcon} variant="plain">
+                    Add answer
+                  </Button>
+                )}
+              </InlineStack>
+
+              {answers.map((answer, index) => (
+                <Card key={index} background="bg-surface-secondary">
+                  <BlockStack gap="300">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text as="h4" variant="headingSm">
+                        Answer {index + 1}
+                      </Text>
+                      {answers.length > 2 && (
+                        <Button
+                          icon={DeleteIcon}
+                          variant="plain"
+                          tone="critical"
+                          onClick={() => removeAnswer(index)}
+                          accessibilityLabel="Remove answer"
+                        />
+                      )}
+                    </InlineStack>
+
+                    <TextField
+                      label="Answer text"
+                      value={answer.text}
+                      onChange={(value) => updateAnswer(index, "text", value)}
+                      placeholder={index === 0 ? "e.g., Modern & Minimalist" : "e.g., Bold & Colorful"}
+                      autoComplete="off"
+                    />
+
+                    <Select
+                      label="Action type"
+                      options={[
+                        { label: "Show text message", value: "show_text" },
+                        { label: "Show HTML", value: "show_html" },
+                      ]}
+                      value={answer.actionType}
+                      onChange={(value) => handleAnswerActionTypeChange(index, value)}
+                    />
+
+                    {answer.actionType === "show_text" && (
+                      <TextField
+                        label="Message"
+                        value={answer.actionData}
+                        onChange={(value) => updateAnswer(index, "actionData", value)}
+                        placeholder="Great choice!"
+                        multiline={3}
+                        autoComplete="off"
+                        helpText="Plain text message to show"
+                      />
+                    )}
+
+                    {answer.actionType === "show_html" && (
+                      <TextField
+                        label="HTML Content"
+                        value={answer.actionData}
+                        onChange={(value) => updateAnswer(index, "actionData", value)}
+                        placeholder='<div class="result"><h2>Great choice!</h2><p>Perfect for your style.</p></div>'
+                        multiline={6}
+                        autoComplete="off"
+                        helpText="HTML content to display (supports all HTML tags)"
+                      />
+                    )}
+
+                    {answer.actionType === "show_products" && (
+                      <BlockStack gap="200">
+                        <InlineStack gap="200" blockAlign="center">
+                          <Button onClick={() => handlePickProductsForAnswer(index)}>
+                            {answer.previewItems?.length ? "Change products" : "Pick products"}
+                          </Button>
+                          <Text as="span" tone="subdued">
+                            {answer.previewItems?.length || 0} / 3 selected
+                          </Text>
+                        </InlineStack>
+                        <TextField
+                          label="Custom text"
+                          value={answer.customText}
+                          onChange={(value) => updateAnswer(index, "customText", value)}
+                          placeholder="Based on your answers, we recommend these products:"
+                        />
+                        {answer.previewItems?.length ? (
+                          <BlockStack gap="200">
+                            {answer.previewItems.map((p) => (
+                              <Box key={p.id} padding="300" background="bg-surface" borderRadius="200">
+                                <InlineStack gap="300" blockAlign="center" wrap={false}>
+                                  {p.image ? (
+                                    <img src={p.image} alt={p.title || p.id} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
+                                  ) : (
+                                    <Box style={{ width: 40, height: 40, background: "#e0e0e0", borderRadius: 6, flexShrink: 0 }} />
+                                  )}
+                                  <Box style={{ flex: 1, minWidth: 0 }}>
+                                    <Text as="span" variant="bodySm" truncate>
+                                      {p.title || p.id}
+                                    </Text>
+                                  </Box>
+                                  <Button
+                                    icon={DeleteIcon}
+                                    variant="plain"
+                                    tone="critical"
+                                    size="slim"
+                                    onClick={() => handleRemoveItem(index, p.id, "products")}
+                                  />
+                                </InlineStack>
+                              </Box>
+                            ))}
+                          </BlockStack>
+                        ) : null}
+                      </BlockStack>
+                    )}
+
+                    {answer.actionType === "show_collections" && (
+                      <BlockStack gap="200">
+                        <InlineStack gap="200" blockAlign="center">
+                          <Button onClick={() => handlePickCollectionsForAnswer(index)}>
+                            {answer.previewItems?.length ? "Change collections" : "Pick collections"}
+                          </Button>
+                          <Text as="span" tone="subdued">
+                            {answer.previewItems?.length || 0} / 3 selected
+                          </Text>
+                        </InlineStack>
+                        <TextField
+                          label="Custom text"
+                          value={answer.customText}
+                          onChange={(value) => updateAnswer(index, "customText", value)}
+                          placeholder="Based on your answers, check out these collections:"
+                        />
+                        {answer.previewItems?.length ? (
+                          <BlockStack gap="200">
+                            {answer.previewItems.map((c) => (
+                              <Box key={c.id} padding="300" background="bg-surface" borderRadius="200">
+                                <InlineStack gap="300" blockAlign="center" wrap={false}>
+                                  {c.image ? (
+                                    <img src={c.image} alt={c.title || c.id} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
+                                  ) : (
+                                    <Box style={{ width: 40, height: 40, background: "#e0e0e0", borderRadius: 6, flexShrink: 0 }} />
+                                  )}
+                                  <Box style={{ flex: 1, minWidth: 0 }}>
+                                    <Text as="span" variant="bodySm" truncate>
+                                      {c.title || c.id}
+                                    </Text>
+                                  </Box>
+                                  <Button
+                                    icon={DeleteIcon}
+                                    variant="plain"
+                                    tone="critical"
+                                    size="slim"
+                                    onClick={() => handleRemoveItem(index, c.id, "collections")}
+                                  />
+                                </InlineStack>
+                              </Box>
+                            ))}
+                          </BlockStack>
+                        ) : null}
+                      </BlockStack>
+                    )}
+                  </BlockStack>
+                </Card>
+              ))}
+            </BlockStack>
           </Modal.Section>
         </Modal>
 
