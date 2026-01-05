@@ -1358,14 +1358,7 @@ export default function QuizBuilder() {
 
           <Modal.Section>
             <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center">
-                <Text as="h3" variant="headingMd">Answers</Text>
-                {answers.length < 5 && (
-                  <Button onClick={addAnswer} icon={PlusIcon} variant="plain">
-                    Add answer
-                  </Button>
-                )}
-              </InlineStack>
+              <Text as="h3" variant="headingMd">Answers</Text>
 
               {answers.map((answer, index) => (
                 <Card key={index} background="bg-surface-secondary">
@@ -1521,6 +1514,12 @@ export default function QuizBuilder() {
                   </BlockStack>
                 </Card>
               ))}
+
+              {answers.length < 5 && (
+                <Button onClick={addAnswer} icon={PlusIcon} tone="success">
+                  Add answer
+                </Button>
+              )}
             </BlockStack>
           </Modal.Section>
         </Modal>
