@@ -1061,32 +1061,22 @@ export default function QuizBuilder() {
                             <Divider />
 
                             {/* Answers */}
-                            <BlockStack gap="200">
-                              {question.answers.map((answer, answerIndex) => {
+                            <BlockStack gap="100">
+                              {question.answers.map((answer) => {
                                 const stats = answerStats[answer.answer_id] || { clicks: 0, percentage: "0.0" };
                                 return (
-                                  <Box key={answer.id} padding="300" background="bg-surface">
-                                    <BlockStack gap="200">
-                                      <InlineStack align="space-between" blockAlign="center">
-                                        <InlineStack gap="200" blockAlign="center">
-                                          <Badge tone={answerIndex === 0 ? "info" : "success"}>
-                                            Answer {answerIndex + 1}
-                                          </Badge>
-                                          <Text as="span" fontWeight="semibold">
-                                            {answer.answer_text}
-                                          </Text>
-                                        </InlineStack>
-                                        <InlineStack gap="300" blockAlign="center">
-                                          <Text as="span" variant="bodySm" tone="subdued">
-                                            {stats.clicks} clicks
-                                          </Text>
-                                          <Badge tone="info">{stats.percentage}%</Badge>
-                                        </InlineStack>
-                                      </InlineStack>
-                                      <Text as="p" variant="bodySm" tone="subdued">
-                                        Action: {answer.action_type === "show_text" ? "Show text" : answer.action_type === "show_html" ? "Show HTML" : answer.action_type === "show_products" ? "Show products" : "Show collections"}
+                                  <Box key={answer.id} paddingBlock="200">
+                                    <InlineStack align="space-between" blockAlign="center">
+                                      <Text as="span" variant="bodyMd">
+                                        {answer.answer_text}
                                       </Text>
-                                    </BlockStack>
+                                      <InlineStack gap="300" blockAlign="center">
+                                        <Text as="span" variant="bodySm" tone="subdued">
+                                          {stats.clicks} clicks
+                                        </Text>
+                                        <Badge>{stats.percentage}%</Badge>
+                                      </InlineStack>
+                                    </InlineStack>
                                   </Box>
                                 );
                               })}
