@@ -1516,7 +1516,7 @@ export default function QuizBuilder() {
               ))}
 
               {answers.length < 5 && (
-                <Button onClick={addAnswer} icon={PlusIcon} tone="success">
+                <Button onClick={addAnswer} icon={PlusIcon} variant="primary">
                   Add answer
                 </Button>
               )}
