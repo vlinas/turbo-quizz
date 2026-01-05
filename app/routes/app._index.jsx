@@ -38,7 +38,23 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
 export const loader = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
+
+  // Get shop currency from Shopify API
+  let shopCurrency = "USD";
+  try {
+    const response = await admin.graphql(`
+      query {
+        shop {
+          currencyCode
+        }
+      }
+    `);
+    const data = await response.json();
+    shopCurrency = data.data?.shop?.currencyCode || "USD";
+  } catch (e) {
+    console.error("Failed to fetch shop currency:", e);
+  }
 
   // Fetch quizzes with stats
   const quizzes = await prisma.quiz.findMany({
@@ -109,12 +125,42 @@ export const loader = async ({ request }) => {
 
   return {
     quizzes: quizzesWithStats,
+    shopCurrency,
   };
+};
+
+// Currency symbol mapping
+const currencySymbols = {
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  CAD: "CA$",
+  AUD: "A$",
+  JPY: "¥",
+  CNY: "¥",
+  INR: "₹",
+  BRL: "R$",
+  MXN: "MX$",
+  KRW: "₩",
+  SEK: "kr",
+  NOK: "kr",
+  DKK: "kr",
+  CHF: "CHF",
+  NZD: "NZ$",
+  SGD: "S$",
+  HKD: "HK$",
+  PLN: "zł",
+  CZK: "Kč",
+};
+
+const getCurrencySymbol = (currencyCode) => {
+  return currencySymbols[currencyCode] || currencyCode + " ";
 };
 
 export default function Index() {
   const navigate = useNavigate();
-  const { quizzes } = useLoaderData();
+  const { quizzes, shopCurrency } = useLoaderData();
+  const currencySymbol = getCurrencySymbol(shopCurrency);
 
   // State
   const [showImageModal, setShowImageModal] = useState(false);
@@ -249,22 +295,14 @@ export default function Index() {
         </IndexTable.Cell>
         <IndexTable.Cell>
           <Box paddingBlockStart="300" paddingBlockEnd="300">
-            <Badge
-              tone={
-                completionRate >= 70
-                  ? "success"
-                  : completionRate >= 40
-                    ? "info"
-                    : "attention"
-              }
-            >
+            <Badge>
               {completionRate}%
             </Badge>
           </Box>
         </IndexTable.Cell>
         <IndexTable.Cell>
           <Box paddingBlockStart="300" paddingBlockEnd="300">
-            <Text as="span">${attributedRevenue.toFixed(2)}</Text>
+            <Text as="span">{currencySymbol}{attributedRevenue.toFixed(2)}</Text>
           </Box>
         </IndexTable.Cell>
         <IndexTable.Cell>
@@ -479,7 +517,7 @@ export default function Index() {
             </Text>
           </InlineStack>
           <Text as="p" variant="heading2xl">
-            ${metrics.totalAttributedRevenue.toFixed(2)}
+            {currencySymbol}{metrics.totalAttributedRevenue.toFixed(2)}
           </Text>
           <Text as="p" variant="bodySm" tone="subdued">
             Total from all quizzes
