@@ -134,6 +134,22 @@ export const loader = async ({ request, params }) => {
   const daysParam = url.searchParams.get("days") || "30";
   const days = parseInt(daysParam, 10);
 
+  // Get shop currency from Shopify API
+  let shopCurrency = "USD";
+  try {
+    const response = await admin.graphql(`
+      query {
+        shop {
+          currencyCode
+        }
+      }
+    `);
+    const data = await response.json();
+    shopCurrency = data.data?.shop?.currencyCode || "USD";
+  } catch (e) {
+    console.error("Failed to fetch shop currency:", e);
+  }
+
   // Convert id to integer
   const quizId = parseInt(id, 10);
   if (isNaN(quizId)) {
@@ -235,6 +251,32 @@ export const loader = async ({ request, params }) => {
     }
   }
 
+  // Fetch revenue per answer from AnswerOrderAttribution
+  // This shows how much revenue each answer choice has contributed
+  const answerRevenueData = await prisma.answerOrderAttribution.groupBy({
+    by: ['answer_id'],
+    where: {
+      quiz_id: quizId,
+      shop: session.shop,
+      order_date: { gte: dateThreshold },
+    },
+    _sum: {
+      order_total: true,
+    },
+    _count: {
+      order_id: true,
+    },
+  });
+
+  // Convert to a lookup object
+  const answerRevenue = {};
+  for (const item of answerRevenueData) {
+    answerRevenue[item.answer_id] = {
+      revenue: parseFloat(item._sum.order_total || 0),
+      orders: item._count.order_id || 0,
+    };
+  }
+
   const analytics = {
     starts: totalSessions,
     completions: completedSessions,
@@ -245,7 +287,7 @@ export const loader = async ({ request, params }) => {
     days,
   };
 
-  return json({ quiz, analytics, answerStats: answerStatsWithPercentages });
+  return json({ quiz, analytics, answerStats: answerStatsWithPercentages, answerRevenue, shopCurrency });
 };
 
 export const action = async ({ request, params }) => {
@@ -635,8 +677,42 @@ export const action = async ({ request, params }) => {
   return json({ success: false, error: "Invalid action" });
 };
 
+// Currency symbol mapping
+const currencySymbols = {
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  CAD: "C$",
+  AUD: "A$",
+  JPY: "¥",
+  CNY: "¥",
+  INR: "₹",
+  BRL: "R$",
+  MXN: "$",
+  KRW: "₩",
+  SEK: "kr",
+  NOK: "kr",
+  DKK: "kr",
+  CHF: "CHF",
+  PLN: "zł",
+  CZK: "Kč",
+  HUF: "Ft",
+  ILS: "₪",
+  SGD: "S$",
+  HKD: "HK$",
+  NZD: "NZ$",
+  THB: "฿",
+  ZAR: "R",
+  RUB: "₽",
+  TRY: "₺",
+};
+
+const getCurrencySymbol = (currencyCode) => {
+  return currencySymbols[currencyCode] || currencyCode + " ";
+};
+
 export default function QuizBuilder() {
-  const { quiz, analytics, answerStats } = useLoaderData();
+  const { quiz, analytics, answerStats, answerRevenue, shopCurrency } = useLoaderData();
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
@@ -1099,6 +1175,8 @@ export default function QuizBuilder() {
                             <BlockStack gap="100">
                               {question.answers.map((answer) => {
                                 const stats = answerStats[answer.answer_id] || { clicks: 0, percentage: "0.0" };
+                                const revenue = answerRevenue[answer.answer_id] || { revenue: 0, orders: 0 };
+                                const currencySymbol = getCurrencySymbol(shopCurrency);
                                 return (
                                   <Box key={answer.id} paddingBlock="200">
                                     <InlineStack align="space-between" blockAlign="center">
@@ -1110,6 +1188,11 @@ export default function QuizBuilder() {
                                           {stats.clicks} clicks
                                         </Text>
                                         <Badge>{stats.percentage}%</Badge>
+                                        {revenue.orders > 0 && (
+                                          <Badge tone="success">
+                                            {currencySymbol}{revenue.revenue.toFixed(2)} · {revenue.orders} order{revenue.orders !== 1 ? 's' : ''}
+                                          </Badge>
+                                        )}
                                       </InlineStack>
                                     </InlineStack>
                                   </Box>
