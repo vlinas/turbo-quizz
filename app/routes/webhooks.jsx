@@ -36,7 +36,7 @@ export const action = async ({ request }) => {
         // Method 1: Check cart attributes for session_id (most reliable)
         if (!quizSession && payload.note_attributes) {
           const sessionIdAttr = payload.note_attributes.find(
-            attr => attr.name === 'turbo_quiz_session'
+            attr => attr.name === 'quizza_session'
           );
 
           if (sessionIdAttr && sessionIdAttr.value) {

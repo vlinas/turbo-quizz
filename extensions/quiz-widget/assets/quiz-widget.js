@@ -31,7 +31,7 @@
     throw lastError;
   }
 
-  class TurboQuiz {
+  class Quizza {
     constructor(container) {
       this.container = container;
       this.quizId = container.dataset.quizId;
@@ -43,24 +43,24 @@
       this.selectedAnswerId = null;
 
       // DOM elements
-      this.loadingEl = container.querySelector('.turbo-quiz-loading');
-      this.errorEl = container.querySelector('.turbo-quiz-error');
-      this.errorMessageEl = container.querySelector('.turbo-quiz-error-message');
-      this.containerEl = container.querySelector('.turbo-quiz-container');
-      this.titleEl = container.querySelector('.turbo-quiz-title');
-      this.descriptionEl = container.querySelector('.turbo-quiz-description');
-      this.progressFillEl = container.querySelector('.turbo-quiz-progress-fill');
-      this.progressCurrentEl = container.querySelector('.turbo-quiz-progress-text .current');
-      this.progressTotalEl = container.querySelector('.turbo-quiz-progress-text .total');
-      this.questionTextEl = container.querySelector('.turbo-quiz-question-text');
-      this.answersEl = container.querySelector('.turbo-quiz-answers');
-      this.questionEl = container.querySelector('.turbo-quiz-question');
-      this.resultEl = container.querySelector('.turbo-quiz-result');
-      this.resultContentEl = container.querySelector('.turbo-quiz-result-content');
-      this.backBtn = container.querySelector('.turbo-quiz-back-btn');
-      this.nextBtn = container.querySelector('.turbo-quiz-next-btn');
-      this.retryBtn = container.querySelector('.turbo-quiz-retry-btn');
-      this.restartBtn = container.querySelector('.turbo-quiz-restart-btn');
+      this.loadingEl = container.querySelector('.quizza-loading');
+      this.errorEl = container.querySelector('.quizza-error');
+      this.errorMessageEl = container.querySelector('.quizza-error-message');
+      this.containerEl = container.querySelector('.quizza-container');
+      this.titleEl = container.querySelector('.quizza-title');
+      this.descriptionEl = container.querySelector('.quizza-description');
+      this.progressFillEl = container.querySelector('.quizza-progress-fill');
+      this.progressCurrentEl = container.querySelector('.quizza-progress-text .current');
+      this.progressTotalEl = container.querySelector('.quizza-progress-text .total');
+      this.questionTextEl = container.querySelector('.quizza-question-text');
+      this.answersEl = container.querySelector('.quizza-answers');
+      this.questionEl = container.querySelector('.quizza-question');
+      this.resultEl = container.querySelector('.quizza-result');
+      this.resultContentEl = container.querySelector('.quizza-result-content');
+      this.backBtn = container.querySelector('.quizza-back-btn');
+      this.nextBtn = container.querySelector('.quizza-next-btn');
+      this.retryBtn = container.querySelector('.quizza-retry-btn');
+      this.restartBtn = container.querySelector('.quizza-restart-btn');
 
       this.init();
     }
@@ -89,7 +89,7 @@
       if (!css || css.trim() === '') return;
 
       // Check if style element already exists
-      const existingStyle = document.getElementById(`turbo-quiz-custom-css-${this.quizId}`);
+      const existingStyle = document.getElementById(`quizza-custom-css-${this.quizId}`);
       if (existingStyle) {
         existingStyle.textContent = css;
         return;
@@ -97,20 +97,20 @@
 
       // Create new style element
       const styleElement = document.createElement('style');
-      styleElement.id = `turbo-quiz-custom-css-${this.quizId}`;
+      styleElement.id = `quizza-custom-css-${this.quizId}`;
       styleElement.textContent = css;
       document.head.appendChild(styleElement);
     }
 
     async init() {
       if (!this.quizId || !this.appUrl) {
-        console.error('[SimpleProductQuiz] Missing quizId or appUrl');
+        console.error('[Quizza] Missing quizId or appUrl');
         this.showError('Quiz ID or App URL not configured');
         return;
       }
 
       // Check if quiz was already completed
-      const completedKey = `turbo_quiz_completed_${this.quizId}`;
+      const completedKey = `quizza_completed_${this.quizId}`;
       const wasCompleted = localStorage.getItem(completedKey);
 
       if (wasCompleted) {
@@ -165,14 +165,14 @@
         this.startSession().catch(err => console.error('Session start error:', err));
         this.renderQuiz();
       } catch (error) {
-        console.error('[SimpleProductQuiz] Error loading quiz:', error);
+        console.error('[Quizza] Error loading quiz:', error);
         this.showError(error.message || 'Failed to load quiz. Please try again.');
       }
     }
 
     async startSession() {
       // Check if session already exists in cookie
-      const existingSessionId = this.getCookie('turbo_quiz_session');
+      const existingSessionId = this.getCookie('quizza_session');
 
       if (existingSessionId) {
         this.sessionId = existingSessionId;
@@ -201,12 +201,12 @@
         if (data.success && data.session_id) {
           this.sessionId = data.session_id;
           // Store session ID in cookie for order attribution (90 days for longer attribution window)
-          this.setCookie('turbo_quiz_session', this.sessionId, 90);
+          this.setCookie('quizza_session', this.sessionId, 90);
         } else {
-          console.error('[SimpleProductQuiz] Failed to start session:', data.error);
+          console.error('[Quizza] Failed to start session:', data.error);
         }
       } catch (error) {
-        console.error('[SimpleProductQuiz] Session start failed after retries:', error);
+        console.error('[Quizza] Session start failed after retries:', error);
       }
     }
 
@@ -223,7 +223,7 @@
         });
       } catch (error) {
         // After all retries failed - log but don't disrupt user experience
-        console.error('[SimpleProductQuiz] Impression tracking failed after retries:', error);
+        console.error('[Quizza] Impression tracking failed after retries:', error);
       }
     }
 
@@ -245,7 +245,7 @@
       this.answersEl.innerHTML = '';
       question.answers.forEach((answer) => {
         const button = document.createElement('button');
-        button.className = 'turbo-quiz-answer-btn';
+        button.className = 'quizza-answer-btn';
         button.textContent = answer.answer_text;
         button.dataset.answerId = answer.answer_id;
         button.dataset.actionType = answer.action_type;
@@ -268,7 +268,7 @@
 
     selectAnswer(answer, button) {
       // Remove previous selection
-      this.answersEl.querySelectorAll('.turbo-quiz-answer-btn').forEach((btn) => {
+      this.answersEl.querySelectorAll('.quizza-answer-btn').forEach((btn) => {
         btn.classList.remove('selected');
       });
 
@@ -304,7 +304,7 @@
           }),
         });
       } catch (error) {
-        console.error('[SimpleProductQuiz] Answer recording failed after retries:', error);
+        console.error('[Quizza] Answer recording failed after retries:', error);
       }
     }
 
@@ -344,7 +344,7 @@
       const actionData = finalAnswer.action_data;
 
       // Mark quiz as completed and store result in localStorage
-      const completedKey = `turbo_quiz_completed_${this.quizId}`;
+      const completedKey = `quizza_completed_${this.quizId}`;
       const resultData = {
         actionType: finalAnswer.action_type,
         actionData: actionData
@@ -366,7 +366,7 @@
           // Add session_id to cart attributes for order attribution
           await this.addSessionToCart(this.sessionId);
         } catch (error) {
-          console.error('[SimpleProductQuiz] Session completion failed after retries:', error);
+          console.error('[Quizza] Session completion failed after retries:', error);
         }
       }
 
@@ -392,10 +392,10 @@
       }
 
       // Check if reset button already exists
-      let resetBtn = this.container.querySelector('.turbo-quiz-reset-btn');
+      let resetBtn = this.container.querySelector('.quizza-reset-btn');
       if (!resetBtn) {
         resetBtn = document.createElement('button');
-        resetBtn.className = 'turbo-quiz-reset-btn';
+        resetBtn.className = 'quizza-reset-btn';
         resetBtn.textContent = 'Reset Quiz (for testing purposes only)';
         resetBtn.style.cssText = 'margin-top: 16px; padding: 8px 16px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 12px; color: #666;';
         resetBtn.addEventListener('click', () => this.resetForTesting());
@@ -406,11 +406,11 @@
 
     resetForTesting() {
       // Clear localStorage completion flag
-      const completedKey = `turbo_quiz_completed_${this.quizId}`;
+      const completedKey = `quizza_completed_${this.quizId}`;
       localStorage.removeItem(completedKey);
 
       // Clear session cookie
-      this.deleteCookie('turbo_quiz_session');
+      this.deleteCookie('quizza_session');
 
       // Reset state
       this.currentQuestionIndex = 0;
@@ -444,7 +444,7 @@
       const textColor = style.textColor || 'inherit';
 
       return `
-        <div class="turbo-quiz-text-result" style="background-color: ${backgroundColor}; color: ${textColor};">
+        <div class="quizza-text-result" style="background-color: ${backgroundColor}; color: ${textColor};">
           ${actionData.html || `<p>${actionData.text}</p>`}
         </div>
       `;
@@ -453,7 +453,7 @@
     renderHtmlResult(actionData) {
       // Render raw HTML content
       return `
-        <div class="turbo-quiz-html-result">
+        <div class="quizza-html-result">
           ${actionData.html || ''}
         </div>
       `;
@@ -468,9 +468,9 @@
       }
 
       return `
-        <div class="turbo-quiz-products-result">
-          <p class="turbo-quiz-custom-text">${customText}</p>
-          <div class="turbo-quiz-products-grid">
+        <div class="quizza-products-result">
+          <p class="quizza-custom-text">${customText}</p>
+          <div class="quizza-products-grid">
             ${products
               .map((product) => {
                 const imageUrl = product.images?.[0]?.originalSrc || '';
@@ -478,12 +478,12 @@
                 const handle = this.extractHandle(product.id);
 
                 return `
-                  <div class="turbo-quiz-product-card">
-                    ${imageUrl ? `<img src="${imageUrl}" alt="${product.title}" class="turbo-quiz-product-image" />` : ''}
-                    <div class="turbo-quiz-product-info">
-                      <h3 class="turbo-quiz-product-title">${product.title}</h3>
-                      ${price ? `<p class="turbo-quiz-product-price">$${price}</p>` : ''}
-                      <a href="/products/${handle}" class="turbo-quiz-shop-now-btn">Shop Now</a>
+                  <div class="quizza-product-card">
+                    ${imageUrl ? `<img src="${imageUrl}" alt="${product.title}" class="quizza-product-image" />` : ''}
+                    <div class="quizza-product-info">
+                      <h3 class="quizza-product-title">${product.title}</h3>
+                      ${price ? `<p class="quizza-product-price">$${price}</p>` : ''}
+                      <a href="/products/${handle}" class="quizza-shop-now-btn">Shop Now</a>
                     </div>
                   </div>
                 `;
@@ -503,20 +503,20 @@
       }
 
       return `
-        <div class="turbo-quiz-collections-result">
-          <p class="turbo-quiz-custom-text">${customText}</p>
-          <div class="turbo-quiz-products-grid">
+        <div class="quizza-collections-result">
+          <p class="quizza-custom-text">${customText}</p>
+          <div class="quizza-products-grid">
             ${collections
               .map((collection) => {
                 const imageUrl = collection.image?.originalSrc || '';
                 const handle = this.extractHandle(collection.id);
 
                 return `
-                  <div class="turbo-quiz-product-card">
-                    ${imageUrl ? `<img src="${imageUrl}" alt="${collection.title}" class="turbo-quiz-product-image" />` : ''}
-                    <div class="turbo-quiz-product-info">
-                      <h3 class="turbo-quiz-product-title">${collection.title}</h3>
-                      <a href="/collections/${handle}" class="turbo-quiz-shop-now-btn">Shop Now</a>
+                  <div class="quizza-product-card">
+                    ${imageUrl ? `<img src="${imageUrl}" alt="${collection.title}" class="quizza-product-image" />` : ''}
+                    <div class="quizza-product-info">
+                      <h3 class="quizza-product-title">${collection.title}</h3>
+                      <a href="/collections/${handle}" class="quizza-shop-now-btn">Shop Now</a>
                     </div>
                   </div>
                 `;
@@ -540,7 +540,7 @@
       try {
         // Build attributes object with session info and quiz answers
         const attributes = {
-          'turbo_quiz_session': sessionId,
+          'quizza_session': sessionId,
           'quiz_id': this.quizId,
         };
 
@@ -562,10 +562,10 @@
         });
 
         if (!response.ok) {
-          console.error('[SimpleProductQuiz] Failed to add session to cart:', await response.text());
+          console.error('[Quizza] Failed to add session to cart:', await response.text());
         }
       } catch (error) {
-        console.error('[SimpleProductQuiz] Error adding session to cart:', error);
+        console.error('[Quizza] Error adding session to cart:', error);
       }
     }
 
@@ -575,7 +575,7 @@
       this.selectedAnswerId = null;
       // Clear session to create a new one on restart
       this.sessionId = null;
-      this.deleteCookie('turbo_quiz_session');
+      this.deleteCookie('quizza_session');
       this.renderQuiz();
       this.startSession();
       this.nextBtn.style.display = 'inline-block';
@@ -602,9 +602,9 @@
 
   // Initialize all quiz widgets on page load
   function initQuizzes() {
-    const quizContainers = document.querySelectorAll('.turbo-quiz-widget');
+    const quizContainers = document.querySelectorAll('.quizza-widget');
     quizContainers.forEach((container) => {
-      new TurboQuiz(container);
+      new Quizza(container);
     });
   }
 

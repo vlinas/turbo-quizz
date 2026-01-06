@@ -86,7 +86,7 @@ export const action = async ({ request }) => {
 
       // Look for quiz session ID in custom attributes
       const sessionAttr = order.customAttributes?.find(
-        (attr) => attr.key === 'turbo_quiz_session'
+        (attr) => attr.key === 'quizza_session'
       );
 
       if (!sessionAttr || !sessionAttr.value) {

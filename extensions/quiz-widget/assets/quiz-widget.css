@@ -1,47 +1,47 @@
-/* Simple Product Quiz Survey Widget - Minimal Theme-Friendly Styles */
+/* Quizza Widget - Minimal Theme-Friendly Styles */
 
-.turbo-quiz-widget {
+.quizza-widget {
   width: 100%;
   font-family: inherit;
 }
 
 /* Loading State */
-.turbo-quiz-loading {
+.quizza-loading {
   text-align: center;
   padding: 2rem 0;
 }
 
-.turbo-quiz-spinner {
+.quizza-spinner {
   width: 32px;
   height: 32px;
   margin: 0 auto 1rem;
   border: 3px solid rgba(0, 0, 0, 0.1);
   border-top-color: currentColor;
   border-radius: 50%;
-  animation: turbo-quiz-spin 0.8s linear infinite;
+  animation: quizza-spin 0.8s linear infinite;
 }
 
-@keyframes turbo-quiz-spin {
+@keyframes quizza-spin {
   to { transform: rotate(360deg); }
 }
 
-.turbo-quiz-loading p {
+.quizza-loading p {
   font-size: inherit;
   opacity: 0.7;
 }
 
 /* Error State */
-.turbo-quiz-error {
+.quizza-error {
   padding: 1rem;
   text-align: center;
 }
 
-.turbo-quiz-error-message {
+.quizza-error-message {
   margin-bottom: 1rem;
   color: #d32f2f;
 }
 
-.turbo-quiz-retry-btn {
+.quizza-retry-btn {
   background: none;
   border: 1px solid currentColor;
   padding: 0.75rem 1.5rem;
@@ -51,16 +51,16 @@
 }
 
 /* Quiz Container - No styling, inherits from theme */
-.turbo-quiz-container {
+.quizza-container {
   width: 100%;
 }
 
 /* Question */
-.turbo-quiz-question {
+.quizza-question {
   margin-bottom: 1.5rem;
 }
 
-.turbo-quiz-question-text {
+.quizza-question-text {
   font-size: inherit;
   font-weight: 600;
   margin: 0 0 1.25rem 0;
@@ -68,13 +68,13 @@
 }
 
 /* Answers */
-.turbo-quiz-answers {
+.quizza-answers {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-.turbo-quiz-answer-btn {
+.quizza-answer-btn {
   width: 100%;
   padding: 1rem;
   background: transparent;
@@ -87,91 +87,91 @@
   border-radius: 0;
 }
 
-.turbo-quiz-answer-btn:hover {
+.quizza-answer-btn:hover {
   opacity: 1;
 }
 
-.turbo-quiz-answer-btn.selected {
+.quizza-answer-btn.selected {
   opacity: 1;
   font-weight: 600;
 }
 
 /* Result */
-.turbo-quiz-result {
-  animation: turbo-quiz-fade-in 0.3s ease;
+.quizza-result {
+  animation: quizza-fade-in 0.3s ease;
 }
 
-@keyframes turbo-quiz-fade-in {
+@keyframes quizza-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-.turbo-quiz-result-content {
+.quizza-result-content {
   margin-bottom: 2rem;
 }
 
-.turbo-quiz-text-result {
+.quizza-text-result {
   padding: 1rem 0;
   line-height: 1.6;
 }
 
-.turbo-quiz-text-result p {
+.quizza-text-result p {
   margin: 0;
 }
 
 /* Products/Collections Result */
-.turbo-quiz-custom-text {
+.quizza-custom-text {
   font-size: 1.1em;
   margin: 0 0 1.5rem 0;
   line-height: 1.5;
 }
 
-.turbo-quiz-products-grid {
+.quizza-products-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 1.5rem;
   margin-top: 1rem;
 }
 
-.turbo-quiz-product-card {
+.quizza-product-card {
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 8px;
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.turbo-quiz-product-card:hover {
+.quizza-product-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.turbo-quiz-product-image {
+.quizza-product-image {
   width: 100%;
   height: 250px;
   object-fit: cover;
   display: block;
 }
 
-.turbo-quiz-product-info {
+.quizza-product-info {
   padding: 1rem;
   text-align: center;
 }
 
-.turbo-quiz-product-title {
+.quizza-product-title {
   font-size: 1.1em;
   font-weight: 600;
   margin: 0 0 0.5rem 0;
   line-height: 1.3;
 }
 
-.turbo-quiz-product-price {
+.quizza-product-price {
   font-size: 1.2em;
   font-weight: 700;
   margin: 0 0 1rem 0;
   color: inherit;
 }
 
-.turbo-quiz-shop-now-btn {
+.quizza-shop-now-btn {
   display: inline-block;
   padding: 0.75rem 1.5rem;
   background: #000;
@@ -183,17 +183,17 @@
   transition: background 0.2s;
 }
 
-.turbo-quiz-shop-now-btn:hover {
+.quizza-shop-now-btn:hover {
   background: #333;
 }
 
 /* Responsive */
 @media (max-width: 640px) {
-  .turbo-quiz-products-grid {
+  .quizza-products-grid {
     grid-template-columns: 1fr;
   }
 
-  .turbo-quiz-product-image {
+  .quizza-product-image {
     height: 200px;
   }
 }
