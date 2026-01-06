@@ -308,27 +308,27 @@ export default function BillingPage() {
 
                   <Divider />
 
-                  {/* Usage Stats */}
-                  <BlockStack gap="300">
-                    <InlineStack align="space-between">
-                      <Text as="p" variant="bodyMd">Quiz usage</Text>
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">
-                        {quizCount} / {quizLimit === Infinity ? "Unlimited" : quizLimit}
-                      </Text>
-                    </InlineStack>
-                    {quizLimit !== Infinity && (
+                  {/* Usage Stats - only show for limited plans */}
+                  {quizLimit !== Infinity && (
+                    <BlockStack gap="300">
+                      <InlineStack align="space-between">
+                        <Text as="p" variant="bodyMd">Quiz usage</Text>
+                        <Text as="p" variant="bodyMd" fontWeight="semibold">
+                          {quizCount} / {quizLimit}
+                        </Text>
+                      </InlineStack>
                       <ProgressBar
                         progress={usagePercentage}
                         tone={usagePercentage >= 100 ? "critical" : usagePercentage >= 80 ? "warning" : "primary"}
                         size="small"
                       />
-                    )}
-                    {quizLimit !== Infinity && quizCount >= quizLimit && (
-                      <Banner tone="warning">
-                        <Text as="p">You've reached your quiz limit. Upgrade to create more quizzes.</Text>
-                      </Banner>
-                    )}
-                  </BlockStack>
+                      {quizCount >= quizLimit && (
+                        <Banner tone="warning">
+                          <Text as="p">You've reached your quiz limit. Upgrade to create more quizzes.</Text>
+                        </Banner>
+                      )}
+                    </BlockStack>
+                  )}
 
                   {/* Subscription Details (if on paid plan) */}
                   {activeSubscription && (

@@ -589,7 +589,7 @@ export default function Index() {
                     </InlineStack>
                     <InlineStack gap="200">
                       {currentPlan !== "growth" && (
-                        <Button onClick={() => navigate("/app/pricing")}>
+                        <Button onClick={() => navigate("/app/settings")}>
                           Upgrade
                         </Button>
                       )}
@@ -664,10 +664,10 @@ export default function Index() {
         onClose={() => setShowUpgradeModal(false)}
         title="Upgrade to create more quizzes"
         primaryAction={{
-          content: "View pricing",
+          content: "View plans",
           onAction: () => {
             setShowUpgradeModal(false);
-            navigate("/app/pricing");
+            navigate("/app/settings");
           },
         }}
         secondaryActions={[
