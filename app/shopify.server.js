@@ -10,9 +10,9 @@ import { restResources } from "@shopify/shopify-api/rest/admin/2023-10";
 import prisma from "./db.server";
 import { BillingInterval } from "@shopify/shopify-api";
 
-// Plan names for billing
-export const PLAN_STARTER = "Starter";
-export const PLAN_GROWTH = "Growth";
+// Plan names for billing - must match App Store listing handles
+export const PLAN_STARTER = "starter";
+export const PLAN_GROWTH = "growth";
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,

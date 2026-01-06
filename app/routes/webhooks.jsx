@@ -319,9 +319,11 @@ export const action = async ({ request }) => {
         const subscriptionName = payload.app_subscription?.name;
         let newPlan = "free";
 
-        if (subscriptionName === "Starter") {
+        // Handle both lowercase handles (from App Store) and capitalized names
+        const nameLower = subscriptionName?.toLowerCase();
+        if (nameLower === "starter") {
           newPlan = "starter";
-        } else if (subscriptionName === "Growth") {
+        } else if (nameLower === "growth") {
           newPlan = "growth";
         }
 
