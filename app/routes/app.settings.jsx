@@ -400,16 +400,16 @@ export default function BillingPage() {
                     <Box>
                       <BlockStack gap="100">
                         <Text as="p" variant="bodySm" tone="subdued">
-                          • <Text as="span" fontWeight="semibold">.quiz-container</Text> - Main quiz wrapper
+                          • <Text as="span" fontWeight="semibold">.quizza-widget</Text> - Main quiz wrapper
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          • <Text as="span" fontWeight="semibold">.quiz-question</Text> - Question text
+                          • <Text as="span" fontWeight="semibold">.quizza-question-text</Text> - Question text
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          • <Text as="span" fontWeight="semibold">.quiz-answer</Text> - Answer buttons
+                          • <Text as="span" fontWeight="semibold">.quizza-answer-btn</Text> - Answer buttons
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          • <Text as="span" fontWeight="semibold">.quiz-results</Text> - Results section
+                          • <Text as="span" fontWeight="semibold">.quizza-result</Text> - Results section
                         </Text>
                       </BlockStack>
                     </Box>
