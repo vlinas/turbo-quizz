@@ -112,6 +112,13 @@ export const action = async ({ request }) => {
     } else if (_action === "startSubscription") {
       console.log("[Billing] Starting subscription with Billing API");
 
+      // Skip billing entirely for staging/dev apps (non-public distribution)
+      const skipBilling = process.env.SKIP_BILLING === 'true';
+      if (skipBilling) {
+        console.log("[Billing] Skipping billing (SKIP_BILLING=true)");
+        return json({ alreadySubscribed: true, skipped: true });
+      }
+
       // Use environment variable to control test mode
       // Defaults to true if not set (safe for development)
       const isTest = process.env.BILLING_TEST_MODE !== 'false';
@@ -393,16 +400,16 @@ export default function BillingPage() {
                     <Box>
                       <BlockStack gap="100">
                         <Text as="p" variant="bodySm" tone="subdued">
-                          • <Text as="span" fontWeight="semibold">.quiz-container</Text> - Main quiz wrapper
+                          • <Text as="span" fontWeight="semibold">.quizza-widget</Text> - Main quiz wrapper
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          • <Text as="span" fontWeight="semibold">.quiz-question</Text> - Question text
+                          • <Text as="span" fontWeight="semibold">.quizza-question-text</Text> - Question text
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          • <Text as="span" fontWeight="semibold">.quiz-answer</Text> - Answer buttons
+                          • <Text as="span" fontWeight="semibold">.quizza-answer-btn</Text> - Answer buttons
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          • <Text as="span" fontWeight="semibold">.quiz-results</Text> - Results section
+                          • <Text as="span" fontWeight="semibold">.quizza-result</Text> - Results section
                         </Text>
                       </BlockStack>
                     </Box>
@@ -584,7 +591,7 @@ export default function BillingPage() {
                           Contact us:
                         </Text>
                         <Text as="p" variant="bodyLg" fontWeight="bold">
-                          info@linveba.com
+                          info@quizza.app
                         </Text>
                       </BlockStack>
                     </Box>

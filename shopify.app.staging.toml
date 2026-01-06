@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "5a35555b83652bfd2816f258dd1145e8"
-name = "Product Quiz - Staging"
+name = "Quizza - STAGING"
 application_url = "https://turbo-quizz-staging-4bd0e4ee4b32.herokuapp.com"
 embedded = true
 
@@ -13,6 +13,12 @@ api_version = "2025-10"
 
   [[webhooks.subscriptions]]
   topics = [ "app/uninstalled" ]
+  uri = "/webhooks"
+
+  # Note: orders/paid webhook requires Protected Customer Data Access approval
+  # Apply at: https://shopify.dev/docs/apps/launch/protected-customer-data
+  [[webhooks.subscriptions]]
+  topics = [ "orders/paid" ]
   uri = "/webhooks"
 
   # Mandatory GDPR compliance webhooks - must use compliance_topics for Remix apps

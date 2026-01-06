@@ -25,26 +25,18 @@ export const action = async ({ request }) => {
         const customerId = payload.customer?.id ? String(payload.customer.id) : null;
 
         // Find the most recent completed quiz session for this customer
+        // Attribution priority (from most reliable to least):
+        // 1. Cart attributes (direct session_id)
+        // 2. Customer ID match
+        // 3. Email match (for cross-device)
+        // 4. Order notes (legacy)
         let quizSession = null;
+        let attributionMethod = null;
 
-        // Try to find session by customer_id first
-        if (customerId) {
-          quizSession = await db.quizSession.findFirst({
-            where: {
-              shop,
-              customer_id: customerId,
-              is_completed: true,
-            },
-            orderBy: {
-              completed_at: 'desc',
-            },
-          });
-        }
-
-        // If no session found, check cart attributes for session_id
+        // Method 1: Check cart attributes for session_id (most reliable)
         if (!quizSession && payload.note_attributes) {
           const sessionIdAttr = payload.note_attributes.find(
-            attr => attr.name === 'turbo_quiz_session'
+            attr => attr.name === 'quizza_session'
           );
 
           if (sessionIdAttr && sessionIdAttr.value) {
@@ -55,10 +47,60 @@ export const action = async ({ request }) => {
                 session_id: sessionId,
               },
             });
+
+            if (quizSession) {
+              attributionMethod = 'cart_attributes';
+            }
           }
         }
 
-        // If still no session found, check order notes for session_id (legacy support)
+        // Method 2: Try to find session by customer_id
+        if (!quizSession && customerId) {
+          quizSession = await db.quizSession.findFirst({
+            where: {
+              shop,
+              customer_id: customerId,
+              is_completed: true,
+            },
+            orderBy: {
+              completed_at: 'desc',
+            },
+          });
+
+          if (quizSession) {
+            attributionMethod = 'customer_id';
+          }
+        }
+
+        // Method 3: Try email-based attribution (for cross-device purchases)
+        // Look for recent completed sessions by looking at order attributions with same email
+        if (!quizSession && customerEmail) {
+          // Find any previous orders from this email that have quiz attribution
+          const previousAttribution = await db.quizOrderAttribution.findFirst({
+            where: {
+              shop,
+              customer_email: customerEmail,
+            },
+            orderBy: {
+              order_created_at: 'desc',
+            },
+            include: {
+              session: {
+                where: {
+                  is_completed: true,
+                },
+              },
+            },
+          });
+
+          if (previousAttribution && previousAttribution.session) {
+            // Use the same session from their previous purchase
+            quizSession = previousAttribution.session;
+            attributionMethod = 'email_match';
+          }
+        }
+
+        // Method 4: Check order notes for session_id (legacy support)
         if (!quizSession) {
           const orderNote = payload.note || "";
           const sessionIdMatch = orderNote.match(/quiz_session:([a-zA-Z0-9-]+)/);
@@ -71,7 +113,18 @@ export const action = async ({ request }) => {
                 session_id: sessionId,
               },
             });
+
+            if (quizSession) {
+              attributionMethod = 'order_notes';
+            }
           }
+        }
+
+        // Log attribution result
+        if (quizSession) {
+          console.log(`[Quiz Attribution] Order ${payload.id} attributed via ${attributionMethod}`);
+        } else {
+          console.log(`[Quiz Attribution] No session found for order ${payload.id}`);
         }
 
         // If we found a quiz session, attribute this order to it
@@ -88,8 +141,12 @@ export const action = async ({ request }) => {
 
           if (!existingAttribution) {
             const totalPrice = parseFloat(payload.total_price || payload.current_total_price || 0);
+            const orderDate = new Date(payload.created_at);
+            // Set to start of day for consistent daily aggregations
+            orderDate.setUTCHours(0, 0, 0, 0);
 
-            await db.quizOrderAttribution.create({
+            // Create the order attribution
+            const orderAttribution = await db.quizOrderAttribution.create({
               data: {
                 order_id: String(payload.id),
                 order_number: String(payload.order_number || payload.name || payload.id),
@@ -104,6 +161,101 @@ export const action = async ({ request }) => {
                 order_created_at: new Date(payload.created_at),
               },
             });
+
+            // Create answer-level attributions for data warehouse queries
+            // Get all answer selections for this session with their question/answer details
+            const answerSelections = await db.answerSelection.findMany({
+              where: {
+                session_id: quizSession.session_id,
+              },
+              include: {
+                answer: {
+                  include: {
+                    question: true,
+                  },
+                },
+              },
+            });
+
+            // Create attribution records for each answer selected in this session
+            if (answerSelections.length > 0) {
+              await db.answerOrderAttribution.createMany({
+                data: answerSelections.map((selection) => ({
+                  order_attribution_id: orderAttribution.id,
+                  answer_id: selection.answer_id,
+                  question_id: selection.question_id,
+                  quiz_id: quizSession.quiz_id,
+                  shop,
+                  // Denormalized fields for efficient querying
+                  answer_text: selection.answer.answer_text,
+                  question_text: selection.answer.question.question_text,
+                  order_id: String(payload.id),
+                  order_total: totalPrice,
+                  currency: payload.currency || "USD",
+                  order_date: orderDate,
+                  selected_at: selection.selected_at,
+                })),
+              });
+
+              console.log(`[Quiz Attribution] Created ${answerSelections.length} answer-level attributions for order ${payload.id}`);
+            }
+          }
+        }
+
+        // Write quiz answers to customer metafields (if customer exists)
+        if (payload.customer?.id && payload.note_attributes) {
+          try {
+            const quizAnswers = payload.note_attributes.filter(
+              attr => attr.name.startsWith('quiz_') && attr.name !== 'quiz_id' && attr.name !== 'quiz_session'
+            );
+
+            if (quizAnswers.length > 0) {
+              const customerGid = `gid://shopify/Customer/${payload.customer.id}`;
+
+              // Build metafield mutations for each quiz answer
+              const metafields = quizAnswers.map(attr => {
+                // Remove 'quiz_' prefix to get the key
+                const key = attr.name.replace('quiz_', '');
+                return {
+                  ownerId: customerGid,
+                  namespace: 'quiz',
+                  key: key,
+                  type: 'single_line_text_field',
+                  value: attr.value,
+                };
+              });
+
+              // Use metafieldsSet mutation to upsert metafields
+              const mutation = `
+                mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+                  metafieldsSet(metafields: $metafields) {
+                    metafields {
+                      id
+                      key
+                      value
+                    }
+                    userErrors {
+                      field
+                      message
+                    }
+                  }
+                }
+              `;
+
+              const response = await admin.graphql(mutation, {
+                variables: { metafields },
+              });
+
+              const result = await response.json();
+
+              if (result.data?.metafieldsSet?.userErrors?.length > 0) {
+                console.error('[Quiz Metafields] Errors:', result.data.metafieldsSet.userErrors);
+              } else {
+                console.log(`[Quiz Metafields] Saved ${metafields.length} metafields for customer ${payload.customer.id}`);
+              }
+            }
+          } catch (metafieldError) {
+            console.error('[Quiz Metafields] Error saving customer metafields:', metafieldError);
           }
         }
       } catch (error) {
@@ -151,11 +303,37 @@ export const action = async ({ request }) => {
         await db.quiz.deleteMany({ where: { shop } });
         // Delete shop settings
         await db.shopSettings.deleteMany({ where: { shop } });
+        // Delete shop plan
+        await db.shopPlan.deleteMany({ where: { shop } });
         // Delete sessions
         await db.session.deleteMany({ where: { shop } });
         console.log(`[GDPR] Deleted all data for shop ${shop}`);
       } catch (error) {
         console.error("[GDPR] Error deleting shop data:", error);
+      }
+      break;
+
+    case "APP_SUBSCRIPTIONS_UPDATE":
+      // Handle subscription changes (upgrade/downgrade/cancel)
+      try {
+        const subscriptionName = payload.app_subscription?.name;
+        let newPlan = "free";
+
+        if (subscriptionName === "Starter") {
+          newPlan = "starter";
+        } else if (subscriptionName === "Growth") {
+          newPlan = "growth";
+        }
+
+        await db.shopPlan.upsert({
+          where: { shop },
+          update: { plan: newPlan },
+          create: { shop, plan: newPlan },
+        });
+
+        console.log(`[Billing] Updated plan for ${shop} to ${newPlan}`);
+      } catch (error) {
+        console.error("[Billing] Error updating subscription:", error);
       }
       break;
 

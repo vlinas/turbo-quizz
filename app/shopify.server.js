@@ -9,7 +9,10 @@ import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prism
 import { restResources } from "@shopify/shopify-api/rest/admin/2023-10";
 import prisma from "./db.server";
 import { BillingInterval } from "@shopify/shopify-api";
-export const PREMIUM_PLAN = "premium";
+
+// Plan names for billing
+export const PLAN_STARTER = "Starter";
+export const PLAN_GROWTH = "Growth";
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -22,13 +25,17 @@ const shopify = shopifyApp({
   distribution: AppDistribution.AppStore,
   isEmbeddedApp: true,
   restResources,
-  billing:{
-    [PREMIUM_PLAN]: {
-      amount: 14.99,
-      trialDays: 7,
+  billing: {
+    [PLAN_STARTER]: {
+      amount: 19.99,
       currencyCode: "USD",
       interval: BillingInterval.Every30Days,
-    }
+    },
+    [PLAN_GROWTH]: {
+      amount: 49.99,
+      currencyCode: "USD",
+      interval: BillingInterval.Every30Days,
+    },
   },
   webhooks: {
     APP_UNINSTALLED: {
@@ -45,6 +52,11 @@ const shopify = shopifyApp({
       callbackUrl: "/webhooks",
     },
     SHOP_REDACT: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks",
+    },
+    // Subscription updates for billing
+    APP_SUBSCRIPTIONS_UPDATE: {
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks",
     },

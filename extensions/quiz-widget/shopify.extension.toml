@@ -1,0 +1,11 @@
+api_version = "2025-10"
+
+[[extensions]]
+uid = "d322af2c-4b13-f362-a34e-0a454251ab537b661e7f"
+type = "theme"
+name = "Quiz Widget"
+handle = "quiz-widget"
+
+[[extensions.targeting]]
+module = "./blocks/quiz.liquid"
+target = "section"

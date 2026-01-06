@@ -4,7 +4,6 @@ import polarisStyles from "@shopify/polaris/build/esm/styles.css";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
 import { Frame } from "@shopify/polaris";
 
 export const links = () => [
@@ -13,25 +12,9 @@ export const links = () => [
 
 export const loader = async ({ request }) => {
   try {
-    const { billing, session } = await authenticate.admin(request);
-
-    // Use environment variable to control test mode
-    // Set BILLING_TEST_MODE=true for development, false for production
-    // Defaults to true if not set (safe for development)
-    const isTest = process.env.BILLING_TEST_MODE !== 'false';
-
-    // Require billing for all users - standard Shopify model
-    // Trial is built into the billing plan (7 days)
-    await billing.require({
-      plans: ["premium"],
-      onFailure: async () => {
-        return await billing.request({
-          plan: "premium",
-          isTest,
-          returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/?subscribed=true`,
-        });
-      },
-    });
+    // Authenticate but don't force billing
+    // Users start on free tier (1 quiz) and upgrade via /app/pricing
+    await authenticate.admin(request);
 
     return json({ apiKey: process.env.SHOPIFY_API_KEY || "" });
   } catch (error) {

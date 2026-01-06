@@ -1,7 +1,37 @@
 (function () {
   'use strict';
 
-  class TurboQuiz {
+  // Retry utility with exponential backoff for analytics tracking
+  async function fetchWithRetry(url, options, maxRetries = 3) {
+    let lastError;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, options);
+
+        // Only retry on network errors or 5xx errors
+        if (response.ok || (response.status >= 400 && response.status < 500)) {
+          return response;
+        }
+
+        // Server error - retry
+        lastError = new Error(`Server error: ${response.status}`);
+      } catch (error) {
+        // Network error - retry
+        lastError = error;
+      }
+
+      // Wait before retry with exponential backoff: 500ms, 1s, 2s
+      if (attempt < maxRetries - 1) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 4000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+
+    throw lastError;
+  }
+
+  class Quizza {
     constructor(container) {
       this.container = container;
       this.quizId = container.dataset.quizId;
@@ -13,24 +43,24 @@
       this.selectedAnswerId = null;
 
       // DOM elements
-      this.loadingEl = container.querySelector('.turbo-quiz-loading');
-      this.errorEl = container.querySelector('.turbo-quiz-error');
-      this.errorMessageEl = container.querySelector('.turbo-quiz-error-message');
-      this.containerEl = container.querySelector('.turbo-quiz-container');
-      this.titleEl = container.querySelector('.turbo-quiz-title');
-      this.descriptionEl = container.querySelector('.turbo-quiz-description');
-      this.progressFillEl = container.querySelector('.turbo-quiz-progress-fill');
-      this.progressCurrentEl = container.querySelector('.turbo-quiz-progress-text .current');
-      this.progressTotalEl = container.querySelector('.turbo-quiz-progress-text .total');
-      this.questionTextEl = container.querySelector('.turbo-quiz-question-text');
-      this.answersEl = container.querySelector('.turbo-quiz-answers');
-      this.questionEl = container.querySelector('.turbo-quiz-question');
-      this.resultEl = container.querySelector('.turbo-quiz-result');
-      this.resultContentEl = container.querySelector('.turbo-quiz-result-content');
-      this.backBtn = container.querySelector('.turbo-quiz-back-btn');
-      this.nextBtn = container.querySelector('.turbo-quiz-next-btn');
-      this.retryBtn = container.querySelector('.turbo-quiz-retry-btn');
-      this.restartBtn = container.querySelector('.turbo-quiz-restart-btn');
+      this.loadingEl = container.querySelector('.quizza-loading');
+      this.errorEl = container.querySelector('.quizza-error');
+      this.errorMessageEl = container.querySelector('.quizza-error-message');
+      this.containerEl = container.querySelector('.quizza-container');
+      this.titleEl = container.querySelector('.quizza-title');
+      this.descriptionEl = container.querySelector('.quizza-description');
+      this.progressFillEl = container.querySelector('.quizza-progress-fill');
+      this.progressCurrentEl = container.querySelector('.quizza-progress-text .current');
+      this.progressTotalEl = container.querySelector('.quizza-progress-text .total');
+      this.questionTextEl = container.querySelector('.quizza-question-text');
+      this.answersEl = container.querySelector('.quizza-answers');
+      this.questionEl = container.querySelector('.quizza-question');
+      this.resultEl = container.querySelector('.quizza-result');
+      this.resultContentEl = container.querySelector('.quizza-result-content');
+      this.backBtn = container.querySelector('.quizza-back-btn');
+      this.nextBtn = container.querySelector('.quizza-next-btn');
+      this.retryBtn = container.querySelector('.quizza-retry-btn');
+      this.restartBtn = container.querySelector('.quizza-restart-btn');
 
       this.init();
     }
@@ -59,7 +89,7 @@
       if (!css || css.trim() === '') return;
 
       // Check if style element already exists
-      const existingStyle = document.getElementById(`turbo-quiz-custom-css-${this.quizId}`);
+      const existingStyle = document.getElementById(`quizza-custom-css-${this.quizId}`);
       if (existingStyle) {
         existingStyle.textContent = css;
         return;
@@ -67,25 +97,34 @@
 
       // Create new style element
       const styleElement = document.createElement('style');
-      styleElement.id = `turbo-quiz-custom-css-${this.quizId}`;
+      styleElement.id = `quizza-custom-css-${this.quizId}`;
       styleElement.textContent = css;
       document.head.appendChild(styleElement);
     }
 
     async init() {
       if (!this.quizId || !this.appUrl) {
-        console.error('[SimpleProductQuiz] Missing quizId or appUrl');
+        console.error('[Quizza] Missing quizId or appUrl');
         this.showError('Quiz ID or App URL not configured');
         return;
       }
 
       // Check if quiz was already completed
-      const completedKey = `turbo_quiz_completed_${this.quizId}`;
+      const completedKey = `quizza_completed_${this.quizId}`;
       const wasCompleted = localStorage.getItem(completedKey);
 
       if (wasCompleted) {
-        // Hide the entire quiz widget if already completed
-        this.container.style.display = 'none';
+        // Show the stored result from previous completion
+        this.questionEl.style.display = 'none';
+        this.resultEl.style.display = 'block';
+        try {
+          const resultData = JSON.parse(wasCompleted);
+          this.resultContentEl.innerHTML = this.renderActionResult(resultData.actionType, resultData.actionData);
+        } catch (e) {
+          // Fallback for old format (just 'true' string)
+          this.resultContentEl.innerHTML = '<p style="color: #666; font-style: italic;">Quiz already completed.</p>';
+        }
+        this.showResetButton();
         return;
       }
 
@@ -126,26 +165,26 @@
         this.startSession().catch(err => console.error('Session start error:', err));
         this.renderQuiz();
       } catch (error) {
-        console.error('[SimpleProductQuiz] Error loading quiz:', error);
+        console.error('[Quizza] Error loading quiz:', error);
         this.showError(error.message || 'Failed to load quiz. Please try again.');
       }
     }
 
     async startSession() {
       // Check if session already exists in cookie
-      const existingSessionId = this.getCookie('turbo_quiz_session');
+      const existingSessionId = this.getCookie('quizza_session');
 
       if (existingSessionId) {
         this.sessionId = existingSessionId;
         return;
       }
 
-      // Only create a new session if one doesn't exist
+      // Only create a new session if one doesn't exist (with retry)
       try {
         // Get customer ID from Shopify if available
         const customerId = window.Shopify?.customerId || window.meta?.page?.customerId;
 
-        const response = await fetch(`${this.appUrl}/api/quiz-sessions`, {
+        const response = await fetchWithRetry(`${this.appUrl}/api/quiz-sessions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -161,20 +200,20 @@
 
         if (data.success && data.session_id) {
           this.sessionId = data.session_id;
-          // Store session ID in cookie for order attribution (30 days)
-          this.setCookie('turbo_quiz_session', this.sessionId, 30);
+          // Store session ID in cookie for order attribution (90 days for longer attribution window)
+          this.setCookie('quizza_session', this.sessionId, 90);
         } else {
-          console.error('Failed to start session:', data.error);
+          console.error('[Quizza] Failed to start session:', data.error);
         }
       } catch (error) {
-        console.error('Error starting session:', error);
+        console.error('[Quizza] Session start failed after retries:', error);
       }
     }
 
     async trackImpression() {
-      // Track impression every time the quiz is viewed
+      // Track impression every time the quiz is viewed (with retry)
       try {
-        await fetch(`${this.appUrl}/api/quiz-sessions`, {
+        await fetchWithRetry(`${this.appUrl}/api/quiz-sessions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -183,8 +222,8 @@
           }),
         });
       } catch (error) {
-        // Silent fail - don't disrupt user experience
-        console.error('Error tracking impression:', error);
+        // After all retries failed - log but don't disrupt user experience
+        console.error('[Quizza] Impression tracking failed after retries:', error);
       }
     }
 
@@ -206,7 +245,7 @@
       this.answersEl.innerHTML = '';
       question.answers.forEach((answer) => {
         const button = document.createElement('button');
-        button.className = 'turbo-quiz-answer-btn';
+        button.className = 'quizza-answer-btn';
         button.textContent = answer.answer_text;
         button.dataset.answerId = answer.answer_id;
         button.dataset.actionType = answer.action_type;
@@ -229,7 +268,7 @@
 
     selectAnswer(answer, button) {
       // Remove previous selection
-      this.answersEl.querySelectorAll('.turbo-quiz-answer-btn').forEach((btn) => {
+      this.answersEl.querySelectorAll('.quizza-answer-btn').forEach((btn) => {
         btn.classList.remove('selected');
       });
 
@@ -253,7 +292,7 @@
       const question = this.quiz.questions[this.currentQuestionIndex];
 
       try {
-        await fetch(`${this.appUrl}/api/quiz-sessions`, {
+        await fetchWithRetry(`${this.appUrl}/api/quiz-sessions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -265,7 +304,7 @@
           }),
         });
       } catch (error) {
-        console.error('Error recording answer:', error);
+        console.error('[Quizza] Answer recording failed after retries:', error);
       }
     }
 
@@ -300,14 +339,22 @@
     }
 
     async showResult() {
-      // Mark quiz as completed in localStorage so it never shows again
-      const completedKey = `turbo_quiz_completed_${this.quizId}`;
-      localStorage.setItem(completedKey, 'true');
+      // Get the final answer's action data
+      const finalAnswer = this.answers[this.currentQuestionIndex];
+      const actionData = finalAnswer.action_data;
 
-      // Mark session as completed
+      // Mark quiz as completed and store result in localStorage
+      const completedKey = `quizza_completed_${this.quizId}`;
+      const resultData = {
+        actionType: finalAnswer.action_type,
+        actionData: actionData
+      };
+      localStorage.setItem(completedKey, JSON.stringify(resultData));
+
+      // Mark session as completed (with retry)
       if (this.sessionId) {
         try {
-          await fetch(`${this.appUrl}/api/quiz-sessions`, {
+          await fetchWithRetry(`${this.appUrl}/api/quiz-sessions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -319,23 +366,61 @@
           // Add session_id to cart attributes for order attribution
           await this.addSessionToCart(this.sessionId);
         } catch (error) {
-          console.error('Error completing session:', error);
+          console.error('[Quizza] Session completion failed after retries:', error);
         }
       }
-
-      // Get the final answer's action data
-      const finalAnswer = this.answers[this.currentQuestionIndex];
-      const actionData = finalAnswer.action_data;
 
       // Render result based on action type
       this.resultContentEl.innerHTML = this.renderActionResult(finalAnswer.action_type, actionData);
 
-      // Hide question, show result, hide restart button
+      // Hide question, show result
       this.questionEl.style.display = 'none';
       this.resultEl.style.display = 'block';
       this.backBtn.style.display = 'none';
       this.nextBtn.style.display = 'none';
       if (this.restartBtn) this.restartBtn.style.display = 'none';
+
+      // Show reset button for testing
+      this.showResetButton();
+    }
+
+    showResetButton() {
+      // Only show reset button in staging/development environments
+      const isProduction = this.appUrl && this.appUrl.includes('turbo-quizz-1660bbe41f52.herokuapp.com');
+      if (isProduction) {
+        return; // Don't show reset button in production
+      }
+
+      // Check if reset button already exists
+      let resetBtn = this.container.querySelector('.quizza-reset-btn');
+      if (!resetBtn) {
+        resetBtn = document.createElement('button');
+        resetBtn.className = 'quizza-reset-btn';
+        resetBtn.textContent = 'Reset Quiz (for testing purposes only)';
+        resetBtn.style.cssText = 'margin-top: 16px; padding: 8px 16px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 12px; color: #666;';
+        resetBtn.addEventListener('click', () => this.resetForTesting());
+        this.resultEl.appendChild(resetBtn);
+      }
+      resetBtn.style.display = 'block';
+    }
+
+    resetForTesting() {
+      // Clear localStorage completion flag
+      const completedKey = `quizza_completed_${this.quizId}`;
+      localStorage.removeItem(completedKey);
+
+      // Clear session cookie
+      this.deleteCookie('quizza_session');
+
+      // Reset state
+      this.currentQuestionIndex = 0;
+      this.answers = [];
+      this.selectedAnswerId = null;
+      this.sessionId = null;
+
+      // Re-show the container and re-initialize
+      this.container.style.display = '';
+      this.loadQuiz();
     }
 
     renderActionResult(actionType, actionData) {
@@ -359,7 +444,7 @@
       const textColor = style.textColor || 'inherit';
 
       return `
-        <div class="turbo-quiz-text-result" style="background-color: ${backgroundColor}; color: ${textColor};">
+        <div class="quizza-text-result" style="background-color: ${backgroundColor}; color: ${textColor};">
           ${actionData.html || `<p>${actionData.text}</p>`}
         </div>
       `;
@@ -368,7 +453,7 @@
     renderHtmlResult(actionData) {
       // Render raw HTML content
       return `
-        <div class="turbo-quiz-html-result">
+        <div class="quizza-html-result">
           ${actionData.html || ''}
         </div>
       `;
@@ -383,9 +468,9 @@
       }
 
       return `
-        <div class="turbo-quiz-products-result">
-          <p class="turbo-quiz-custom-text">${customText}</p>
-          <div class="turbo-quiz-products-grid">
+        <div class="quizza-products-result">
+          <p class="quizza-custom-text">${customText}</p>
+          <div class="quizza-products-grid">
             ${products
               .map((product) => {
                 const imageUrl = product.images?.[0]?.originalSrc || '';
@@ -393,12 +478,12 @@
                 const handle = this.extractHandle(product.id);
 
                 return `
-                  <div class="turbo-quiz-product-card">
-                    ${imageUrl ? `<img src="${imageUrl}" alt="${product.title}" class="turbo-quiz-product-image" />` : ''}
-                    <div class="turbo-quiz-product-info">
-                      <h3 class="turbo-quiz-product-title">${product.title}</h3>
-                      ${price ? `<p class="turbo-quiz-product-price">$${price}</p>` : ''}
-                      <a href="/products/${handle}" class="turbo-quiz-shop-now-btn">Shop Now</a>
+                  <div class="quizza-product-card">
+                    ${imageUrl ? `<img src="${imageUrl}" alt="${product.title}" class="quizza-product-image" />` : ''}
+                    <div class="quizza-product-info">
+                      <h3 class="quizza-product-title">${product.title}</h3>
+                      ${price ? `<p class="quizza-product-price">$${price}</p>` : ''}
+                      <a href="/products/${handle}" class="quizza-shop-now-btn">Shop Now</a>
                     </div>
                   </div>
                 `;
@@ -418,20 +503,20 @@
       }
 
       return `
-        <div class="turbo-quiz-collections-result">
-          <p class="turbo-quiz-custom-text">${customText}</p>
-          <div class="turbo-quiz-products-grid">
+        <div class="quizza-collections-result">
+          <p class="quizza-custom-text">${customText}</p>
+          <div class="quizza-products-grid">
             ${collections
               .map((collection) => {
                 const imageUrl = collection.image?.originalSrc || '';
                 const handle = this.extractHandle(collection.id);
 
                 return `
-                  <div class="turbo-quiz-product-card">
-                    ${imageUrl ? `<img src="${imageUrl}" alt="${collection.title}" class="turbo-quiz-product-image" />` : ''}
-                    <div class="turbo-quiz-product-info">
-                      <h3 class="turbo-quiz-product-title">${collection.title}</h3>
-                      <a href="/collections/${handle}" class="turbo-quiz-shop-now-btn">Shop Now</a>
+                  <div class="quizza-product-card">
+                    ${imageUrl ? `<img src="${imageUrl}" alt="${collection.title}" class="quizza-product-image" />` : ''}
+                    <div class="quizza-product-info">
+                      <h3 class="quizza-product-title">${collection.title}</h3>
+                      <a href="/collections/${handle}" class="quizza-shop-now-btn">Shop Now</a>
                     </div>
                   </div>
                 `;
@@ -453,23 +538,34 @@
 
     async addSessionToCart(sessionId) {
       try {
+        // Build attributes object with session info and quiz answers
+        const attributes = {
+          'quizza_session': sessionId,
+          'quiz_id': this.quizId,
+        };
+
+        // Add quiz answers as attributes (using metafield_key if set)
+        this.quiz.questions.forEach((question, index) => {
+          const answer = this.answers[index];
+          if (answer && question.metafield_key) {
+            // Use the metafield_key as the attribute key with quiz_ prefix
+            const key = `quiz_${question.metafield_key}`;
+            attributes[key] = answer.answer_text;
+          }
+        });
+
         // Add quiz session ID as cart attribute for order attribution
         const response = await fetch('/cart/update.js', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            attributes: {
-              'turbo_quiz_session': sessionId,
-              'quiz_id': this.quizId,
-            },
-          }),
+          body: JSON.stringify({ attributes }),
         });
 
         if (!response.ok) {
-          console.error('[SimpleProductQuiz] Failed to add session to cart:', await response.text());
+          console.error('[Quizza] Failed to add session to cart:', await response.text());
         }
       } catch (error) {
-        console.error('[SimpleProductQuiz] Error adding session to cart:', error);
+        console.error('[Quizza] Error adding session to cart:', error);
       }
     }
 
@@ -479,7 +575,7 @@
       this.selectedAnswerId = null;
       // Clear session to create a new one on restart
       this.sessionId = null;
-      this.deleteCookie('turbo_quiz_session');
+      this.deleteCookie('quizza_session');
       this.renderQuiz();
       this.startSession();
       this.nextBtn.style.display = 'inline-block';
@@ -506,9 +602,9 @@
 
   // Initialize all quiz widgets on page load
   function initQuizzes() {
-    const quizContainers = document.querySelectorAll('.turbo-quiz-widget');
+    const quizContainers = document.querySelectorAll('.quizza-widget');
     quizContainers.forEach((container) => {
-      new TurboQuiz(container);
+      new Quizza(container);
     });
   }
 

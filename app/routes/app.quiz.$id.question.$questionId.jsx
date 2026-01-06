@@ -70,6 +70,7 @@ export const action = async ({ request, params }) => {
 
   if (actionType === "update") {
     const question_text = formData.get("question_text");
+    const metafield_key = formData.get("metafield_key") || null;
     const answer1_id = formData.get("answer1_id");
     const answer1_text = formData.get("answer1_text");
     const answer1_action_type = formData.get("answer1_action_type");
@@ -126,6 +127,7 @@ export const action = async ({ request, params }) => {
         where: { question_id: questionId },
         data: {
           question_text,
+          metafield_key,
           answers: {
             update: [
               {
@@ -187,6 +189,7 @@ export default function EditQuestion() {
   const formRef = useRef(null);
 
   const [questionText, setQuestionText] = useState(question.question_text);
+  const [metafieldKey, setMetafieldKey] = useState(question.metafield_key || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAdvancedJson1, setShowAdvancedJson1] = useState(false);
@@ -420,6 +423,7 @@ export default function EditQuestion() {
       >
         <input type="hidden" name="_action" value="update" />
         <input type="hidden" name="question_text" value={questionText} />
+        <input type="hidden" name="metafield_key" value={metafieldKey} />
         <input type="hidden" name="answer1_id" value={question.answers[0].answer_id} />
         <input type="hidden" name="answer1_text" value={answer1Text} />
         <input type="hidden" name="answer1_action_type" value={answer1ActionType} />
@@ -466,6 +470,15 @@ export default function EditQuestion() {
                 autoComplete="off"
                 helpText="The question to ask your customers"
                 requiredIndicator
+              />
+
+              <TextField
+                label="Metafield Key (optional)"
+                value={metafieldKey}
+                onChange={setMetafieldKey}
+                placeholder="e.g., gender, skin_type, style_preference"
+                autoComplete="off"
+                helpText="Used for customer personalization. The selected answer will be saved as customer.metafields.quiz.[key]. Use lowercase with underscores."
               />
             </BlockStack>
           </Card>
