@@ -303,11 +303,37 @@ export const action = async ({ request }) => {
         await db.quiz.deleteMany({ where: { shop } });
         // Delete shop settings
         await db.shopSettings.deleteMany({ where: { shop } });
+        // Delete shop plan
+        await db.shopPlan.deleteMany({ where: { shop } });
         // Delete sessions
         await db.session.deleteMany({ where: { shop } });
         console.log(`[GDPR] Deleted all data for shop ${shop}`);
       } catch (error) {
         console.error("[GDPR] Error deleting shop data:", error);
+      }
+      break;
+
+    case "APP_SUBSCRIPTIONS_UPDATE":
+      // Handle subscription changes (upgrade/downgrade/cancel)
+      try {
+        const subscriptionName = payload.app_subscription?.name;
+        let newPlan = "free";
+
+        if (subscriptionName === "Starter") {
+          newPlan = "starter";
+        } else if (subscriptionName === "Growth") {
+          newPlan = "growth";
+        }
+
+        await db.shopPlan.upsert({
+          where: { shop },
+          update: { plan: newPlan },
+          create: { shop, plan: newPlan },
+        });
+
+        console.log(`[Billing] Updated plan for ${shop} to ${newPlan}`);
+      } catch (error) {
+        console.error("[Billing] Error updating subscription:", error);
       }
       break;
 

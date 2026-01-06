@@ -188,3 +188,11 @@ model AnswerOrderAttribution {
   @@index([shop, order_date])                 // Shop-level daily revenue
   @@index([answer_id, shop])                  // Answer performance by shop
 }
+
+// Shop subscription plan tracking
+model ShopPlan {
+  id         Int      @id @default(autoincrement())
+  shop       String   @unique
+  plan       String   @default("free") // "free", "starter", "growth"
+  updated_at DateTime @default(now()) @updatedAt
+}

@@ -36,9 +36,20 @@ import {
 
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { PLANS, canCreateQuiz, getQuizLimitDisplay } from "../utils/plan-limits";
 
 export const loader = async ({ request }) => {
   const { session, admin } = await authenticate.admin(request);
+
+  // Get or create shop plan (defaults to "free")
+  let shopPlan = await prisma.shopPlan.findUnique({
+    where: { shop: session.shop },
+  });
+  if (!shopPlan) {
+    shopPlan = await prisma.shopPlan.create({
+      data: { shop: session.shop, plan: "free" },
+    });
+  }
 
   // Get shop currency from Shopify API
   let shopCurrency = "USD";
@@ -123,9 +134,19 @@ export const loader = async ({ request }) => {
     })
   );
 
+  const currentPlan = shopPlan.plan;
+  const quizCount = quizzesWithStats.length;
+  const canCreate = canCreateQuiz(currentPlan, quizCount);
+  const quizLimitDisplay = getQuizLimitDisplay(currentPlan, quizCount);
+  const planInfo = PLANS[currentPlan] || PLANS.free;
+
   return {
     quizzes: quizzesWithStats,
     shopCurrency,
+    currentPlan,
+    canCreateQuiz: canCreate,
+    quizLimitDisplay,
+    planInfo,
   };
 };
 
@@ -159,12 +180,22 @@ const getCurrencySymbol = (currencyCode) => {
 
 export default function Index() {
   const navigate = useNavigate();
-  const { quizzes, shopCurrency } = useLoaderData();
+  const { quizzes, shopCurrency, currentPlan, canCreateQuiz, quizLimitDisplay, planInfo } = useLoaderData();
   const currencySymbol = getCurrencySymbol(shopCurrency);
 
   // State
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [queryValue, setQueryValue] = useState("");
+
+  // Handle create quiz click
+  const handleCreateQuiz = () => {
+    if (canCreateQuiz) {
+      navigate("/app/quiz/new");
+    } else {
+      setShowUpgradeModal(true);
+    }
+  };
 
   const { mode, setMode } = useSetIndexFiltersMode();
 
@@ -329,7 +360,7 @@ export default function Index() {
         heading="Create your first quiz"
         action={{
           content: "Create quiz",
-          onAction: () => navigate("/app/quiz/new"),
+          onAction: handleCreateQuiz,
         }}
         image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
       >
@@ -550,15 +581,25 @@ export default function Index() {
               <BlockStack gap="0">
                 <Box padding="400" paddingBlockEnd="200">
                   <InlineStack align="space-between" blockAlign="center">
-                    <Text variant="headingLg" as="h2">
-                      Quizzes
-                    </Text>
-                    <Button
-                      variant="primary"
-                      onClick={() => navigate("/app/quiz/new")}
-                    >
-                      Create quiz
-                    </Button>
+                    <InlineStack gap="200" blockAlign="center">
+                      <Text variant="headingLg" as="h2">
+                        Quizzes
+                      </Text>
+                      <Badge tone="info">{quizLimitDisplay}</Badge>
+                    </InlineStack>
+                    <InlineStack gap="200">
+                      {currentPlan !== "growth" && (
+                        <Button onClick={() => navigate("/app/pricing")}>
+                          Upgrade
+                        </Button>
+                      )}
+                      <Button
+                        variant="primary"
+                        onClick={handleCreateQuiz}
+                      >
+                        Create quiz
+                      </Button>
+                    </InlineStack>
                   </InlineStack>
                 </Box>
 
@@ -614,6 +655,37 @@ export default function Index() {
               height: "auto",
             }}
           />
+        </Modal.Section>
+      </Modal>
+
+      {/* Upgrade Modal */}
+      <Modal
+        open={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        title="Upgrade to create more quizzes"
+        primaryAction={{
+          content: "View pricing",
+          onAction: () => {
+            setShowUpgradeModal(false);
+            navigate("/app/pricing");
+          },
+        }}
+        secondaryActions={[
+          {
+            content: "Cancel",
+            onAction: () => setShowUpgradeModal(false),
+          },
+        ]}
+      >
+        <Modal.Section>
+          <BlockStack gap="400">
+            <Text as="p">
+              You've reached the limit of {planInfo.quizLimit} quiz{planInfo.quizLimit !== 1 ? "es" : ""} on the {planInfo.name} plan.
+            </Text>
+            <Text as="p">
+              Upgrade to create more quizzes and unlock the full potential of Quizza.
+            </Text>
+          </BlockStack>
         </Modal.Section>
       </Modal>
     </Page>
