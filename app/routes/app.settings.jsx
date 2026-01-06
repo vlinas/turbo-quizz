@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { json, redirect } from "@remix-run/node";
-import { Form, useActionData, useLoaderData, useNavigate, useNavigation } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigate, useNavigation, useSubmit } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -19,33 +19,51 @@ import {
   Banner,
   TextField,
   Modal,
+  ProgressBar,
 } from "@shopify/polaris";
 import {
-  StarFilledIcon,
   CheckCircleIcon,
   ChatIcon,
+  CheckIcon,
 } from "@shopify/polaris-icons";
-import { authenticate } from "../shopify.server";
+import { authenticate, PLAN_STARTER, PLAN_GROWTH } from "../shopify.server";
 import prisma from "../db.server";
+import { PLANS, getQuizLimit, getQuizLimitDisplay } from "../utils/plan-limits";
 
 export const loader = async ({ request }) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session, billing } = await authenticate.admin(request);
 
-  // Get subscription info
+  // Get shop's current plan from database
+  let shopPlan = await prisma.shopPlan.findUnique({
+    where: { shop: session.shop },
+  });
+  if (!shopPlan) {
+    shopPlan = await prisma.shopPlan.create({
+      data: { shop: session.shop, plan: "free" },
+    });
+  }
+
+  // Get quiz count for usage display
+  const quizCount = await prisma.quiz.count({
+    where: {
+      shop: session.shop,
+      deleted_at: null,
+    },
+  });
+
+  // Get subscription info from Shopify
   const result = await admin.graphql(
     `#graphql
     query Shop {
       app {
         installation {
-          launchUrl
           activeSubscriptions {
             id
             name
             createdAt
-            returnUrl
             status
             currentPeriodEnd
-            trialDays
+            test
           }
         }
       }
@@ -56,9 +74,9 @@ export const loader = async ({ request }) => {
   const resultJson = await result.json();
   const { activeSubscriptions } = resultJson.data.app.installation;
 
-  let activePlan = null;
+  let activeSubscription = null;
   if (activeSubscriptions.length > 0) {
-    activePlan = activeSubscriptions.find((plan) => plan.status === "ACTIVE");
+    activeSubscription = activeSubscriptions.find((sub) => sub.status === "ACTIVE");
   }
 
   // Get shop settings including custom CSS
@@ -66,7 +84,6 @@ export const loader = async ({ request }) => {
     where: { shop: session.shop },
   });
 
-  // Create default settings if they don't exist
   if (!shopSettings) {
     shopSettings = await prisma.shopSettings.create({
       data: {
@@ -78,8 +95,12 @@ export const loader = async ({ request }) => {
 
   return json({
     shop: session.shop,
-    activePlan,
+    currentPlan: shopPlan.plan,
+    quizCount,
+    quizLimit: getQuizLimit(shopPlan.plan),
+    activeSubscription,
     customCss: shopSettings.customCss || "",
+    plans: PLANS,
   });
 };
 
@@ -88,15 +109,10 @@ export const action = async ({ request }) => {
   const _action = formData.get("_action");
   const { billing, session } = await authenticate.admin(request);
 
-  console.log("[Settings Action] Action type:", _action);
-
   try {
     if (_action === "saveCustomCss") {
       const customCss = formData.get("customCss");
-      console.log("[Settings Action] Saving custom CSS for shop:", session.shop);
-      console.log("[Settings Action] CSS length:", customCss?.length || 0);
 
-      // Update or create shop settings
       await prisma.shopSettings.upsert({
         where: { shop: session.shop },
         update: { customCss },
@@ -106,42 +122,48 @@ export const action = async ({ request }) => {
         },
       });
 
-      console.log("[Settings Action] Custom CSS saved successfully, returning JSON response");
       return json({ customCssSaved: true });
 
-    } else if (_action === "startSubscription") {
-      console.log("[Billing] Starting subscription with Billing API");
+    } else if (_action === "upgradePlan") {
+      const targetPlan = formData.get("targetPlan");
 
-      // Skip billing entirely for staging/dev apps (non-public distribution)
+      // Skip billing for staging/dev
       const skipBilling = process.env.SKIP_BILLING === 'true';
       if (skipBilling) {
-        console.log("[Billing] Skipping billing (SKIP_BILLING=true)");
-        return json({ alreadySubscribed: true, skipped: true });
+        // Just update the plan in database for testing
+        await prisma.shopPlan.upsert({
+          where: { shop: session.shop },
+          update: { plan: targetPlan },
+          create: { shop: session.shop, plan: targetPlan },
+        });
+        return redirect("/app/settings");
       }
 
-      // Use environment variable to control test mode
-      // Defaults to true if not set (safe for development)
       const isTest = process.env.BILLING_TEST_MODE !== 'false';
+      const planName = targetPlan === "starter" ? PLAN_STARTER : PLAN_GROWTH;
 
-      // Use billing.require() with onFailure pattern for Manual Pricing
-      // Don't wrap in try-catch - let billing.require handle the flow
-      await billing.require({
-        plans: ["premium"],
-        onFailure: async () => {
-          const response = await billing.request({
-            plan: "premium",
-            isTest,
-            returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/settings?subscribed=true`,
-          });
-          return response;
-        },
+      // Request billing - this will redirect to Shopify payment page
+      await billing.request({
+        plan: planName,
+        isTest,
+        returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}/app/settings?upgraded=true`,
       });
 
-      // If we get here, user already has subscription
-      return json({ alreadySubscribed: true });
+    } else if (_action === "downgradePlan") {
+      const targetPlan = formData.get("targetPlan");
+
+      // For downgrade, we need to cancel the current subscription
+      // The webhook will handle updating the plan when subscription is cancelled
+      // For now, just update the database - merchant manages subscription in Shopify Admin
+      await prisma.shopPlan.upsert({
+        where: { shop: session.shop },
+        update: { plan: targetPlan },
+        create: { shop: session.shop, plan: targetPlan },
+      });
+
+      return json({ planUpdated: true, newPlan: targetPlan });
     }
   } catch (error) {
-    // If it's a Response object (redirect), re-throw it so Remix handles it
     if (error instanceof Response) {
       throw error;
     }
@@ -153,17 +175,26 @@ export const action = async ({ request }) => {
 };
 
 export default function BillingPage() {
-  const { shop, activePlan, customCss } = useLoaderData();
+  const {
+    shop,
+    currentPlan,
+    quizCount,
+    quizLimit,
+    activeSubscription,
+    customCss,
+    plans
+  } = useLoaderData();
   const actionData = useActionData();
   const navigate = useNavigate();
   const navigation = useNavigation();
+  const submit = useSubmit();
 
   const [showCssSavedToast, setShowCssSavedToast] = useState(false);
+  const [showPlanUpdatedToast, setShowPlanUpdatedToast] = useState(false);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [customCssValue, setCustomCssValue] = useState(customCss);
 
-  // Update customCssValue when loader data changes (after save)
   useEffect(() => {
     setCustomCssValue(customCss);
   }, [customCss]);
@@ -172,7 +203,9 @@ export default function BillingPage() {
     if (actionData?.customCssSaved) {
       setShowCssSavedToast(true);
     }
-
+    if (actionData?.planUpdated) {
+      setShowPlanUpdatedToast(true);
+    }
     if (actionData?.error) {
       setShowErrorBanner(true);
     }
@@ -181,6 +214,56 @@ export default function BillingPage() {
   const isSubmitting = navigation.state === "submitting";
 
   const toggleCssSavedToast = useCallback(() => setShowCssSavedToast(false), []);
+  const togglePlanUpdatedToast = useCallback(() => setShowPlanUpdatedToast(false), []);
+
+  const handlePlanChange = (targetPlan) => {
+    if (targetPlan === currentPlan) return;
+
+    const planOrder = { free: 0, starter: 1, growth: 2 };
+    const isUpgrade = planOrder[targetPlan] > planOrder[currentPlan];
+
+    submit(
+      {
+        _action: isUpgrade ? "upgradePlan" : "downgradePlan",
+        targetPlan
+      },
+      { method: "post" }
+    );
+  };
+
+  // Calculate usage percentage for progress bar
+  const usagePercentage = quizLimit === Infinity ? 0 : Math.min((quizCount / quizLimit) * 100, 100);
+
+  // Build plan cards with current state
+  const planCards = [
+    {
+      key: "free",
+      ...plans.free,
+      isCurrent: currentPlan === "free",
+      buttonText: currentPlan === "free" ? "Current plan" : "Downgrade to Free",
+      buttonDisabled: currentPlan === "free",
+      buttonTone: currentPlan === "free" ? undefined : "critical",
+    },
+    {
+      key: "starter",
+      ...plans.starter,
+      isCurrent: currentPlan === "starter",
+      buttonText: currentPlan === "starter" ? "Current plan" :
+                  currentPlan === "growth" ? "Downgrade to Starter" : "Upgrade to Starter",
+      buttonDisabled: currentPlan === "starter",
+      buttonTone: currentPlan === "starter" ? undefined :
+                  currentPlan === "growth" ? "critical" : undefined,
+      buttonVariant: currentPlan === "free" ? "primary" : undefined,
+    },
+    {
+      key: "growth",
+      ...plans.growth,
+      isCurrent: currentPlan === "growth",
+      buttonText: currentPlan === "growth" ? "Current plan" : "Upgrade to Growth",
+      buttonDisabled: currentPlan === "growth",
+      buttonVariant: currentPlan !== "growth" ? "primary" : undefined,
+    },
+  ];
 
   return (
     <Frame>
@@ -191,164 +274,199 @@ export default function BillingPage() {
               {/* Error Banner */}
               {showErrorBanner && actionData?.error && (
                 <Banner
-                  title="Billing unavailable"
-                  tone="info"
+                  title="Error"
+                  tone="critical"
                   onDismiss={() => setShowErrorBanner(false)}
                 >
-                  <BlockStack gap="200">
-                    <Text as="p">
-                      The billing system is not available for this app. This is normal for:
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      • Development/testing apps
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      • Custom apps (not distributed via Shopify App Store)
-                    </Text>
-                    <Text as="p">
-                      <strong>Good news:</strong> All premium features are currently enabled for free! You have unlimited access to:
-                    </Text>
-                    <Text as="p" variant="bodySm">
-                      ✓ Unlimited quizzes
-                    </Text>
-                    <Text as="p" variant="bodySm">
-                      ✓ Full analytics & revenue tracking
-                    </Text>
-                    <Text as="p" variant="bodySm">
-                      ✓ All premium features
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      (Billing will be automatically enabled when the app is published to the Shopify App Store)
-                    </Text>
-                    {actionData.message && (
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Technical details: {actionData.message}
-                      </Text>
-                    )}
-                  </BlockStack>
+                  <Text as="p">{actionData.error}</Text>
                 </Banner>
               )}
 
-              {/* Subscription Status */}
+              {/* Current Plan Overview */}
               <Card>
-                <BlockStack gap="500">
-                  {/* Header Section */}
-                  <InlineStack align="space-between" blockAlign="start">
+                <BlockStack gap="400">
+                  <InlineStack align="space-between" blockAlign="center">
                     <BlockStack gap="200">
                       <InlineStack gap="300" blockAlign="center">
-                        <Text as="h2" variant="headingXl">
-                          Premium Plan
+                        <Text as="h2" variant="headingLg">
+                          Your Plan
                         </Text>
-                        <Badge tone="success" size="large">Active</Badge>
+                        <Badge tone={currentPlan === "free" ? "info" : "success"} size="large">
+                          {plans[currentPlan]?.name || "Free"}
+                        </Badge>
                       </InlineStack>
-                      <Text as="p" variant="bodyLg" tone="subdued">
-                        {activePlan?.trialDays ? `Includes ${activePlan.trialDays}-day free trial` : 'You have full access to all Premium features'}
-                      </Text>
                     </BlockStack>
                     <Box>
                       <Text as="p" variant="heading2xl" alignment="end">
-                        $14.99
+                        ${plans[currentPlan]?.price || 0}
                       </Text>
                       <Text as="p" tone="subdued" alignment="end">
-                        per month
+                        {plans[currentPlan]?.price > 0 ? "per month" : "forever free"}
                       </Text>
                     </Box>
                   </InlineStack>
 
                   <Divider />
 
-                  {/* Plan Details Grid */}
-                  <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
-                    <Box>
-                      <BlockStack gap="200">
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          Status
-                        </Text>
-                        <InlineStack gap="200" blockAlign="start" align="start">
-                          <Box minWidth="20px">
-                            <Icon source={CheckCircleIcon} tone="success" />
+                  {/* Usage Stats */}
+                  <BlockStack gap="300">
+                    <InlineStack align="space-between">
+                      <Text as="p" variant="bodyMd">Quiz usage</Text>
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">
+                        {quizCount} / {quizLimit === Infinity ? "Unlimited" : quizLimit}
+                      </Text>
+                    </InlineStack>
+                    {quizLimit !== Infinity && (
+                      <ProgressBar
+                        progress={usagePercentage}
+                        tone={usagePercentage >= 100 ? "critical" : usagePercentage >= 80 ? "warning" : "primary"}
+                        size="small"
+                      />
+                    )}
+                    {quizLimit !== Infinity && quizCount >= quizLimit && (
+                      <Banner tone="warning">
+                        <Text as="p">You've reached your quiz limit. Upgrade to create more quizzes.</Text>
+                      </Banner>
+                    )}
+                  </BlockStack>
+
+                  {/* Subscription Details (if on paid plan) */}
+                  {activeSubscription && (
+                    <>
+                      <Divider />
+                      <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
+                        <Box>
+                          <BlockStack gap="100">
+                            <Text as="p" variant="bodySm" tone="subdued">Status</Text>
+                            <InlineStack gap="200" blockAlign="center">
+                              <Icon source={CheckCircleIcon} tone="success" />
+                              <Text as="p" variant="bodyMd" fontWeight="semibold">Active</Text>
+                            </InlineStack>
+                          </BlockStack>
+                        </Box>
+                        <Box>
+                          <BlockStack gap="100">
+                            <Text as="p" variant="bodySm" tone="subdued">Billing Cycle</Text>
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">Monthly</Text>
+                          </BlockStack>
+                        </Box>
+                        {activeSubscription.currentPeriodEnd && (
+                          <Box>
+                            <BlockStack gap="100">
+                              <Text as="p" variant="bodySm" tone="subdued">Next Billing</Text>
+                              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                {new Date(activeSubscription.currentPeriodEnd).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </Text>
+                            </BlockStack>
                           </Box>
-                          <Text as="p" variant="bodyMd" fontWeight="semibold">
-                            Active Subscription
-                          </Text>
-                        </InlineStack>
-                      </BlockStack>
-                    </Box>
-                    <Box>
-                      <BlockStack gap="200">
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          Billing Cycle
-                        </Text>
-                        <Text as="p" variant="bodyMd" fontWeight="semibold">
-                          Monthly
-                        </Text>
-                      </BlockStack>
-                    </Box>
-                    {activePlan?.currentPeriodEnd && (
-                      <Box>
-                        <BlockStack gap="200">
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            Next Billing Date
-                          </Text>
-                          <Text as="p" variant="bodyMd" fontWeight="semibold">
-                            {new Date(activePlan.currentPeriodEnd).toLocaleDateString('en-US', {
-                              month: 'long',
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}
-                          </Text>
+                        )}
+                      </InlineGrid>
+                    </>
+                  )}
+                </BlockStack>
+              </Card>
+
+              {/* Plan Selection */}
+              <Card>
+                <BlockStack gap="400">
+                  <Text as="h2" variant="headingLg">
+                    Available Plans
+                  </Text>
+                  <Text as="p" tone="subdued">
+                    Choose the plan that best fits your needs
+                  </Text>
+
+                  <Divider />
+
+                  <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
+                    {planCards.map((plan) => (
+                      <Box
+                        key={plan.key}
+                        padding="400"
+                        background={plan.isCurrent ? "bg-surface-selected" : "bg-surface"}
+                        borderRadius="200"
+                        borderWidth="025"
+                        borderColor={plan.isCurrent ? "border-success" : "border"}
+                      >
+                        <BlockStack gap="300">
+                          {/* Plan Header */}
+                          <InlineStack align="space-between" blockAlign="center">
+                            <Text as="h3" variant="headingMd">{plan.name}</Text>
+                            {plan.isCurrent && (
+                              <Badge tone="success">Current</Badge>
+                            )}
+                          </InlineStack>
+
+                          {/* Price */}
+                          <BlockStack gap="100">
+                            <InlineStack gap="100" blockAlign="baseline">
+                              <Text as="span" variant="heading2xl">${plan.price}</Text>
+                              {plan.price > 0 && (
+                                <Text as="span" variant="bodySm" tone="subdued">/mo</Text>
+                              )}
+                            </InlineStack>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {plan.price === 0 ? "Forever free" : "Billed monthly"}
+                            </Text>
+                          </BlockStack>
+
+                          <Divider />
+
+                          {/* Features */}
+                          <BlockStack gap="200">
+                            {plan.features.map((feature, index) => (
+                              <InlineStack key={index} gap="200" blockAlign="start">
+                                <Box minWidth="16px">
+                                  <Icon source={CheckIcon} tone="success" />
+                                </Box>
+                                <Text as="span" variant="bodySm">{feature}</Text>
+                              </InlineStack>
+                            ))}
+                          </BlockStack>
+
+                          {/* Action Button */}
+                          <Box paddingBlockStart="200">
+                            <Button
+                              variant={plan.buttonVariant}
+                              tone={plan.buttonTone}
+                              disabled={plan.buttonDisabled}
+                              onClick={() => handlePlanChange(plan.key)}
+                              fullWidth
+                              loading={isSubmitting}
+                            >
+                              {plan.buttonText}
+                            </Button>
+                          </Box>
                         </BlockStack>
                       </Box>
-                    )}
+                    ))}
                   </InlineGrid>
 
-                  <Divider />
-
-                  {/* Features Section */}
-                  <BlockStack gap="400">
-                    <Text as="h3" variant="headingMd">
-                      Premium Features
-                    </Text>
-                    <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
-                      {[
-                        "Unlimited quizzes",
-                        "Unlimited questions & answers",
-                        "Order attribution tracking",
-                        "Revenue analytics",
-                        "Answer statistics & insights",
-                        "Priority email support"
-                      ].map((feature, index) => (
-                        <InlineStack key={index} gap="300" blockAlign="start" wrap={false} align="start">
-                          <Box minWidth="20px">
-                            <Icon source={CheckCircleIcon} tone="success" />
-                          </Box>
-                          <Text as="span">{feature}</Text>
+                  {/* Manage Subscription Link */}
+                  {currentPlan !== "free" && (
+                    <>
+                      <Divider />
+                      <BlockStack gap="200">
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          To cancel your subscription or update payment methods, visit your Shopify Admin billing settings.
+                        </Text>
+                        <InlineStack align="start">
+                          <Button
+                            onClick={() => {
+                              window.open(`https://${shop}/admin/settings/billing`, '_top');
+                            }}
+                            variant="plain"
+                          >
+                            Manage in Shopify Admin
+                          </Button>
                         </InlineStack>
-                      ))}
-                    </InlineGrid>
-                  </BlockStack>
-
-                  <Divider />
-
-                  {/* Manage Section */}
-                  <BlockStack gap="300">
-                    <Text as="h3" variant="headingMd">
-                      Manage Subscription
-                    </Text>
-                    <Text as="p" variant="bodyMd" tone="subdued">
-                      To cancel or modify your subscription, please visit your Shopify Admin billing settings.
-                    </Text>
-                    <InlineStack align="start">
-                      <Button
-                        onClick={() => {
-                          window.open(`https://${shop}/admin/settings/billing`, '_top');
-                        }}
-                        variant="secondary"
-                      >
-                        Manage in Shopify Admin
-                      </Button>
-                    </InlineStack>
-                  </BlockStack>
+                      </BlockStack>
+                    </>
+                  )}
                 </BlockStack>
               </Card>
 
@@ -360,7 +478,7 @@ export default function BillingPage() {
                       Custom CSS Styling
                     </Text>
                     <Text as="p" variant="bodyMd" tone="subdued">
-                      Customize the appearance of your quiz widget to match your store's design. Add custom CSS rules that will be applied to the quiz widget on your storefront.
+                      Customize the appearance of your quiz widget to match your store's design.
                     </Text>
                   </BlockStack>
 
@@ -375,7 +493,7 @@ export default function BillingPage() {
                         onChange={setCustomCssValue}
                         multiline={8}
                         autoComplete="off"
-                        helpText="Add CSS rules to style your quiz widget. Example: .quiz-container { background: #f5f5f5; border-radius: 8px; }"
+                        helpText="Add CSS rules to style your quiz widget."
                         name="customCss"
                       />
 
@@ -400,16 +518,16 @@ export default function BillingPage() {
                     <Box>
                       <BlockStack gap="100">
                         <Text as="p" variant="bodySm" tone="subdued">
-                          • <Text as="span" fontWeight="semibold">.quizza-widget</Text> - Main quiz wrapper
+                          • <Text as="span" fontWeight="semibold">.turbo-quiz-widget</Text> - Main quiz wrapper
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          • <Text as="span" fontWeight="semibold">.quizza-question-text</Text> - Question text
+                          • <Text as="span" fontWeight="semibold">.turbo-quiz-question-text</Text> - Question text
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          • <Text as="span" fontWeight="semibold">.quizza-answer-btn</Text> - Answer buttons
+                          • <Text as="span" fontWeight="semibold">.turbo-quiz-answer-btn</Text> - Answer buttons
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          • <Text as="span" fontWeight="semibold">.quizza-result</Text> - Results section
+                          • <Text as="span" fontWeight="semibold">.turbo-quiz-result</Text> - Results section
                         </Text>
                       </BlockStack>
                     </Box>
@@ -434,21 +552,15 @@ export default function BillingPage() {
                     <BlockStack gap="200">
                       <Box width="fit-content">
                         <Box background="bg-surface-secondary" padding="200" borderRadius="100">
-                          <Text as="span" variant="bodySm" fontWeight="semibold">
-                            Step 1
-                          </Text>
+                          <Text as="span" variant="bodySm" fontWeight="semibold">Step 1</Text>
                         </Box>
                       </Box>
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">
-                        Create a quiz
-                      </Text>
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">Create a quiz</Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         Go to the Dashboard and create a quiz with your questions and answers
                       </Text>
                       <InlineStack align="start">
-                        <Button onClick={() => navigate("/app")}>
-                          Go to Dashboard
-                        </Button>
+                        <Button onClick={() => navigate("/app")}>Go to Dashboard</Button>
                       </InlineStack>
                     </BlockStack>
 
@@ -458,16 +570,12 @@ export default function BillingPage() {
                     <BlockStack gap="200">
                       <Box width="fit-content">
                         <Box background="bg-surface-secondary" padding="200" borderRadius="100">
-                          <Text as="span" variant="bodySm" fontWeight="semibold">
-                            Step 2
-                          </Text>
+                          <Text as="span" variant="bodySm" fontWeight="semibold">Step 2</Text>
                         </Box>
                       </Box>
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">
-                        Copy your Quiz ID
-                      </Text>
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">Copy your Quiz ID</Text>
                       <Text as="p" variant="bodySm" tone="subdued">
-                        Each quiz has a unique ID shown on the quiz details page. You'll need this ID to display the quiz on your store.
+                        Each quiz has a unique ID shown on the quiz details page.
                       </Text>
                     </BlockStack>
 
@@ -477,16 +585,12 @@ export default function BillingPage() {
                     <BlockStack gap="200">
                       <Box width="fit-content">
                         <Box background="bg-surface-secondary" padding="200" borderRadius="100">
-                          <Text as="span" variant="bodySm" fontWeight="semibold">
-                            Step 3
-                          </Text>
+                          <Text as="span" variant="bodySm" fontWeight="semibold">Step 3</Text>
                         </Box>
                       </Box>
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">
-                        Add Quiz Widget block to your theme
-                      </Text>
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">Add Quiz Widget block to your theme</Text>
                       <Text as="p" variant="bodySm" tone="subdued">
-                        Open the Theme Editor and add the "Quiz Widget" app block to any page where you want the quiz to appear
+                        Open the Theme Editor and add the "Quiz Widget" app block
                       </Text>
                       <InlineStack align="start">
                         <Button
@@ -506,14 +610,10 @@ export default function BillingPage() {
                     <BlockStack gap="200">
                       <Box width="fit-content">
                         <Box background="bg-surface-secondary" padding="200" borderRadius="100">
-                          <Text as="span" variant="bodySm" fontWeight="semibold">
-                            Step 4
-                          </Text>
+                          <Text as="span" variant="bodySm" fontWeight="semibold">Step 4</Text>
                         </Box>
                       </Box>
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">
-                        Paste the Quiz ID in block settings
-                      </Text>
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">Paste the Quiz ID in block settings</Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         In the Theme Editor, find the Quiz Widget block settings and enter your Quiz ID
                       </Text>
@@ -523,19 +623,10 @@ export default function BillingPage() {
 
                     {/* Screenshot */}
                     <BlockStack gap="200">
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">
-                        Visual Guide
-                      </Text>
-                      <Box
-                        background="bg-surface-secondary"
-                        padding="400"
-                        borderRadius="200"
-                      >
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">Visual Guide</Text>
+                      <Box background="bg-surface-secondary" padding="400" borderRadius="200">
                         <BlockStack gap="200" inlineAlign="center">
-                          <div
-                            onClick={() => setShowImageModal(true)}
-                            style={{ cursor: "pointer" }}
-                          >
+                          <div onClick={() => setShowImageModal(true)} style={{ cursor: "pointer" }}>
                             <img
                               src="/quiz-setup-guide.jpg"
                               alt="Setup instructions - Click to enlarge"
@@ -545,10 +636,7 @@ export default function BillingPage() {
                                 height: "auto",
                                 border: "1px solid #e0e0e0",
                                 borderRadius: "8px",
-                                transition: "transform 0.2s",
                               }}
-                              onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.02)"}
-                              onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
                             />
                           </div>
                           <Text as="p" variant="bodySm" tone="subdued" alignment="center">
@@ -563,36 +651,26 @@ export default function BillingPage() {
             </BlockStack>
           </Layout.Section>
 
-          {/* Sidebar with App Info */}
+          {/* Sidebar */}
           <Layout.Section variant="oneThird">
             <BlockStack gap="400">
-              {/* Help & Support */}
               <Card>
                 <BlockStack gap="400">
                   <InlineStack gap="200" align="start" blockAlign="start">
                     <Box minWidth="20px">
                       <Icon source={ChatIcon} tone="base" />
                     </Box>
-                    <Text as="h3" variant="headingMd">
-                      Help & Support
-                    </Text>
+                    <Text as="h3" variant="headingMd">Help & Support</Text>
                   </InlineStack>
                   <Divider />
                   <BlockStack gap="300">
                     <Text as="p" variant="bodyMd">
-                      Need help with setup or have technical questions?
-                    </Text>
-                    <Text as="p" variant="bodyMd" tone="subdued">
-                      Our team is here to help with all technical questions, setup assistance, and feature requests.
+                      Need help with setup or have questions?
                     </Text>
                     <Box paddingBlockStart="200">
                       <BlockStack gap="200">
-                        <Text as="p" variant="bodySm" fontWeight="semibold">
-                          Contact us:
-                        </Text>
-                        <Text as="p" variant="bodyLg" fontWeight="bold">
-                          info@quizza.app
-                        </Text>
+                        <Text as="p" variant="bodySm" fontWeight="semibold">Contact us:</Text>
+                        <Text as="p" variant="bodyLg" fontWeight="bold">info@quizza.app</Text>
                       </BlockStack>
                     </Box>
                   </BlockStack>
@@ -610,7 +688,14 @@ export default function BillingPage() {
           />
         )}
 
-        {/* Image Modal */}
+        {showPlanUpdatedToast && (
+          <Toast
+            content={`Plan updated to ${actionData?.newPlan || 'new plan'}`}
+            onDismiss={togglePlanUpdatedToast}
+            duration={4500}
+          />
+        )}
+
         <Modal
           open={showImageModal}
           onClose={() => setShowImageModal(false)}
@@ -621,10 +706,7 @@ export default function BillingPage() {
             <img
               src="/quiz-setup-guide.jpg"
               alt="Setup instructions"
-              style={{
-                width: "100%",
-                height: "auto",
-              }}
+              style={{ width: "100%", height: "auto" }}
             />
           </Modal.Section>
         </Modal>
