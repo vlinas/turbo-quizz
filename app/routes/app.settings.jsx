@@ -339,12 +339,12 @@ export default function BillingPage() {
                         <Box>
                           <BlockStack gap="100">
                             <Text as="p" variant="bodySm" tone="subdued">Status</Text>
-                            <InlineStack gap="200" blockAlign="center">
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                               <Icon source={CheckCircleIcon} tone="success" />
-                              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                              <Text as="span" variant="bodyMd" fontWeight="semibold">
                                 {plans[currentPlan]?.name || "Free"}
                               </Text>
-                            </InlineStack>
+                            </div>
                           </BlockStack>
                         </Box>
                         <Box>
