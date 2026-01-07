@@ -337,14 +337,16 @@ export default function BillingPage() {
                       <Divider />
                       <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
                         <Box>
-                          <BlockStack gap="100">
-                            <Text as="p" variant="bodySm" tone="subdued">Status</Text>
+                          <BlockStack gap="100" inlineAlign="start">
+                            <InlineStack gap="200" blockAlign="center">
+                            <Text as="p" variant="bodySm" tone="subdued">Active Plan:</Text>
                             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                               <Icon source={CheckCircleIcon} tone="success" />
                               <Text as="span" variant="bodyMd" fontWeight="semibold">
                                 {plans[currentPlan]?.name || "Free"}
                               </Text>
                             </div>
+                            </InlineStack>
                           </BlockStack>
                         </Box>
                         <Box>
