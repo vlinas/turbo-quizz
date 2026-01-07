@@ -27,7 +27,7 @@ const shopify = shopifyApp({
   restResources,
   billing: {
     [PLAN_STARTER]: {
-      amount: 19.99,
+      amount: 12.99,
       currencyCode: "USD",
       interval: BillingInterval.Every30Days,
     },

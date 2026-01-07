@@ -3,37 +3,40 @@ export const PLANS = {
   free: {
     name: "Free",
     price: 0,
+    yearlyPrice: 0,
     quizLimit: 1,
     features: [
       "1 quiz",
       "Full analytics",
       "Revenue attribution",
-      "All result types",
       "Custom CSS",
     ],
   },
   starter: {
     name: "Starter",
-    price: 19.99,
+    price: 12.99,
+    yearlyPrice: 129, // $129/year = ~$10.75/mo, save 17%
+    yearlySavings: 17,
     quizLimit: 5,
     features: [
       "5 quizzes",
       "Full analytics",
       "Revenue attribution",
-      "All result types",
       "Custom CSS",
-      "Email support",
+      "Priority support",
     ],
   },
   growth: {
     name: "Growth",
     price: 49.99,
+    yearlyPrice: 420, // $420/year = $35/mo, save 30%
+    yearlySavings: 30,
     quizLimit: Infinity,
+    recommended: true,
     features: [
       "Unlimited quizzes",
       "Full analytics",
       "Revenue attribution",
-      "All result types",
       "Custom CSS",
       "Priority support",
     ],

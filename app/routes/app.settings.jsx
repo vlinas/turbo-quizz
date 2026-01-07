@@ -262,6 +262,7 @@ export default function BillingPage() {
       buttonText: currentPlan === "growth" ? "Current plan" : "Upgrade to Growth",
       buttonDisabled: currentPlan === "growth",
       buttonVariant: currentPlan !== "growth" ? "primary" : undefined,
+      recommended: true,
     },
   ];
 
@@ -340,7 +341,9 @@ export default function BillingPage() {
                             <Text as="p" variant="bodySm" tone="subdued">Status</Text>
                             <InlineStack gap="200" blockAlign="center">
                               <Icon source={CheckCircleIcon} tone="success" />
-                              <Text as="p" variant="bodyMd" fontWeight="semibold">Active</Text>
+                              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                                {plans[currentPlan]?.name || "Free"}
+                              </Text>
                             </InlineStack>
                           </BlockStack>
                         </Box>
@@ -387,18 +390,23 @@ export default function BillingPage() {
                       <Box
                         key={plan.key}
                         padding="400"
-                        background={plan.isCurrent ? "bg-surface-selected" : "bg-surface"}
+                        background="bg-surface"
                         borderRadius="200"
-                        borderWidth="025"
+                        borderWidth={plan.isCurrent ? "050" : "025"}
                         borderColor={plan.isCurrent ? "border-success" : "border"}
                       >
                         <BlockStack gap="300">
                           {/* Plan Header */}
                           <InlineStack align="space-between" blockAlign="center">
                             <Text as="h3" variant="headingMd">{plan.name}</Text>
-                            {plan.isCurrent && (
-                              <Badge tone="success">Current</Badge>
-                            )}
+                            <InlineStack gap="200">
+                              {plan.recommended && !plan.isCurrent && (
+                                <Badge tone="info">Recommended</Badge>
+                              )}
+                              {plan.isCurrent && (
+                                <Badge tone="success">Current</Badge>
+                              )}
+                            </InlineStack>
                           </InlineStack>
 
                           {/* Price */}
@@ -406,12 +414,19 @@ export default function BillingPage() {
                             <InlineStack gap="100" blockAlign="baseline">
                               <Text as="span" variant="heading2xl">${plan.price}</Text>
                               {plan.price > 0 && (
-                                <Text as="span" variant="bodySm" tone="subdued">/mo</Text>
+                                <Text as="span" variant="bodySm" tone="subdued">/ month</Text>
                               )}
                             </InlineStack>
-                            <Text as="p" variant="bodySm" tone="subdued">
-                              {plan.price === 0 ? "Forever free" : "Billed monthly"}
-                            </Text>
+                            {plan.yearlyPrice > 0 && plan.yearlySavings && (
+                              <Text as="p" variant="bodySm" tone="success">
+                                or ${plan.yearlyPrice}/year and save {plan.yearlySavings}%
+                              </Text>
+                            )}
+                            {plan.price === 0 && (
+                              <Text as="p" variant="bodySm" tone="subdued">
+                                Forever free
+                              </Text>
+                            )}
                           </BlockStack>
 
                           <Divider />
