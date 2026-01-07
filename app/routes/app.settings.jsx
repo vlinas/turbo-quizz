@@ -309,8 +309,8 @@ export default function BillingPage() {
 
                   <Divider />
 
-                  {/* Usage Stats - only show for limited plans */}
-                  {quizLimit !== Infinity && (
+                  {/* Usage Stats - only show for limited plans (Infinity becomes null in JSON) */}
+                  {quizLimit !== null && quizLimit !== Infinity && (
                     <BlockStack gap="300">
                       <InlineStack align="space-between">
                         <Text as="p" variant="bodyMd">Quiz usage</Text>
