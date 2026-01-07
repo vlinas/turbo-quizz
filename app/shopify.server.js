@@ -9,6 +9,7 @@ import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prism
 import { restResources } from "@shopify/shopify-api/rest/admin/2023-10";
 import prisma from "./db.server";
 import { BillingInterval } from "@shopify/shopify-api";
+import { identifyShopWithMantle } from "./utils/mantle.server";
 
 // Plan names for billing - must match App Store listing handles
 export const PLAN_STARTER = "starter";
@@ -75,6 +76,11 @@ const shopify = shopifyApp({
         const subscriptionResult = await admin.graphql(
           `#graphql
           query {
+            shop {
+              id
+              name
+              email
+            }
             app {
               installation {
                 activeSubscriptions {
@@ -88,6 +94,7 @@ const shopify = shopifyApp({
         );
 
         const subscriptionData = await subscriptionResult.json();
+        const shopData = subscriptionData.data?.shop;
         const activeSubscriptions = subscriptionData.data?.app?.installation?.activeSubscriptions || [];
         const hasActiveSubscription = activeSubscriptions.some(sub => sub.status === 'ACTIVE');
 
@@ -95,6 +102,24 @@ const shopify = shopifyApp({
           console.log('[afterAuth] No active subscription found - billing will be required when accessing app');
         } else {
           console.log('[afterAuth] Active subscription found:', activeSubscriptions[0].name);
+        }
+
+        // Identify shop with Mantle for analytics (production only)
+        if (shopData) {
+          // Extract numeric shop ID from GID (gid://shopify/Shop/12345 -> 12345)
+          const shopId = shopData.id?.split('/').pop();
+
+          await identifyShopWithMantle({
+            shop: session.shop,
+            accessToken: session.accessToken,
+            shopId: shopId,
+            name: shopData.name,
+            email: shopData.email,
+            customFields: {
+              has_subscription: hasActiveSubscription,
+              subscription_name: hasActiveSubscription ? activeSubscriptions[0].name : 'free',
+            },
+          });
         }
       } catch (error) {
         console.error('[afterAuth] Webhook registration failed:', error);
