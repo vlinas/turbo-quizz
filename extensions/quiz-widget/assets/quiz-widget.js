@@ -102,6 +102,29 @@
       document.head.appendChild(styleElement);
     }
 
+    // Apply theme settings (colors, button styles, font sizes)
+    applyThemeSettings(settings) {
+      if (!settings) return;
+
+      // Set CSS variables for colors
+      if (settings.primaryColor) {
+        this.container.style.setProperty('--quizza-primary-color', settings.primaryColor);
+      }
+      if (settings.secondaryColor) {
+        this.container.style.setProperty('--quizza-secondary-color', settings.secondaryColor);
+      }
+
+      // Apply button style class
+      const buttonStyle = settings.buttonStyle || 'rounded';
+      this.container.classList.remove('quizza-btn-rounded', 'quizza-btn-square', 'quizza-btn-pill');
+      this.container.classList.add(`quizza-btn-${buttonStyle}`);
+
+      // Apply font size class
+      const fontSize = settings.fontSize || 'medium';
+      this.container.classList.remove('quizza-font-small', 'quizza-font-medium', 'quizza-font-large');
+      this.container.classList.add(`quizza-font-${fontSize}`);
+    }
+
     async init() {
       if (!this.quizId || !this.appUrl) {
         console.error('[Quizza] Missing quizId or appUrl');
@@ -156,6 +179,11 @@
         // Inject custom CSS if provided
         if (this.quiz.custom_css) {
           this.injectCustomCss(this.quiz.custom_css);
+        }
+
+        // Apply theme settings if provided
+        if (this.quiz.theme_settings) {
+          this.applyThemeSettings(this.quiz.theme_settings);
         }
 
         // Track impression every time quiz is viewed
@@ -462,6 +490,7 @@
     renderProductsResult(actionData) {
       const products = actionData.products || [];
       const customText = actionData.custom_text || 'Based on your answers, we recommend these products:';
+      const gridColumns = actionData.grid_columns || 2;
 
       if (products.length === 0) {
         return '<p>No products available.</p>';
@@ -470,12 +499,12 @@
       return `
         <div class="quizza-products-result">
           <p class="quizza-custom-text">${customText}</p>
-          <div class="quizza-products-grid">
+          <div class="quizza-products-grid quizza-grid-cols-${gridColumns}">
             ${products
               .map((product) => {
-                const imageUrl = product.images?.[0]?.originalSrc || '';
-                const price = product.variants?.[0]?.price || '';
-                const handle = this.extractHandle(product.id);
+                const imageUrl = product.images?.[0]?.originalSrc || product.images?.edges?.[0]?.node?.originalSrc || '';
+                const price = product.variants?.[0]?.price || product.variants?.edges?.[0]?.node?.price || '';
+                const handle = product.handle || this.extractHandle(product.id);
 
                 return `
                   <div class="quizza-product-card">
@@ -497,6 +526,7 @@
     renderCollectionsResult(actionData) {
       const collections = actionData.collections || [];
       const customText = actionData.custom_text || 'Based on your answers, check out these collections:';
+      const gridColumns = actionData.grid_columns || 2;
 
       if (collections.length === 0) {
         return '<p>No collections available.</p>';
@@ -505,11 +535,11 @@
       return `
         <div class="quizza-collections-result">
           <p class="quizza-custom-text">${customText}</p>
-          <div class="quizza-products-grid">
+          <div class="quizza-products-grid quizza-grid-cols-${gridColumns}">
             ${collections
               .map((collection) => {
-                const imageUrl = collection.image?.originalSrc || '';
-                const handle = this.extractHandle(collection.id);
+                const imageUrl = collection.image?.originalSrc || collection.image?.url || '';
+                const handle = collection.handle || this.extractHandle(collection.id);
 
                 return `
                   <div class="quizza-product-card">
