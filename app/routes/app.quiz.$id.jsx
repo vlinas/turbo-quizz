@@ -1090,9 +1090,14 @@ export default function QuizBuilder() {
               {/* Quiz Details */}
               <Card>
                 <BlockStack gap="400">
-                  <Text as="h2" variant="headingMd">
-                    Quiz Details
-                  </Text>
+                  <BlockStack gap="100">
+                    <Text as="h2" variant="headingMd">
+                      Quiz Details
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      For internal use only. These details help you identify and organize your quizzes.
+                    </Text>
+                  </BlockStack>
 
                   <TextField
                     label="Quiz Title"
