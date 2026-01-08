@@ -1,5 +1,5 @@
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useNavigate, useSubmit, useActionData } from "@remix-run/react";
+import { useLoaderData, useNavigate, useSubmit, useActionData, Outlet, useMatches } from "@remix-run/react";
 import { useState, useCallback, useEffect } from "react";
 import {
   Page,
@@ -716,6 +716,18 @@ export default function QuizBuilder() {
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
+  const matches = useMatches();
+
+  // Check if we have a child route (like edit-question)
+  const hasChildRoute = matches.some(match =>
+    match.id.includes("edit-question") ||
+    (match.id.includes("question") && match.id.includes("edit"))
+  );
+
+  // If there's a child route, render Outlet instead of this page's content
+  if (hasChildRoute) {
+    return <Outlet />;
+  }
 
   const [title, setTitle] = useState(quiz.title);
   const [description, setDescription] = useState(quiz.description || "");
