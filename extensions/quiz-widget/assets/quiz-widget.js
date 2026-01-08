@@ -502,8 +502,14 @@
           <div class="quizza-products-grid quizza-grid-cols-${gridColumns}">
             ${products
               .map((product) => {
-                const imageUrl = product.images?.[0]?.originalSrc || product.images?.edges?.[0]?.node?.originalSrc || '';
-                const price = product.variants?.[0]?.price || product.variants?.edges?.[0]?.node?.price || '';
+                // Handle both GraphQL edge/node format and direct array format
+                const imageUrl = product.images?.edges?.[0]?.node?.originalSrc ||
+                                 product.images?.edges?.[0]?.node?.url ||
+                                 product.images?.[0]?.originalSrc ||
+                                 product.images?.[0]?.url || '';
+                const price = product.variants?.edges?.[0]?.node?.price ||
+                              product.variants?.[0]?.price || '';
+                // Use handle directly if available, otherwise fall back to extracted ID
                 const handle = product.handle || this.extractHandle(product.id);
 
                 return `
@@ -538,7 +544,10 @@
           <div class="quizza-products-grid quizza-grid-cols-${gridColumns}">
             ${collections
               .map((collection) => {
-                const imageUrl = collection.image?.originalSrc || collection.image?.url || '';
+                // Handle both GraphQL format and direct format for collection image
+                const imageUrl = collection.image?.originalSrc ||
+                                 collection.image?.url || '';
+                // Use handle directly if available, otherwise fall back to extracted ID
                 const handle = collection.handle || this.extractHandle(collection.id);
 
                 return `

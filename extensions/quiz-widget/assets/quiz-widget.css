@@ -193,17 +193,17 @@
   margin-top: 1rem;
 }
 
-/* Grid Column Variants */
+/* Grid Column Variants - use !important to override the default auto-fill */
 .quizza-products-grid.quizza-grid-cols-1 {
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr !important;
 }
 
 .quizza-products-grid.quizza-grid-cols-2 {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, 1fr) !important;
 }
 
 .quizza-products-grid.quizza-grid-cols-3 {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, 1fr) !important;
 }
 
 .quizza-product-card {

@@ -31,6 +31,8 @@ import {
   ChevronUpIcon,
   PlusIcon,
   ImageIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -431,6 +433,40 @@ export default function EditQuestionPage() {
     else if (previewAnswerIndex > index) setPreviewAnswerIndex(previewAnswerIndex - 1);
   };
 
+  // Move answer up (swap with previous)
+  const moveAnswerUp = (index) => {
+    if (index <= 0) return;
+    setAnswers((prev) => {
+      const newAnswers = [...prev];
+      [newAnswers[index - 1], newAnswers[index]] = [newAnswers[index], newAnswers[index - 1]];
+      return newAnswers;
+    });
+    setExpandedAnswers((prev) => {
+      const newExpanded = [...prev];
+      [newExpanded[index - 1], newExpanded[index]] = [newExpanded[index], newExpanded[index - 1]];
+      return newExpanded;
+    });
+    if (previewAnswerIndex === index) setPreviewAnswerIndex(index - 1);
+    else if (previewAnswerIndex === index - 1) setPreviewAnswerIndex(index);
+  };
+
+  // Move answer down (swap with next)
+  const moveAnswerDown = (index) => {
+    if (index >= answers.length - 1) return;
+    setAnswers((prev) => {
+      const newAnswers = [...prev];
+      [newAnswers[index], newAnswers[index + 1]] = [newAnswers[index + 1], newAnswers[index]];
+      return newAnswers;
+    });
+    setExpandedAnswers((prev) => {
+      const newExpanded = [...prev];
+      [newExpanded[index], newExpanded[index + 1]] = [newExpanded[index + 1], newExpanded[index]];
+      return newExpanded;
+    });
+    if (previewAnswerIndex === index) setPreviewAnswerIndex(index + 1);
+    else if (previewAnswerIndex === index + 1) setPreviewAnswerIndex(index);
+  };
+
   // Resource picker
   const openResourcePicker = async (type, multiple = true, initialSelection = []) => {
     try {
@@ -613,18 +649,42 @@ export default function EditQuestionPage() {
                             </Text>
                           )}
                         </InlineStack>
-                        {answers.length > 2 && (
-                          <Button
-                            icon={DeleteIcon}
-                            tone="critical"
-                            variant="plain"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeAnswer(index);
-                            }}
-                            accessibilityLabel="Remove answer"
-                          />
-                        )}
+                        <InlineStack gap="100">
+                          {index > 0 && (
+                            <Button
+                              icon={ArrowUpIcon}
+                              variant="plain"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveAnswerUp(index);
+                              }}
+                              accessibilityLabel="Move answer up"
+                            />
+                          )}
+                          {index < answers.length - 1 && (
+                            <Button
+                              icon={ArrowDownIcon}
+                              variant="plain"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveAnswerDown(index);
+                              }}
+                              accessibilityLabel="Move answer down"
+                            />
+                          )}
+                          {answers.length > 2 && (
+                            <Button
+                              icon={DeleteIcon}
+                              tone="critical"
+                              variant="plain"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeAnswer(index);
+                              }}
+                              accessibilityLabel="Remove answer"
+                            />
+                          )}
+                        </InlineStack>
                       </InlineStack>
                     </div>
 
@@ -966,7 +1026,7 @@ export default function EditQuestionPage() {
                 {/* Style Info */}
                 <Banner tone="info">
                   <p>
-                    Style settings can be customized from the quiz overview page. This preview uses current quiz
+                    Style and CSS can be customized in the Settings page. This preview uses current quiz
                     theme settings.
                   </p>
                 </Banner>
