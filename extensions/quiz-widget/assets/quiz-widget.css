@@ -3,6 +3,66 @@
 .quizza-widget {
   width: 100%;
   font-family: inherit;
+  --quizza-primary-color: #000;
+  --quizza-secondary-color: #f5f5f5;
+}
+
+/* ============================================
+   Theme Settings - Button Styles
+   ============================================ */
+.quizza-btn-rounded .quizza-answer-btn {
+  border-radius: 8px;
+}
+
+.quizza-btn-square .quizza-answer-btn {
+  border-radius: 0;
+}
+
+.quizza-btn-pill .quizza-answer-btn {
+  border-radius: 9999px;
+}
+
+/* ============================================
+   Theme Settings - Font Sizes
+   ============================================ */
+.quizza-font-small {
+  font-size: 14px;
+}
+
+.quizza-font-small .quizza-question-text {
+  font-size: 16px;
+}
+
+.quizza-font-medium {
+  font-size: 16px;
+}
+
+.quizza-font-medium .quizza-question-text {
+  font-size: 18px;
+}
+
+.quizza-font-large {
+  font-size: 18px;
+}
+
+.quizza-font-large .quizza-question-text {
+  font-size: 22px;
+}
+
+/* ============================================
+   Theme Settings - Colors via CSS Variables
+   ============================================ */
+.quizza-widget .quizza-answer-btn {
+  border-color: var(--quizza-primary-color);
+}
+
+.quizza-widget .quizza-answer-btn.selected {
+  background: var(--quizza-primary-color);
+  color: #fff;
+}
+
+.quizza-widget .quizza-shop-now-btn {
+  background: var(--quizza-primary-color);
 }
 
 /* Loading State */
@@ -133,6 +193,19 @@
   margin-top: 1rem;
 }
 
+/* Grid Column Variants */
+.quizza-products-grid.quizza-grid-cols-1 {
+  grid-template-columns: 1fr;
+}
+
+.quizza-products-grid.quizza-grid-cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.quizza-products-grid.quizza-grid-cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .quizza-product-card {
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 8px;
@@ -190,6 +263,12 @@
 /* Responsive */
 @media (max-width: 640px) {
   .quizza-products-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Override grid columns on mobile */
+  .quizza-products-grid.quizza-grid-cols-2,
+  .quizza-products-grid.quizza-grid-cols-3 {
     grid-template-columns: 1fr;
   }
 
