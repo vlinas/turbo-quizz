@@ -57,11 +57,12 @@ const fetchNodesByIds = async (ids, admin) => {
 export const loader = async ({ request, params }) => {
   const { session } = await authenticate.admin(request);
   const { id, questionId } = params;
+  const quizId = parseInt(id, 10);
 
   // Fetch quiz with theme settings
   const quiz = await prisma.quiz.findFirst({
     where: {
-      quiz_id: id,
+      quiz_id: quizId,
       shop: session.shop,
       deleted_at: null,
     },
@@ -84,7 +85,7 @@ export const loader = async ({ request, params }) => {
   const question = await prisma.question.findFirst({
     where: {
       question_id: questionId,
-      quiz_id: id,
+      quiz_id: quizId,
     },
     include: {
       answers: {
@@ -105,6 +106,7 @@ export const loader = async ({ request, params }) => {
 export const action = async ({ request, params }) => {
   const { session, admin } = await authenticate.admin(request);
   const { id, questionId } = params;
+  const quizId = parseInt(id, 10);
   const formData = await request.formData();
   const actionType = formData.get("_action");
 
@@ -169,7 +171,7 @@ export const action = async ({ request, params }) => {
       if (actionType === "create") {
         // Get the next question order
         const existingQuestions = await prisma.question.count({
-          where: { quiz_id: id },
+          where: { quiz_id: quizId },
         });
 
         // Create question with answers
@@ -177,7 +179,7 @@ export const action = async ({ request, params }) => {
         await prisma.question.create({
           data: {
             question_id: newQuestionId,
-            quiz_id: id,
+            quiz_id: quizId,
             shop: session.shop,
             question_text,
             metafield_key,
