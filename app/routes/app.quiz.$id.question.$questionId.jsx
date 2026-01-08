@@ -26,11 +26,12 @@ import prisma from "../db.server";
 export const loader = async ({ request, params }) => {
   const { session } = await authenticate.admin(request);
   const { id, questionId } = params;
+  const quizId = parseInt(id, 10);
 
   // Fetch quiz
   const quiz = await prisma.quiz.findFirst({
     where: {
-      quiz_id: id,
+      quiz_id: quizId,
       shop: session.shop,
       deleted_at: null,
     },
@@ -44,7 +45,7 @@ export const loader = async ({ request, params }) => {
   const question = await prisma.question.findFirst({
     where: {
       question_id: questionId,
-      quiz_id: id,
+      quiz_id: quizId,
     },
     include: {
       answers: {
