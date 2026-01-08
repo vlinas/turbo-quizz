@@ -718,30 +718,30 @@ export default function QuizBuilder() {
   const actionData = useActionData();
   const matches = useMatches();
 
-  // Check if we have a child route (like edit-question)
-  const hasChildRoute = matches.some(match =>
-    match.id.includes("edit-question") ||
-    (match.id.includes("question") && match.id.includes("edit"))
-  );
+  // Dynamic answers array (supports 2-5 answers)
+  const createEmptyAnswer = () => ({
+    text: "",
+    actionType: "show_text",
+    actionData: "",
+    previewItems: [],
+    customText: "",
+  });
 
-  // If there's a child route, render Outlet instead of this page's content
-  if (hasChildRoute) {
-    return <Outlet />;
-  }
-
-  const [title, setTitle] = useState(quiz.title);
-  const [description, setDescription] = useState(quiz.description || "");
+  // ALL hooks must be called before any conditional returns
+  const [title, setTitle] = useState(quiz?.title || "");
+  const [description, setDescription] = useState(quiz?.description || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState(null);
-  const [dateRange, setDateRange] = useState(String(analytics.days));
-
-  // Toast state
+  const [dateRange, setDateRange] = useState(String(analytics?.days || 30));
   const [toastActive, setToastActive] = useState(false);
   const [toastContent, setToastContent] = useState("");
   const [toastError, setToastError] = useState(false);
+  const [newQuestionText, setNewQuestionText] = useState("");
+  const [newMetafieldKey, setNewMetafieldKey] = useState("");
+  const [answers, setAnswers] = useState([createEmptyAnswer(), createEmptyAnswer()]);
 
   // Show toast when actionData changes
   useEffect(() => {
@@ -756,20 +756,16 @@ export default function QuizBuilder() {
     }
   }, [actionData]);
 
-  // New/Edit question form state
-  const [newQuestionText, setNewQuestionText] = useState("");
-  const [newMetafieldKey, setNewMetafieldKey] = useState("");
+  // Check if we have a child route (like edit-question)
+  const hasChildRoute = matches.some(match =>
+    match.id.includes("edit-question") ||
+    (match.id.includes("question") && match.id.includes("edit"))
+  );
 
-  // Dynamic answers array (supports 2-5 answers)
-  const createEmptyAnswer = () => ({
-    text: "",
-    actionType: "show_text",
-    actionData: "",
-    previewItems: [],
-    customText: "",
-  });
-
-  const [answers, setAnswers] = useState([createEmptyAnswer(), createEmptyAnswer()]);
+  // If there's a child route, render Outlet instead of this page's content
+  if (hasChildRoute) {
+    return <Outlet />;
+  }
 
   // Helper functions for managing dynamic answers
   const addAnswer = () => {
