@@ -1125,7 +1125,7 @@ export default function QuizBuilder() {
                     {quiz.questions.length === 0 && (
                       <Button
                         icon={PlusIcon}
-                        onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/question/new/edit`)}
+                        onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/edit-question/new`)}
                       >
                         Add question
                       </Button>
@@ -1138,7 +1138,7 @@ export default function QuizBuilder() {
                         <Text as="p" tone="subdued" alignment="center">
                           No questions yet. Add your first question to get started.
                         </Text>
-                        <Button onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/question/new/edit`)}>
+                        <Button onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/edit-question/new`)}>
                           Add question
                         </Button>
                       </BlockStack>
@@ -1155,7 +1155,7 @@ export default function QuizBuilder() {
                               <InlineStack gap="200">
                                 <Button
                                   icon={EditIcon}
-                                  onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/question/${question.question_id}/edit`)}
+                                  onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/edit-question/${question.question_id}`)}
                                 >
                                   Edit
                                 </Button>
