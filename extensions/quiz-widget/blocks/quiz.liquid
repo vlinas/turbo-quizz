@@ -4,51 +4,51 @@
 {% endcomment %}
 
 <div
-  class="turbo-quiz-widget"
+  class="quizza-widget"
   data-quiz-id="{{ block.settings.quiz_id }}"
-  data-app-url="https://turbo-quizz-1660bbe41f52.herokuapp.com"
-  id="turbo-quiz-{{ block.id }}"
+  data-app-url="https://turbo-quizz-staging-4bd0e4ee4b32.herokuapp.com"
+  id="quizza-{{ block.id }}"
 >
-  <div class="turbo-quiz-loading" style="display: none; opacity: 0;">
-    <div class="turbo-quiz-spinner"></div>
+  <div class="quizza-loading" style="display: none; opacity: 0;">
+    <div class="quizza-spinner"></div>
   </div>
 
-  <div class="turbo-quiz-error" style="display: none;">
-    <p class="turbo-quiz-error-message"></p>
-    <button class="turbo-quiz-retry-btn">Try Again</button>
+  <div class="quizza-error" style="display: none;">
+    <p class="quizza-error-message"></p>
+    <button class="quizza-retry-btn">Try Again</button>
   </div>
 
-  <div class="turbo-quiz-container">
+  <div class="quizza-container">
     <!-- Quiz Header (hidden - minimal theme-friendly design) -->
-    <div class="turbo-quiz-header" style="display: none;">
-      <h2 class="turbo-quiz-title"></h2>
-      <p class="turbo-quiz-description"></p>
-      <div class="turbo-quiz-progress">
-        <div class="turbo-quiz-progress-bar">
-          <div class="turbo-quiz-progress-fill" style="width: 0%"></div>
+    <div class="quizza-header" style="display: none;">
+      <h2 class="quizza-title"></h2>
+      <p class="quizza-description"></p>
+      <div class="quizza-progress">
+        <div class="quizza-progress-bar">
+          <div class="quizza-progress-fill" style="width: 0%"></div>
         </div>
-        <p class="turbo-quiz-progress-text">Question <span class="current">1</span> of <span class="total">0</span></p>
+        <p class="quizza-progress-text">Question <span class="current">1</span> of <span class="total">0</span></p>
       </div>
     </div>
 
     <!-- Quiz Question -->
-    <div class="turbo-quiz-question">
-      <h3 class="turbo-quiz-question-text"></h3>
-      <div class="turbo-quiz-answers"></div>
+    <div class="quizza-question">
+      <h3 class="quizza-question-text"></h3>
+      <div class="quizza-answers"></div>
     </div>
 
     <!-- Quiz Result -->
-    <div class="turbo-quiz-result" style="display: none;">
-      <div class="turbo-quiz-result-content"></div>
-      <div class="turbo-quiz-result-actions" style="display: none;">
-        <button class="turbo-quiz-restart-btn">Take Quiz Again</button>
+    <div class="quizza-result" style="display: none;">
+      <div class="quizza-result-content"></div>
+      <div class="quizza-result-actions" style="display: none;">
+        <button class="quizza-restart-btn">Take Quiz Again</button>
       </div>
     </div>
 
     <!-- Quiz Navigation (hidden - auto-advance on answer selection) -->
-    <div class="turbo-quiz-navigation" style="display: none;">
-      <button class="turbo-quiz-back-btn" style="display: none;">Back</button>
-      <button class="turbo-quiz-next-btn" disabled>Next</button>
+    <div class="quizza-navigation" style="display: none;">
+      <button class="quizza-back-btn" style="display: none;">Back</button>
+      <button class="quizza-next-btn" disabled>Next</button>
     </div>
   </div>
 </div>
