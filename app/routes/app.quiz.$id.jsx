@@ -1,5 +1,5 @@
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useNavigate, useSubmit, useActionData } from "@remix-run/react";
+import { useLoaderData, useNavigate, useSubmit, useActionData, Outlet, useMatches } from "@remix-run/react";
 import { useState, useCallback, useEffect } from "react";
 import {
   Page,
@@ -716,15 +716,17 @@ export default function QuizBuilder() {
   const navigate = useNavigate();
   const submit = useSubmit();
   const actionData = useActionData();
+  const matches = useMatches();
 
-  const [title, setTitle] = useState(quiz.title);
-  const [description, setDescription] = useState(quiz.description || "");
+  // ALL hooks must be called before any conditional returns (React rules of hooks)
+  const [title, setTitle] = useState(quiz?.title || "");
+  const [description, setDescription] = useState(quiz?.description || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState(null);
-  const [dateRange, setDateRange] = useState(String(analytics.days));
+  const [dateRange, setDateRange] = useState(String(analytics?.days || 7));
 
   // Toast state
   const [toastActive, setToastActive] = useState(false);
@@ -758,6 +760,17 @@ export default function QuizBuilder() {
   });
 
   const [answers, setAnswers] = useState([createEmptyAnswer(), createEmptyAnswer()]);
+
+  // Check if we have a child route (like edit-question)
+  const hasChildRoute = matches.some(match =>
+    match.id.includes("edit-question") ||
+    (match.id.includes("question") && match.id.includes("edit"))
+  );
+
+  // If there's a child route, render Outlet instead of this page's content
+  if (hasChildRoute) {
+    return <Outlet />;
+  }
 
   // Helper functions for managing dynamic answers
   const addAnswer = () => {
