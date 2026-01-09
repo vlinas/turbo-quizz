@@ -502,9 +502,17 @@
           <div class="quizza-products-grid quizza-grid-cols-${gridColumns}">
             ${products
               .map((product) => {
-                const imageUrl = product.images?.[0]?.originalSrc || product.images?.edges?.[0]?.node?.originalSrc || '';
-                const price = product.variants?.[0]?.price || product.variants?.edges?.[0]?.node?.price || '';
-                const handle = product.handle || this.extractHandle(product.id);
+                // Handle GraphQL edge/node format (stored from admin) and direct array format
+                const imageUrl = product.images?.edges?.[0]?.node?.originalSrc ||
+                                 product.images?.edges?.[0]?.node?.url ||
+                                 product.images?.[0]?.originalSrc ||
+                                 product.images?.[0]?.url ||
+                                 product.image?.originalSrc ||
+                                 product.image?.url || '';
+                const price = product.variants?.edges?.[0]?.node?.price ||
+                              product.variants?.[0]?.price || '';
+                // Use handle property directly - it's fetched from GraphQL and stored with product
+                const handle = product.handle || '';
 
                 return `
                   <div class="quizza-product-card">
@@ -512,7 +520,7 @@
                     <div class="quizza-product-info">
                       <h3 class="quizza-product-title">${product.title}</h3>
                       ${price ? `<p class="quizza-product-price">$${price}</p>` : ''}
-                      <a href="/products/${handle}" class="quizza-shop-now-btn">Shop Now</a>
+                      ${handle ? `<a href="/products/${handle}" class="quizza-shop-now-btn">Shop Now</a>` : ''}
                     </div>
                   </div>
                 `;
@@ -538,15 +546,18 @@
           <div class="quizza-products-grid quizza-grid-cols-${gridColumns}">
             ${collections
               .map((collection) => {
-                const imageUrl = collection.image?.originalSrc || collection.image?.url || '';
-                const handle = collection.handle || this.extractHandle(collection.id);
+                // Handle both direct image object and nested format
+                const imageUrl = collection.image?.originalSrc ||
+                                 collection.image?.url || '';
+                // Use handle property directly - it's fetched from GraphQL and stored with collection
+                const handle = collection.handle || '';
 
                 return `
                   <div class="quizza-product-card">
                     ${imageUrl ? `<img src="${imageUrl}" alt="${collection.title}" class="quizza-product-image" />` : ''}
                     <div class="quizza-product-info">
                       <h3 class="quizza-product-title">${collection.title}</h3>
-                      <a href="/collections/${handle}" class="quizza-shop-now-btn">Shop Now</a>
+                      ${handle ? `<a href="/collections/${handle}" class="quizza-shop-now-btn">Shop Now</a>` : ''}
                     </div>
                   </div>
                 `;

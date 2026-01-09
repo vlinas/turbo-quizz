@@ -181,21 +181,22 @@
 
 /* Products/Collections Result */
 .quizza-custom-text {
-  font-size: 1.1em;
-  margin: 0 0 1.5rem 0;
-  line-height: 1.5;
+  font-size: 1em;
+  margin: 0 0 1rem 0;
+  line-height: 1.4;
 }
 
 .quizza-products-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
 }
 
 /* Grid Column Variants */
 .quizza-products-grid.quizza-grid-cols-1 {
   grid-template-columns: 1fr;
+  max-width: 200px;
 }
 
 .quizza-products-grid.quizza-grid-cols-2 {
@@ -208,49 +209,53 @@
 
 .quizza-product-card {
   border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .quizza-product-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .quizza-product-image {
   width: 100%;
-  height: 250px;
+  height: 120px;
   object-fit: cover;
   display: block;
 }
 
 .quizza-product-info {
-  padding: 1rem;
+  padding: 0.5rem;
   text-align: center;
 }
 
 .quizza-product-title {
-  font-size: 1.1em;
+  font-size: 0.8em;
   font-weight: 600;
-  margin: 0 0 0.5rem 0;
-  line-height: 1.3;
+  margin: 0 0 0.25rem 0;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .quizza-product-price {
-  font-size: 1.2em;
+  font-size: 0.85em;
   font-weight: 700;
-  margin: 0 0 1rem 0;
+  margin: 0 0 0.5rem 0;
   color: inherit;
 }
 
 .quizza-shop-now-btn {
   display: inline-block;
-  padding: 0.75rem 1.5rem;
+  padding: 0.4rem 0.75rem;
   background: #000;
   color: #fff;
   text-decoration: none;
-  font-size: 0.95em;
+  font-size: 0.75em;
   font-weight: 600;
   border-radius: 4px;
   transition: background 0.2s;
@@ -263,16 +268,38 @@
 /* Responsive */
 @media (max-width: 640px) {
   .quizza-products-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
   }
 
-  /* Override grid columns on mobile */
-  .quizza-products-grid.quizza-grid-cols-2,
+  /* Keep 2 columns on mobile for better UX */
   .quizza-products-grid.quizza-grid-cols-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .quizza-products-grid.quizza-grid-cols-1 {
     grid-template-columns: 1fr;
   }
 
   .quizza-product-image {
-    height: 200px;
+    height: 100px;
+  }
+
+  .quizza-product-info {
+    padding: 0.4rem;
+  }
+
+  .quizza-product-title {
+    font-size: 0.75em;
+  }
+
+  .quizza-product-price {
+    font-size: 0.8em;
+    margin-bottom: 0.4rem;
+  }
+
+  .quizza-shop-now-btn {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.7em;
   }
 }

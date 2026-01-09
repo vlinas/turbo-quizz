@@ -31,6 +31,9 @@ import {
   ChevronUpIcon,
   PlusIcon,
   ImageIcon,
+  DragHandleIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -177,6 +180,7 @@ export const action = async ({ request, params }) => {
         // Create question with answers
         await prisma.question.create({
           data: {
+            question_id: newQuestionId,
             quiz_id: quizId,
             shop: session.shop,
             question_text,
@@ -429,6 +433,114 @@ export default function EditQuestionPage() {
     else if (previewAnswerIndex > index) setPreviewAnswerIndex(previewAnswerIndex - 1);
   };
 
+  // Drag and drop state
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+
+  // Handle drag start
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    // Add a slight delay to allow the drag image to be captured
+    setTimeout(() => {
+      e.target.style.opacity = "0.5";
+    }, 0);
+  };
+
+  // Handle drag end
+  const handleDragEnd = (e) => {
+    e.target.style.opacity = "1";
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  // Handle drag over
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  // Handle drag leave
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  // Handle drop
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDragOverIndex(null);
+      return;
+    }
+
+    // Reorder answers
+    setAnswers((prev) => {
+      const newAnswers = [...prev];
+      const [draggedItem] = newAnswers.splice(draggedIndex, 1);
+      newAnswers.splice(dropIndex, 0, draggedItem);
+      return newAnswers;
+    });
+
+    // Reorder expanded states
+    setExpandedAnswers((prev) => {
+      const newExpanded = [...prev];
+      const [draggedItem] = newExpanded.splice(draggedIndex, 1);
+      newExpanded.splice(dropIndex, 0, draggedItem);
+      return newExpanded;
+    });
+
+    // Update preview index if needed
+    if (previewAnswerIndex === draggedIndex) {
+      setPreviewAnswerIndex(dropIndex);
+    } else if (previewAnswerIndex !== null) {
+      if (draggedIndex < previewAnswerIndex && dropIndex >= previewAnswerIndex) {
+        setPreviewAnswerIndex(previewAnswerIndex - 1);
+      } else if (draggedIndex > previewAnswerIndex && dropIndex <= previewAnswerIndex) {
+        setPreviewAnswerIndex(previewAnswerIndex + 1);
+      }
+    }
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  // Move answer up (for button fallback)
+  const moveAnswerUp = (index) => {
+    if (index <= 0) return;
+    setAnswers((prev) => {
+      const newAnswers = [...prev];
+      [newAnswers[index - 1], newAnswers[index]] = [newAnswers[index], newAnswers[index - 1]];
+      return newAnswers;
+    });
+    setExpandedAnswers((prev) => {
+      const newExpanded = [...prev];
+      [newExpanded[index - 1], newExpanded[index]] = [newExpanded[index], newExpanded[index - 1]];
+      return newExpanded;
+    });
+    if (previewAnswerIndex === index) setPreviewAnswerIndex(index - 1);
+    else if (previewAnswerIndex === index - 1) setPreviewAnswerIndex(index);
+  };
+
+  // Move answer down (for button fallback)
+  const moveAnswerDown = (index) => {
+    if (index >= answers.length - 1) return;
+    setAnswers((prev) => {
+      const newAnswers = [...prev];
+      [newAnswers[index], newAnswers[index + 1]] = [newAnswers[index + 1], newAnswers[index]];
+      return newAnswers;
+    });
+    setExpandedAnswers((prev) => {
+      const newExpanded = [...prev];
+      [newExpanded[index], newExpanded[index + 1]] = [newExpanded[index + 1], newExpanded[index]];
+      return newExpanded;
+    });
+    if (previewAnswerIndex === index) setPreviewAnswerIndex(index + 1);
+    else if (previewAnswerIndex === index + 1) setPreviewAnswerIndex(index);
+  };
+
   // Resource picker
   const openResourcePicker = async (type, multiple = true, initialSelection = []) => {
     try {
@@ -592,39 +704,85 @@ export default function EditQuestionPage() {
 
               {/* Answers */}
               {answers.map((answer, index) => (
-                <Card key={index}>
-                  <BlockStack gap="300">
-                    {/* Answer Header - Collapsible Toggle */}
-                    <div
-                      style={{ cursor: "pointer", userSelect: "none" }}
-                      onClick={() => toggleAnswerExpanded(index)}
-                    >
-                      <InlineStack align="space-between" blockAlign="center">
-                        <InlineStack gap="200" blockAlign="center">
-                          <Icon source={expandedAnswers[index] ? ChevronUpIcon : ChevronDownIcon} />
-                          <Text as="h3" variant="headingSm">
-                            Answer {index + 1}
-                          </Text>
-                          {answer.text && (
-                            <Text as="span" variant="bodySm" tone="subdued">
-                              - {answer.text.substring(0, 20)}{answer.text.length > 20 ? "..." : ""}
+                <div
+                  key={index}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, index)}
+                  style={{
+                    transition: "transform 0.2s, box-shadow 0.2s",
+                    transform: dragOverIndex === index ? "translateY(4px)" : "none",
+                    boxShadow: dragOverIndex === index ? "0 -2px 0 0 #2c6ecb" : "none",
+                  }}
+                >
+                  <Card>
+                    <BlockStack gap="300">
+                      {/* Answer Header - Collapsible Toggle */}
+                      <InlineStack align="space-between" blockAlign="center" wrap={false}>
+                        {/* Left side - Drag handle and title */}
+                        <InlineStack gap="200" blockAlign="center" wrap={false}>
+                          <div
+                            style={{ cursor: "grab", padding: "4px", display: "flex", alignItems: "center" }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                          >
+                            <Icon source={DragHandleIcon} tone="subdued" />
+                          </div>
+                          <div
+                            style={{ cursor: "pointer", userSelect: "none", display: "flex", alignItems: "center", gap: "8px" }}
+                            onClick={() => toggleAnswerExpanded(index)}
+                          >
+                            <Icon source={expandedAnswers[index] ? ChevronUpIcon : ChevronDownIcon} />
+                            <Text as="h3" variant="headingSm">
+                              Answer {index + 1}
                             </Text>
+                            {answer.text && (
+                              <Text as="span" variant="bodySm" tone="subdued">
+                                - {answer.text.substring(0, 20)}{answer.text.length > 20 ? "..." : ""}
+                              </Text>
+                            )}
+                          </div>
+                        </InlineStack>
+                        {/* Right side - Move and delete buttons */}
+                        <InlineStack gap="100" blockAlign="center">
+                          {index < answers.length - 1 && (
+                            <Button
+                              icon={ArrowDownIcon}
+                              variant="tertiary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveAnswerDown(index);
+                              }}
+                              accessibilityLabel="Move answer down"
+                            />
+                          )}
+                          {index > 0 && (
+                            <Button
+                              icon={ArrowUpIcon}
+                              variant="tertiary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveAnswerUp(index);
+                              }}
+                              accessibilityLabel="Move answer up"
+                            />
+                          )}
+                          {answers.length > 2 && (
+                            <Button
+                              icon={DeleteIcon}
+                              tone="critical"
+                              variant="tertiary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeAnswer(index);
+                              }}
+                              accessibilityLabel="Remove answer"
+                            />
                           )}
                         </InlineStack>
-                        {answers.length > 2 && (
-                          <Button
-                            icon={DeleteIcon}
-                            tone="critical"
-                            variant="plain"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeAnswer(index);
-                            }}
-                            accessibilityLabel="Remove answer"
-                          />
-                        )}
                       </InlineStack>
-                    </div>
 
                     <Collapsible open={expandedAnswers[index]} id={`answer-${index}`}>
                       <BlockStack gap="300">
@@ -796,6 +954,7 @@ export default function EditQuestionPage() {
                     </Collapsible>
                   </BlockStack>
                 </Card>
+                </div>
               ))}
 
               {/* Add Answer Button */}
@@ -964,7 +1123,7 @@ export default function EditQuestionPage() {
                 {/* Style Info */}
                 <Banner tone="info">
                   <p>
-                    Style settings can be customized from the quiz overview page. This preview uses current quiz
+                    Style and CSS can be customized in the Settings page. This preview uses current quiz
                     theme settings.
                   </p>
                 </Banner>
@@ -972,6 +1131,9 @@ export default function EditQuestionPage() {
             </Card>
           </div>
         </div>
+
+        {/* Bottom spacing so Add Answer button doesn't touch page bottom */}
+        <div style={{ height: "100px" }} />
 
         {/* Delete Modal */}
         <Modal
