@@ -79,6 +79,27 @@ export const loader = async ({ request }) => {
     activeSubscription = activeSubscriptions.find((sub) => sub.status === "ACTIVE");
   }
 
+  // Sync plan from Shopify subscription if there's a mismatch
+  // This handles cases where the webhook wasn't received
+  if (activeSubscription) {
+    const subscriptionNameLower = activeSubscription.name?.toLowerCase();
+    let expectedPlan = "free";
+    if (subscriptionNameLower === "starter") {
+      expectedPlan = "starter";
+    } else if (subscriptionNameLower === "growth") {
+      expectedPlan = "growth";
+    }
+
+    // Update database if it doesn't match Shopify
+    if (expectedPlan !== "free" && shopPlan.plan !== expectedPlan) {
+      console.log(`[Settings] Syncing plan from Shopify: ${shopPlan.plan} -> ${expectedPlan} for ${session.shop}`);
+      shopPlan = await prisma.shopPlan.update({
+        where: { shop: session.shop },
+        data: { plan: expectedPlan },
+      });
+    }
+  }
+
   // Get shop settings including custom CSS
   let shopSettings = await prisma.shopSettings.findUnique({
     where: { shop: session.shop },
