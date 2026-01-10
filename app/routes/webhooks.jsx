@@ -7,21 +7,24 @@ export const action = async ({ request }) => {
     request
   );
 
+  // Handle APP_UNINSTALLED first - admin is null after uninstall
+  if (topic === "APP_UNINSTALLED") {
+    // Send Discord notification
+    await notifyAppUninstalled(shop);
+
+    if (session) {
+      await db.session.deleteMany({ where: { shop } });
+    }
+
+    return new Response(null, { status: 200 });
+  }
+
   if (!admin) {
     // The admin context isn't returned if the webhook fired after a shop was uninstalled.
     throw new Response();
   }
 
   switch (topic) {
-    case "APP_UNINSTALLED":
-      // Send Discord notification before deleting session
-      await notifyAppUninstalled(shop);
-
-      if (session) {
-        await db.session.deleteMany({ where: { shop } });
-      }
-
-      break;
     case "ORDERS_PAID":
       // QUIZ ATTRIBUTION: Attribute paid order to quiz session
       try {
