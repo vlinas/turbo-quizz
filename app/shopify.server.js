@@ -10,6 +10,7 @@ import { restResources } from "@shopify/shopify-api/rest/admin/2023-10";
 import prisma from "./db.server";
 import { BillingInterval } from "@shopify/shopify-api";
 import { identifyShopWithMantle } from "./utils/mantle.server";
+import { notifyAppInstalled } from "./utils/discord.server";
 
 // Plan names for billing - must match App Store listing handles
 export const PLAN_STARTER = "starter";
@@ -119,6 +120,12 @@ const shopify = shopifyApp({
               has_subscription: hasActiveSubscription,
               subscription_name: hasActiveSubscription ? activeSubscriptions[0].name : 'free',
             },
+          });
+
+          // Send Discord notification for app install
+          await notifyAppInstalled(session.shop, {
+            email: shopData.email,
+            name: shopData.name,
           });
         }
       } catch (error) {

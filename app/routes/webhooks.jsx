@@ -1,5 +1,6 @@
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { notifyAppUninstalled, notifyPlanChange } from "../utils/discord.server";
 
 export const action = async ({ request }) => {
   const { topic, shop, session, admin, payload } = await authenticate.webhook(
@@ -13,6 +14,9 @@ export const action = async ({ request }) => {
 
   switch (topic) {
     case "APP_UNINSTALLED":
+      // Send Discord notification before deleting session
+      await notifyAppUninstalled(shop);
+
       if (session) {
         await db.session.deleteMany({ where: { shop } });
       }
@@ -317,6 +321,7 @@ export const action = async ({ request }) => {
       // Handle subscription changes (upgrade/downgrade/cancel)
       try {
         const subscriptionName = payload.app_subscription?.name;
+        const subscriptionStatus = payload.app_subscription?.status;
         let newPlan = "free";
 
         // Handle both lowercase handles (from App Store) and capitalized names
@@ -334,6 +339,9 @@ export const action = async ({ request }) => {
         });
 
         console.log(`[Billing] Updated plan for ${shop} to ${newPlan}`);
+
+        // Send Discord notification for plan change
+        await notifyPlanChange(shop, subscriptionName || newPlan, subscriptionStatus || "UNKNOWN");
       } catch (error) {
         console.error("[Billing] Error updating subscription:", error);
       }
