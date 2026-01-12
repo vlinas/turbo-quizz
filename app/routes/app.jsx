@@ -37,6 +37,7 @@ export default function App() {
           <Link to="/app" rel="home">
             Home
           </Link>
+          <Link to="/app/analytics">Analytics</Link>
           <Link to="/app/settings">Billing & Settings</Link>
         </ui-nav-menu>
         <Outlet />

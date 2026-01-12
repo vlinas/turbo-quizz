@@ -697,7 +697,7 @@ export default function EditQuestionPage() {
                     onChange={setMetafieldKey}
                     placeholder="e.g., style_preference"
                     autoComplete="off"
-                    helpText="Saves answer to customer.metafields.quiz.[key]"
+                    helpText="Adds customer tag: quiz:[key]:[answer]"
                   />
                 </BlockStack>
               </Card>

@@ -293,7 +293,7 @@ export default function NewQuestion() {
                 onChange={setMetafieldKey}
                 placeholder="e.g., gender, skin_type, style_preference"
                 autoComplete="off"
-                helpText="Used for customer personalization. The selected answer will be saved as customer.metafields.quiz.[key]. Use lowercase with underscores."
+                helpText="Used for customer segmentation. The selected answer will be added as a customer tag (e.g., quiz:gender:male). Use lowercase with underscores."
               />
             </BlockStack>
           </Card>

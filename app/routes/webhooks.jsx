@@ -209,37 +209,31 @@ export const action = async ({ request }) => {
           }
         }
 
-        // Write quiz answers to customer metafields (if customer exists)
+        // Add quiz answers as customer tags (if customer exists)
         if (payload.customer?.id && payload.note_attributes) {
           try {
             const quizAnswers = payload.note_attributes.filter(
-              attr => attr.name.startsWith('quiz_') && attr.name !== 'quiz_id' && attr.name !== 'quiz_session'
+              attr => attr.name.startsWith('quiz_') && attr.name !== 'quiz_id' && attr.name !== 'quiz_session' && attr.name !== 'quizza_session'
             );
 
             if (quizAnswers.length > 0) {
               const customerGid = `gid://shopify/Customer/${payload.customer.id}`;
 
-              // Build metafield mutations for each quiz answer
-              const metafields = quizAnswers.map(attr => {
+              // Build tags from quiz answers (format: "quiz:key:value")
+              const newTags = quizAnswers.map(attr => {
                 // Remove 'quiz_' prefix to get the key
                 const key = attr.name.replace('quiz_', '');
-                return {
-                  ownerId: customerGid,
-                  namespace: 'quiz',
-                  key: key,
-                  type: 'single_line_text_field',
-                  value: attr.value,
-                };
+                // Sanitize value for tag (lowercase, replace spaces with hyphens)
+                const value = String(attr.value).toLowerCase().replace(/\s+/g, '-').substring(0, 40);
+                return `quiz:${key}:${value}`;
               });
 
-              // Use metafieldsSet mutation to upsert metafields
+              // Use customerUpdate mutation to add tags
               const mutation = `
-                mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
-                  metafieldsSet(metafields: $metafields) {
-                    metafields {
+                mutation CustomerAddTags($id: ID!, $tags: [String!]!) {
+                  tagsAdd(id: $id, tags: $tags) {
+                    node {
                       id
-                      key
-                      value
                     }
                     userErrors {
                       field
@@ -250,19 +244,22 @@ export const action = async ({ request }) => {
               `;
 
               const response = await admin.graphql(mutation, {
-                variables: { metafields },
+                variables: {
+                  id: customerGid,
+                  tags: newTags,
+                },
               });
 
               const result = await response.json();
 
-              if (result.data?.metafieldsSet?.userErrors?.length > 0) {
-                console.error('[Quiz Metafields] Errors:', result.data.metafieldsSet.userErrors);
+              if (result.data?.tagsAdd?.userErrors?.length > 0) {
+                console.error('[Quiz Tags] Errors:', result.data.tagsAdd.userErrors);
               } else {
-                console.log(`[Quiz Metafields] Saved ${metafields.length} metafields for customer ${payload.customer.id}`);
+                console.log(`[Quiz Tags] Added ${newTags.length} tags to customer ${payload.customer.id}: ${newTags.join(', ')}`);
               }
             }
-          } catch (metafieldError) {
-            console.error('[Quiz Metafields] Error saving customer metafields:', metafieldError);
+          } catch (tagError) {
+            console.error('[Quiz Tags] Error adding customer tags:', tagError);
           }
         }
       } catch (error) {
