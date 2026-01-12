@@ -57,54 +57,6 @@ const fetchNodesByIds = async (ids, admin) => {
   return Array.isArray(json?.data?.nodes) ? json.data.nodes.filter(Boolean) : [];
 };
 
-// Create metafield definition for customer metafields
-const createMetafieldDefinition = async (admin, metafieldKey) => {
-  try {
-    // Format the name nicely (e.g., "skin_type" -> "Quiz: Skin Type")
-    const formattedName = `Quiz: ${metafieldKey
-      .split("_")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ")}`;
-
-    const response = await admin.graphql(`
-      mutation CreateMetafieldDefinition($definition: MetafieldDefinitionInput!) {
-        metafieldDefinitionCreate(definition: $definition) {
-          createdDefinition {
-            id
-            name
-          }
-          userErrors {
-            field
-            message
-          }
-        }
-      }
-    `, {
-      variables: {
-        definition: {
-          name: formattedName,
-          namespace: "quiz",
-          key: metafieldKey,
-          type: "single_line_text_field",
-          ownerType: "CUSTOMER",
-          pin: true,
-        },
-      },
-    });
-
-    const result = await response.json();
-    if (result.data?.metafieldDefinitionCreate?.userErrors?.length > 0) {
-      // Definition might already exist - that's okay
-      console.log(`[Metafield Definition] Note: ${result.data.metafieldDefinitionCreate.userErrors[0].message}`);
-    } else if (result.data?.metafieldDefinitionCreate?.createdDefinition) {
-      console.log(`[Metafield Definition] Created: ${formattedName}`);
-    }
-  } catch (error) {
-    // Don't fail the question save if metafield definition fails
-    console.error("[Metafield Definition] Error creating definition:", error);
-  }
-};
-
 export const loader = async ({ request, params }) => {
   const { session } = await authenticate.admin(request);
   const { id, questionId } = params;
@@ -249,11 +201,6 @@ export const action = async ({ request, params }) => {
           },
         });
 
-        // Create metafield definition if metafield_key is provided
-        if (metafield_key) {
-          await createMetafieldDefinition(admin, metafield_key);
-        }
-
         return redirect(`/app/quiz/${id}`);
       } else {
         // Update existing question
@@ -315,11 +262,6 @@ export const action = async ({ request, params }) => {
           await prisma.answer.deleteMany({
             where: { answer_id: { in: idsToDelete } },
           });
-        }
-
-        // Create metafield definition if metafield_key is provided
-        if (metafield_key) {
-          await createMetafieldDefinition(admin, metafield_key);
         }
 
         return redirect(`/app/quiz/${id}`);
@@ -756,7 +698,7 @@ export default function EditQuestionPage() {
                     onChange={setMetafieldKey}
                     placeholder="e.g., style_preference"
                     autoComplete="off"
-                    helpText="Saves answer to customer.metafields.quiz.[key]"
+                    helpText="Adds customer tag: quiz:[key]:[answer]"
                   />
                 </BlockStack>
               </Card>
