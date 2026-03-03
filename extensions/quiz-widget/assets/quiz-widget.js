@@ -137,6 +137,26 @@
       const wasCompleted = localStorage.getItem(completedKey);
 
       if (wasCompleted) {
+        // Fetch quiz data first to apply custom CSS and theme settings
+        try {
+          const cacheBuster = Date.now();
+          const url = `${this.appUrl}/api/quiz/${this.quizId}?cb=${cacheBuster}`;
+          const response = await fetch(url);
+          const data = await response.json();
+          if (data.success && data.quiz) {
+            this.quiz = data.quiz;
+            if (this.quiz.custom_css) {
+              this.injectCustomCss(this.quiz.custom_css);
+            }
+            if (this.quiz.theme_settings) {
+              this.applyThemeSettings(this.quiz.theme_settings);
+            }
+          }
+        } catch (e) {
+          // Non-critical: styles won't apply but result still shows
+          console.warn('[Quizza] Could not load quiz styles:', e);
+        }
+
         // Show the stored result from previous completion
         this.questionEl.style.display = 'none';
         this.resultEl.style.display = 'block';
@@ -424,8 +444,8 @@
       if (!resetBtn) {
         resetBtn = document.createElement('button');
         resetBtn.className = 'quizza-reset-btn';
-        resetBtn.textContent = 'Reset Quiz (for testing purposes only)';
-        resetBtn.style.cssText = 'margin-top: 16px; padding: 8px 16px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 12px; color: #666;';
+        resetBtn.textContent = 'Reset Quiz (testing purposes only)';
+        resetBtn.style.cssText = 'margin-top: 16px; padding: 8px 16px; background: #dc2626; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; color: #fff; font-weight: 600; margin-left: auto; margin-right: auto;';
         resetBtn.addEventListener('click', () => this.resetForTesting());
         this.resultEl.appendChild(resetBtn);
       }

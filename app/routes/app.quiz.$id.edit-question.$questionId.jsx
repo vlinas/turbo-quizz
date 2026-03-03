@@ -1073,16 +1073,16 @@ export default function EditQuestionPage() {
                                 <div
                                   key={item.id || i}
                                   style={{
-                                    border: "1px solid rgba(0,0,0,0.1)",
-                                    borderRadius: "8px",
+                                    border: "none",
+                                    borderRadius: "0",
                                     overflow: "hidden",
                                     background: "#fff",
                                   }}
                                 >
                                   <div
                                     style={{
-                                      height: "120px",
-                                      background: item.image ? `url(${item.image}) center/cover` : "#f0f0f0",
+                                      background: item.image ? `url(${item.image}) center/contain no-repeat` : "#f0f0f0",
+                                      aspectRatio: "1",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
@@ -1091,11 +1091,11 @@ export default function EditQuestionPage() {
                                     {!item.image && <Icon source={ImageIcon} tone="subdued" />}
                                   </div>
                                   <div style={{ padding: "12px", textAlign: "center" }}>
-                                    <p style={{ fontWeight: 600, margin: "0 0 8px 0", fontSize: "14px" }}>
+                                    <p style={{ fontWeight: "inherit", margin: "0 0 4px 0", fontSize: "0.85em" }}>
                                       {item.title}
                                     </p>
                                     {item.price && (
-                                      <p style={{ fontWeight: 700, margin: "0 0 8px 0" }}>${item.price}</p>
+                                      <p style={{ fontWeight: 700, margin: "0 0 8px 0", fontSize: "1em" }}>${item.price}</p>
                                     )}
                                     <span
                                       style={{
@@ -1103,7 +1103,7 @@ export default function EditQuestionPage() {
                                         padding: "8px 16px",
                                         background: themeSettings.primaryColor,
                                         color: "#fff",
-                                        borderRadius: "4px",
+                                        borderRadius: "0",
                                         fontSize: "13px",
                                         fontWeight: 600,
                                       }}
