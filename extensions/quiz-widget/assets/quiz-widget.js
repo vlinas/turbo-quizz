@@ -518,7 +518,7 @@
 
       return `
         <div class="quizza-products-result">
-          <p class="quizza-custom-text">${customText}</p>
+          <div class="quizza-custom-text">${customText}</div>
           <div class="quizza-products-grid quizza-grid-cols-${gridColumns}">
             ${products
               .map((product) => {
@@ -562,7 +562,7 @@
 
       return `
         <div class="quizza-collections-result">
-          <p class="quizza-custom-text">${customText}</p>
+          <div class="quizza-custom-text">${customText}</div>
           <div class="quizza-products-grid quizza-grid-cols-${gridColumns}">
             ${collections
               .map((collection) => {

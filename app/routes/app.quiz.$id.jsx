@@ -1557,10 +1557,11 @@ export default function QuizBuilder() {
                           </Text>
                         </InlineStack>
                         <TextField
-                          label="Custom text"
+                          label="Header Text (supports HTML)"
                           value={answer.customText}
                           onChange={(value) => updateAnswer(index, "customText", value)}
                           placeholder="Based on your answers, we recommend these products:"
+                          multiline={3}
                         />
                         {answer.previewItems?.length ? (
                           <BlockStack gap="200">
@@ -1603,10 +1604,11 @@ export default function QuizBuilder() {
                           </Text>
                         </InlineStack>
                         <TextField
-                          label="Custom text"
+                          label="Header Text (supports HTML)"
                           value={answer.customText}
                           onChange={(value) => updateAnswer(index, "customText", value)}
                           placeholder="Based on your answers, check out these collections:"
+                          multiline={3}
                         />
                         {answer.previewItems?.length ? (
                           <BlockStack gap="200">

@@ -933,13 +933,14 @@ export default function EditQuestionPage() {
                               </ButtonGroup>
                             </BlockStack>
 
-                            {/* Custom Header Text */}
+                            {/* Custom Header Text (supports HTML) */}
                             <TextField
-                              label="Header Text"
+                              label="Header Text (supports HTML)"
                               value={answer.customText}
                               onChange={(val) => updateAnswer(index, "customText", val)}
                               placeholder="Based on your answers, we recommend:"
                               autoComplete="off"
+                              multiline={3}
                             />
                           </BlockStack>
                         )}
@@ -1056,9 +1057,10 @@ export default function EditQuestionPage() {
                         {(answers[previewAnswerIndex].actionType === "show_products" ||
                           answers[previewAnswerIndex].actionType === "show_collections") && (
                           <div>
-                            <p style={{ marginBottom: "16px", fontSize: "1.1em" }}>
-                              {answers[previewAnswerIndex].customText || "Based on your answers, we recommend:"}
-                            </p>
+                            <div
+                              style={{ marginBottom: "16px", fontSize: "1.1em" }}
+                              dangerouslySetInnerHTML={{ __html: answers[previewAnswerIndex].customText || "Based on your answers, we recommend:" }}
+                            />
                             <div
                               style={{
                                 display: "grid",
