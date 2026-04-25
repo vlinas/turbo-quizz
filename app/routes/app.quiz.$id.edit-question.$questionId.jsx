@@ -178,6 +178,7 @@ export const action = async ({ request, params }) => {
         });
 
         // Create question with answers
+        const newQuestionId = `question-${Date.now()}`;
         await prisma.question.create({
           data: {
             question_id: newQuestionId,
