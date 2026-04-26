@@ -1874,7 +1874,7 @@ export default function QuizBuilder() {
             {!aiGeneratedQuiz ? (
               <BlockStack gap="400">
                 <Text as="p" variant="bodySm" tone="subdued">
-                  Describe your store and Claude will generate a tailored product recommendation quiz with questions and answers.
+                  Describe your store and AI will generate a tailored product recommendation quiz with questions and answers.
                 </Text>
                 <TextField
                   label="Store description"
