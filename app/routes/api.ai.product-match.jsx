@@ -136,7 +136,7 @@ Select exactly ${maxProducts} products or fewer if there aren't enough good matc
   try {
     const message = await openai.chat.completions.create({
       model: CLAUDE_MODEL,
-      max_tokens: 100,
+      max_completion_tokens: 100,
       messages: [
         {
           role: "system",

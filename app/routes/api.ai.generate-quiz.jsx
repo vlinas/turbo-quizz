@@ -96,7 +96,7 @@ Generate a product recommendation quiz for this store.`;
   try {
     const message = await openai.chat.completions.create({
       model: CLAUDE_MODEL,
-      max_tokens: 4096,
+      max_completion_tokens: 4096,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

@@ -58,7 +58,7 @@ Be conversational, enthusiastic, and specific to their answers. Do not use gener
   try {
     const stream = await openai.chat.completions.create({
       model: CLAUDE_MODEL,
-      max_tokens: 300,
+      max_completion_tokens: 300,
       stream: true,
       messages: [{ role: "user", content: prompt }],
     });

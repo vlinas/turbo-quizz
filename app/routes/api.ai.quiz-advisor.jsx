@@ -138,7 +138,7 @@ Return ONLY valid JSON in this format:
   try {
     const message = await openai.chat.completions.create({
       model: CLAUDE_MODEL,
-      max_tokens: 1500,
+      max_completion_tokens: 1500,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
