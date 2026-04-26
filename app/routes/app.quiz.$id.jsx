@@ -734,7 +734,7 @@ export const action = async ({ request, params }) => {
               edges { node { title productType tags } }
             }
           }
-        `, { variables: { first: 50 } });
+        `, { variables: { first: 20 } });
         const data = await response.json();
         fallbackProducts = (data.data?.products?.edges || []).map((e) => ({
           title: e.node.title,
@@ -801,7 +801,7 @@ Generate a product recommendation quiz.`;
     try {
       const message = await openai.chat.completions.create({
         model: CLAUDE_MODEL,
-        max_completion_tokens: 4096,
+        max_completion_tokens: 1200,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
