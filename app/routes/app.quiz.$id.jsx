@@ -1,5 +1,5 @@
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useNavigate, useSubmit, useActionData, Outlet, useMatches } from "@remix-run/react";
+import { useLoaderData, useNavigate, useSubmit, useActionData, Outlet, useMatches, useFetcher } from "@remix-run/react";
 import { useState, useCallback, useEffect } from "react";
 import {
   Page,
@@ -32,6 +32,7 @@ import {
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { getClaudeClient, CLAUDE_MODEL } from "../utils/claude.server";
 
 // Helper functions for Shopify GraphQL
 function toGids(ids) {
@@ -674,6 +675,157 @@ export const action = async ({ request, params }) => {
     }
   }
 
+  if (actionType === "generate_quiz_ai") {
+    const storeDescription = formData.get("storeDescription");
+    const quizGoal = formData.get("quizGoal") || "";
+    const questionCount = parseInt(formData.get("questionCount") || "3", 10);
+
+    if (!storeDescription) {
+      return json({ success: false, error: "Store description is required" }, { status: 400 });
+    }
+
+    // Fetch product catalog from Shopify for context
+    let products = [];
+    try {
+      const response = await admin.graphql(`#graphql
+        query getProducts($first: Int!) {
+          products(first: $first, query: "status:active") {
+            edges {
+              node {
+                id
+                title
+                productType
+                tags
+              }
+            }
+          }
+        }
+      `, { variables: { first: 50 } });
+      const data = await response.json();
+      products = (data.data?.products?.edges || []).map((e) => ({
+        title: e.node.title,
+        type: e.node.productType,
+        tags: (e.node.tags || []).slice(0, 5),
+      }));
+    } catch (err) {
+      console.error("[AI Quiz Generator] Failed to fetch products:", err);
+    }
+
+    const openai = getClaudeClient();
+    const systemPrompt = `You are an expert e-commerce quiz designer. Generate product recommendation quizzes.
+
+Return ONLY valid JSON matching this exact schema:
+{
+  "quiz_title": "string",
+  "questions": [
+    {
+      "question_text": "string",
+      "metafield_key": "string (snake_case, e.g. skin_type)",
+      "answers": [
+        {
+          "answer_text": "string",
+          "action_type": "show_text",
+          "action_data": "string (helpful recommendation message)"
+        }
+      ]
+    }
+  ]
+}
+
+Rules:
+- Generate exactly ${questionCount} questions
+- Each question must have 2-4 answers
+- metafield_key must be lowercase with underscores only
+- action_data should be an encouraging message for this answer`;
+
+    const userPrompt = `Store description: ${storeDescription}
+${quizGoal ? `Quiz goal: ${quizGoal}` : ""}
+
+Product catalog (${products.length} products):
+${products.map((p) => `- ${p.title}${p.type ? ` (${p.type})` : ""}${p.tags.length ? ` [${p.tags.join(", ")}]` : ""}`).join("\n")}
+
+Generate a product recommendation quiz.`;
+
+    try {
+      const message = await openai.chat.completions.create({
+        model: CLAUDE_MODEL,
+        max_tokens: 4096,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      });
+
+      let jsonStr = message.choices[0].message.content.trim();
+      const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (fenceMatch) jsonStr = fenceMatch[1].trim();
+
+      const generatedQuiz = JSON.parse(jsonStr);
+      if (!generatedQuiz.questions || !Array.isArray(generatedQuiz.questions)) {
+        throw new Error("Invalid quiz structure");
+      }
+
+      return json({ success: true, action: "ai_generated", generatedQuiz });
+    } catch (err) {
+      console.error("[AI Quiz Generator] Error:", err);
+      return json({ success: false, error: "Failed to generate quiz. Please try again." }, { status: 500 });
+    }
+  }
+
+  if (actionType === "apply_ai_questions") {
+    const questionsJson = formData.get("questionsJson");
+    if (!questionsJson) {
+      return json({ success: false, error: "Questions data is required" }, { status: 400 });
+    }
+
+    let questions;
+    try {
+      questions = JSON.parse(questionsJson);
+    } catch {
+      return json({ success: false, error: "Invalid questions data" }, { status: 400 });
+    }
+
+    try {
+      // Delete existing questions first (fresh AI-generated quiz)
+      const existingQuestions = await prisma.question.findMany({
+        where: { quiz_id: quizId, shop: session.shop },
+        select: { question_id: true },
+      });
+      if (existingQuestions.length > 0) {
+        await prisma.question.deleteMany({
+          where: { quiz_id: quizId, shop: session.shop },
+        });
+      }
+
+      // Create all AI-generated questions
+      for (let qi = 0; qi < questions.length; qi++) {
+        const q = questions[qi];
+        await prisma.question.create({
+          data: {
+            quiz_id: quizId,
+            shop: session.shop,
+            question_text: q.question_text,
+            metafield_key: q.metafield_key || null,
+            order: qi + 1,
+            answers: {
+              create: q.answers.map((a, ai) => ({
+                answer_text: a.answer_text,
+                action_type: a.action_type || "show_text",
+                action_data: { text: a.action_data || "" },
+                order: ai + 1,
+              })),
+            },
+          },
+        });
+      }
+
+      return redirect(`/app/quiz/${id}`);
+    } catch (err) {
+      console.error("[Apply AI Questions] Error:", err);
+      return json({ success: false, error: "Failed to apply generated questions." }, { status: 500 });
+    }
+  }
+
   return json({ success: false, error: "Invalid action" });
 };
 
@@ -727,6 +879,23 @@ export default function QuizBuilder() {
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const [dateRange, setDateRange] = useState(String(analytics?.days || 7));
+
+  // AI Generator state
+  const aiFetcher = useFetcher();
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [aiStoreDescription, setAiStoreDescription] = useState("");
+  const [aiQuizGoal, setAiQuizGoal] = useState("");
+  const [aiQuestionCount, setAiQuestionCount] = useState("3");
+  const [aiGeneratedQuiz, setAiGeneratedQuiz] = useState(null);
+
+  const isAiGenerating = aiFetcher.state !== "idle";
+
+  // Capture AI generation result
+  useEffect(() => {
+    if (aiFetcher.data?.action === "ai_generated" && aiFetcher.data?.generatedQuiz) {
+      setAiGeneratedQuiz(aiFetcher.data.generatedQuiz);
+    }
+  }, [aiFetcher.data]);
 
   // Toast state
   const [toastActive, setToastActive] = useState(false);
@@ -884,6 +1053,26 @@ export default function QuizBuilder() {
     } catch (_) {
       return [];
     }
+  };
+
+  const handleGenerateWithAi = () => {
+    if (!aiStoreDescription.trim()) return;
+    const formData = new FormData();
+    formData.append("_action", "generate_quiz_ai");
+    formData.append("storeDescription", aiStoreDescription);
+    formData.append("quizGoal", aiQuizGoal);
+    formData.append("questionCount", aiQuestionCount);
+    aiFetcher.submit(formData, { method: "post" });
+  };
+
+  const handleApplyAiQuiz = () => {
+    if (!aiGeneratedQuiz) return;
+    const formData = new FormData();
+    formData.append("_action", "apply_ai_questions");
+    formData.append("questionsJson", JSON.stringify(aiGeneratedQuiz.questions));
+    submit(formData, { method: "post" });
+    setShowAiModal(false);
+    setAiGeneratedQuiz(null);
   };
 
   const handleSave = () => {
@@ -1140,14 +1329,22 @@ export default function QuizBuilder() {
                     <Text as="h2" variant="headingMd">
                       Questions
                     </Text>
-                    {quiz.questions.length === 0 && (
+                    <InlineStack gap="200">
                       <Button
-                        icon={PlusIcon}
-                        onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/edit-question/new`)}
+                        onClick={() => { setAiGeneratedQuiz(null); setShowAiModal(true); }}
+                        icon={ChatIcon}
                       >
-                        Add question
+                        Generate with AI
                       </Button>
-                    )}
+                      {quiz.questions.length === 0 && (
+                        <Button
+                          icon={PlusIcon}
+                          onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/edit-question/new`)}
+                        >
+                          Add question
+                        </Button>
+                      )}
+                    </InlineStack>
                   </InlineStack>
 
                   {quiz.questions.length === 0 ? (
@@ -1649,6 +1846,94 @@ export default function QuizBuilder() {
                 </Button>
               )}
             </BlockStack>
+          </Modal.Section>
+        </Modal>
+
+        {/* AI Quiz Generator Modal */}
+        <Modal
+          open={showAiModal}
+          onClose={() => { setShowAiModal(false); setAiGeneratedQuiz(null); }}
+          title="Generate Quiz with AI"
+          primaryAction={
+            aiGeneratedQuiz
+              ? { content: "Apply to quiz", onAction: handleApplyAiQuiz }
+              : {
+                  content: isAiGenerating ? "Generating..." : "Generate",
+                  onAction: handleGenerateWithAi,
+                  disabled: !aiStoreDescription.trim() || isAiGenerating,
+                  loading: isAiGenerating,
+                }
+          }
+          secondaryActions={[
+            aiGeneratedQuiz
+              ? { content: "Regenerate", onAction: () => { setAiGeneratedQuiz(null); handleGenerateWithAi(); } }
+              : { content: "Cancel", onAction: () => setShowAiModal(false) },
+          ]}
+        >
+          <Modal.Section>
+            {!aiGeneratedQuiz ? (
+              <BlockStack gap="400">
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Describe your store and Claude will generate a tailored product recommendation quiz with questions and answers.
+                </Text>
+                <TextField
+                  label="Store description"
+                  value={aiStoreDescription}
+                  onChange={setAiStoreDescription}
+                  placeholder="e.g., We sell premium skincare products for all skin types, focusing on natural ingredients and sustainable packaging."
+                  multiline={3}
+                  autoComplete="off"
+                  requiredIndicator
+                  helpText="Describe what your store sells and who your customers are"
+                />
+                <TextField
+                  label="Quiz goal (optional)"
+                  value={aiQuizGoal}
+                  onChange={setAiQuizGoal}
+                  placeholder="e.g., Help customers find their perfect moisturizer based on skin type"
+                  autoComplete="off"
+                  helpText="What should the quiz help customers discover?"
+                />
+                <Select
+                  label="Number of questions"
+                  options={[
+                    { label: "2 questions", value: "2" },
+                    { label: "3 questions", value: "3" },
+                    { label: "4 questions", value: "4" },
+                    { label: "5 questions", value: "5" },
+                  ]}
+                  value={aiQuestionCount}
+                  onChange={setAiQuestionCount}
+                />
+                {aiFetcher.data?.error && (
+                  <Text as="p" tone="critical">{aiFetcher.data.error}</Text>
+                )}
+              </BlockStack>
+            ) : (
+              <BlockStack gap="400">
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Review the generated quiz below. Click "Apply to quiz" to replace current questions, or "Regenerate" to try again.
+                </Text>
+                <Text as="p" tone="caution" variant="bodySm">
+                  Note: Applying will replace all existing questions in this quiz.
+                </Text>
+                {aiGeneratedQuiz.questions.map((q, qi) => (
+                  <Card key={qi} background="bg-surface-secondary">
+                    <BlockStack gap="200">
+                      <Text as="h4" variant="headingSm">Q{qi + 1}: {q.question_text}</Text>
+                      {q.metafield_key && (
+                        <Text as="p" variant="bodySm" tone="subdued">Tag key: quiz:{q.metafield_key}</Text>
+                      )}
+                      <BlockStack gap="100">
+                        {q.answers.map((a, ai) => (
+                          <Text key={ai} as="p" variant="bodySm">• {a.answer_text}</Text>
+                        ))}
+                      </BlockStack>
+                    </BlockStack>
+                  </Card>
+                ))}
+              </BlockStack>
+            )}
           </Modal.Section>
         </Modal>
 

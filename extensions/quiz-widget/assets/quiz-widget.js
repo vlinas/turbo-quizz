@@ -430,6 +430,141 @@
 
       // Show reset button for testing
       this.showResetButton();
+
+      // AI enhancements (non-blocking - runs after showing static result)
+      this.addAiEnhancements(finalAnswer.action_type, actionData);
+    }
+
+    async addAiEnhancements(actionType, actionData) {
+      // Build answers context from all questions answered
+      const answersContext = this.quiz.questions.map((q, i) => {
+        const ans = this.answers[i];
+        if (!ans) return null;
+        return { question: q.question_text, answer: ans.answer_text };
+      }).filter(Boolean);
+
+      if (answersContext.length === 0) return;
+
+      // Build products list for personalization context
+      let products = [];
+      if (actionType === 'show_products' && actionData.products) {
+        products = actionData.products.map((p) => ({
+          title: p.title,
+          price: p.variants?.edges?.[0]?.node?.price || p.variants?.[0]?.price || '',
+        }));
+      }
+
+      // 1. AI personalized result copy (streaming) - prepended above static result
+      const aiCopyEl = document.createElement('div');
+      aiCopyEl.className = 'quizza-ai-copy';
+      aiCopyEl.style.cssText = 'font-size: 15px; line-height: 1.6; color: #374151; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; min-height: 24px;';
+      this.resultContentEl.prepend(aiCopyEl);
+
+      try {
+        const response = await fetch(`${this.appUrl}/api/ai/result-copy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            answers: answersContext,
+            products,
+            quizTitle: this.quiz.quiz_title || this.quiz.title || '',
+            shop: this.quiz.shop,
+          }),
+        });
+
+        if (response.ok && response.body) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let aiText = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            for (const line of chunk.split('\n')) {
+              if (!line.startsWith('data: ')) continue;
+              const data = line.slice(6).trim();
+              if (data === '[DONE]' || data === '[ERROR]') break;
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.text) {
+                  aiText += parsed.text;
+                  aiCopyEl.textContent = aiText;
+                }
+              } catch (_) {}
+            }
+          }
+
+          if (!aiText) aiCopyEl.remove();
+        } else {
+          aiCopyEl.remove();
+        }
+      } catch (err) {
+        console.error('[Quizza AI] Result copy error:', err);
+        aiCopyEl.remove();
+      }
+
+      // 2. AI semantic product match - only for show_products results
+      if (actionType === 'show_products') {
+        this.addAiProductMatch(answersContext);
+      }
+    }
+
+    async addAiProductMatch(answersContext) {
+      try {
+        const response = await fetch(`${this.appUrl}/api/ai/product-match`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            answers: answersContext,
+            quizId: this.quizId,
+            shop: this.quiz.shop,
+            maxProducts: 4,
+          }),
+        });
+
+        if (!response.ok) return;
+        const data = await response.json();
+
+        if (!data.products || data.products.length === 0) return;
+
+        // Render AI-selected products as "AI Picks for You" section
+        const aiProductsEl = document.createElement('div');
+        aiProductsEl.className = 'quizza-ai-products';
+        aiProductsEl.style.cssText = 'margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb;';
+
+        const heading = document.createElement('p');
+        heading.className = 'quizza-custom-text';
+        heading.textContent = 'AI picks just for you:';
+        aiProductsEl.appendChild(heading);
+
+        const grid = document.createElement('div');
+        grid.className = 'quizza-products-grid quizza-grid-cols-2';
+
+        data.products.forEach((product) => {
+          const card = document.createElement('div');
+          card.className = 'quizza-product-card';
+          const imageUrl = product.image || '';
+          const price = product.price || '';
+          const handle = product.handle || '';
+
+          card.innerHTML = `
+            ${imageUrl ? `<img src="${imageUrl}" alt="${product.title}" class="quizza-product-image" />` : ''}
+            <div class="quizza-product-info">
+              <h3 class="quizza-product-title">${product.title}</h3>
+              ${price ? `<p class="quizza-product-price">$${price}</p>` : ''}
+              ${handle ? `<a href="/products/${handle}" class="quizza-shop-now-btn">Shop Now</a>` : ''}
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+
+        aiProductsEl.appendChild(grid);
+        this.resultContentEl.appendChild(aiProductsEl);
+      } catch (err) {
+        console.error('[Quizza AI] Product match error:', err);
+      }
     }
 
     showResetButton() {

@@ -1,5 +1,6 @@
 import { json } from "@remix-run/node";
-import { useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useNavigate, useSearchParams, useFetcher } from "@remix-run/react";
+import { useState, useEffect } from "react";
 import {
   Page,
   Layout,
@@ -12,6 +13,9 @@ import {
   DataTable,
   Badge,
   EmptyState,
+  Button,
+  Divider,
+  Spinner,
 } from "@shopify/polaris";
 import {
   LineChart,
@@ -346,6 +350,28 @@ export default function Analytics() {
     navigate(`/app/analytics?${params.toString()}`);
   };
 
+  // AI Quiz Advisor
+  const advisorFetcher = useFetcher();
+  const [advisorResult, setAdvisorResult] = useState(null);
+
+  useEffect(() => {
+    if (advisorFetcher.data?.success && advisorFetcher.data?.advice) {
+      setAdvisorResult(advisorFetcher.data);
+    }
+  }, [advisorFetcher.data]);
+
+  const handleRunAdvisor = () => {
+    if (!selectedQuizId) return;
+    setAdvisorResult(null);
+    const formData = new FormData();
+    formData.append("quizId", String(selectedQuizId));
+    advisorFetcher.submit(formData, { method: "post", action: "/api/ai/quiz-advisor" });
+  };
+
+  const isAdvisorLoading = advisorFetcher.state !== "idle";
+
+  const priorityBadgeMap = { high: "critical", medium: "warning", low: "info" };
+
   // Build quiz options
   const quizOptions = [
     { label: "All quizzes", value: "all" },
@@ -571,6 +597,74 @@ export default function Analytics() {
                     taking your quizzes and making purchases.
                   </p>
                 </EmptyState>
+              )}
+            </BlockStack>
+          </Card>
+        </Layout.Section>
+
+        {/* AI Quiz Advisor */}
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="400">
+              <InlineStack align="space-between" blockAlign="center">
+                <BlockStack gap="100">
+                  <Text as="h2" variant="headingMd">AI Quiz Advisor</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Get AI-powered suggestions to improve completion and conversion rates.
+                  </Text>
+                </BlockStack>
+                <Button
+                  onClick={handleRunAdvisor}
+                  disabled={!selectedQuizId || isAdvisorLoading}
+                  loading={isAdvisorLoading}
+                  variant="primary"
+                >
+                  {selectedQuizId ? "Analyze quiz" : "Select a quiz above"}
+                </Button>
+              </InlineStack>
+
+              {isAdvisorLoading && (
+                <Box padding="400">
+                  <InlineStack align="center" gap="300">
+                    <Spinner size="small" />
+                    <Text as="p" tone="subdued">Claude is analyzing your quiz data...</Text>
+                  </InlineStack>
+                </Box>
+              )}
+
+              {advisorFetcher.data?.error && !isAdvisorLoading && (
+                <Text as="p" tone="critical">{advisorFetcher.data.error}</Text>
+              )}
+
+              {advisorResult && !isAdvisorLoading && (
+                <BlockStack gap="400">
+                  <Divider />
+
+                  <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+                    <Text as="p" variant="bodyMd">{advisorResult.advice.overall_assessment}</Text>
+                  </Box>
+
+                  <Text as="h3" variant="headingSm">Recommendations</Text>
+                  <BlockStack gap="300">
+                    {advisorResult.advice.suggestions.map((suggestion, i) => (
+                      <Card key={i} background="bg-surface-secondary">
+                        <BlockStack gap="200">
+                          <InlineStack gap="200" blockAlign="center">
+                            <Badge tone={priorityBadgeMap[suggestion.priority] || "info"}>
+                              {suggestion.priority}
+                            </Badge>
+                            <Badge>{suggestion.category.replace(/_/g, " ")}</Badge>
+                            <Text as="span" variant="headingSm">{suggestion.title}</Text>
+                          </InlineStack>
+                          <Text as="p" variant="bodyMd">{suggestion.description}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            Expected impact: {suggestion.expected_impact}
+                          </Text>
+                        </BlockStack>
+                      </Card>
+                    ))}
+                  </BlockStack>
+                </BlockStack>
               )}
             </BlockStack>
           </Card>
