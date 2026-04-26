@@ -387,17 +387,19 @@
     }
 
     async showResult() {
-      // Get the final answer's action data
       const finalAnswer = this.answers[this.currentQuestionIndex];
       const actionData = finalAnswer.action_data;
+      const hasPool = this.quiz.pool_type && (
+        (this.quiz.pool_type === 'products' && this.quiz.product_pool?.length > 0) ||
+        (this.quiz.pool_type === 'collections' && this.quiz.collection_pool?.length > 0)
+      );
 
       // Mark quiz as completed and store result in localStorage
       const completedKey = `quizza_completed_${this.quizId}`;
-      const resultData = {
-        actionType: finalAnswer.action_type,
-        actionData: actionData
-      };
-      localStorage.setItem(completedKey, JSON.stringify(resultData));
+      localStorage.setItem(completedKey, JSON.stringify({
+        actionType: hasPool ? 'pool_mode' : finalAnswer.action_type,
+        actionData: hasPool ? null : actionData,
+      }));
 
       // Mark session as completed (with retry)
       if (this.sessionId) {
@@ -405,34 +407,163 @@
           await fetchWithRetry(`${this.appUrl}/api/quiz-sessions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'complete',
-              session_id: this.sessionId,
-            }),
+            body: JSON.stringify({ action: 'complete', session_id: this.sessionId }),
           });
-
-          // Add session_id to cart attributes for order attribution
           await this.addSessionToCart(this.sessionId);
         } catch (error) {
           console.error('[Quizza] Session completion failed after retries:', error);
         }
       }
 
-      // Render result based on action type
-      this.resultContentEl.innerHTML = this.renderActionResult(finalAnswer.action_type, actionData);
+      // Pool mode: AI picks from merchant-curated pool based on all answers
+      if (hasPool) {
+        this.resultContentEl.innerHTML = '<p class="quizza-ai-loading" style="color:#6b7280;font-size:14px;">Finding your best matches...</p>';
+        this.questionEl.style.display = 'none';
+        this.resultEl.style.display = 'block';
+        this.backBtn.style.display = 'none';
+        this.nextBtn.style.display = 'none';
+        if (this.restartBtn) this.restartBtn.style.display = 'none';
+        this.showResetButton();
 
-      // Hide question, show result
+        // Run pool match + result copy in parallel
+        const answersContext = this.quiz.questions.map((q, i) => {
+          const ans = this.answers[i];
+          return ans ? { question: q.question_text, answer: ans.answer_text } : null;
+        }).filter(Boolean);
+
+        const pool = this.quiz.pool_type === 'products'
+          ? this.quiz.product_pool
+          : this.quiz.collection_pool;
+
+        const [matchedItems] = await Promise.all([
+          this.fetchPoolMatch(answersContext, pool, this.quiz.pool_type),
+        ]);
+
+        this.resultContentEl.innerHTML = '';
+        this.renderPoolResult(matchedItems, this.quiz.pool_type, answersContext);
+        return;
+      }
+
+      // Legacy per-answer mode
+      this.resultContentEl.innerHTML = this.renderActionResult(finalAnswer.action_type, actionData);
       this.questionEl.style.display = 'none';
       this.resultEl.style.display = 'block';
       this.backBtn.style.display = 'none';
       this.nextBtn.style.display = 'none';
       if (this.restartBtn) this.restartBtn.style.display = 'none';
-
-      // Show reset button for testing
       this.showResetButton();
-
-      // AI enhancements (non-blocking - runs after showing static result)
       this.addAiEnhancements(finalAnswer.action_type, actionData);
+    }
+
+    async fetchPoolMatch(answersContext, pool, poolType) {
+      try {
+        const response = await fetch(`${this.appUrl}/api/ai/product-match`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answers: answersContext, pool, poolType, maxResults: 4 }),
+        });
+        if (!response.ok) throw new Error('Match failed');
+        const data = await response.json();
+        return data.items || pool.slice(0, 4);
+      } catch (err) {
+        console.error('[Quizza AI] Pool match error:', err);
+        return pool.slice(0, 4);
+      }
+    }
+
+    renderPoolResult(items, poolType, answersContext) {
+      if (!items || items.length === 0) {
+        this.resultContentEl.innerHTML = '<p>No recommendations found.</p>';
+        return;
+      }
+
+      // AI personalized copy placeholder (streams in)
+      const aiCopyEl = document.createElement('div');
+      aiCopyEl.className = 'quizza-ai-copy';
+      aiCopyEl.style.cssText = 'font-size: 15px; line-height: 1.6; color: #374151; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; min-height: 24px;';
+      this.resultContentEl.appendChild(aiCopyEl);
+
+      // Products/collections grid
+      const gridEl = document.createElement('div');
+      gridEl.className = 'quizza-products-result';
+
+      const labelEl = document.createElement('div');
+      labelEl.className = 'quizza-custom-text';
+      labelEl.textContent = poolType === 'collections'
+        ? 'Based on your answers, check out these collections:'
+        : 'Based on your answers, we recommend these products:';
+      gridEl.appendChild(labelEl);
+
+      const grid = document.createElement('div');
+      grid.className = 'quizza-products-grid quizza-grid-cols-2';
+
+      items.forEach((item) => {
+        const card = document.createElement('div');
+        card.className = 'quizza-product-card';
+        const imageUrl = item.image || '';
+        const handle = item.handle || '';
+        const price = item.price || '';
+        const href = poolType === 'collections' ? `/collections/${handle}` : `/products/${handle}`;
+
+        card.innerHTML = `
+          ${imageUrl ? `<img src="${imageUrl}" alt="${item.title}" class="quizza-product-image" />` : ''}
+          <div class="quizza-product-info">
+            <h3 class="quizza-product-title">${item.title}</h3>
+            ${price && poolType !== 'collections' ? `<p class="quizza-product-price">$${price}</p>` : ''}
+            ${handle ? `<a href="${href}" class="quizza-shop-now-btn">Shop Now</a>` : ''}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+
+      gridEl.appendChild(grid);
+      this.resultContentEl.appendChild(gridEl);
+
+      // Stream personalized copy
+      this.streamResultCopy(aiCopyEl, answersContext, items, poolType);
+    }
+
+    async streamResultCopy(targetEl, answersContext, items, poolType) {
+      const products = poolType !== 'collections'
+        ? items.map((p) => ({ title: p.title, price: p.price || '' }))
+        : [];
+
+      try {
+        const response = await fetch(`${this.appUrl}/api/ai/result-copy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            answers: answersContext,
+            products,
+            quizTitle: this.quiz.title || '',
+          }),
+        });
+
+        if (!response.ok || !response.body) { targetEl.remove(); return; }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let aiText = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          for (const line of decoder.decode(value, { stream: true }).split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6).trim();
+            if (data === '[DONE]' || data === '[ERROR]') break;
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.text) { aiText += parsed.text; targetEl.textContent = aiText; }
+            } catch (_) {}
+          }
+        }
+
+        if (!aiText) targetEl.remove();
+      } catch (err) {
+        console.error('[Quizza AI] Result copy error:', err);
+        targetEl.remove();
+      }
     }
 
     async addAiEnhancements(actionType, actionData) {

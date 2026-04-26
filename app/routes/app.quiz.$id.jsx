@@ -322,6 +322,36 @@ export const action = async ({ request, params }) => {
     }, { status: 404 });
   }
 
+  if (actionType === "update_pool") {
+    const poolType = formData.get("pool_type") || null;
+    const poolJson = formData.get("pool_json") || "[]";
+
+    try {
+      const poolItems = JSON.parse(poolJson);
+      const updateData = {
+        pool_type: poolType,
+        product_pool: null,
+        collection_pool: null,
+      };
+
+      if (poolType === "products") {
+        updateData.product_pool = poolItems;
+      } else if (poolType === "collections") {
+        updateData.collection_pool = poolItems;
+      }
+
+      await prisma.quiz.update({
+        where: { id: quiz.id },
+        data: updateData,
+      });
+
+      return json({ success: true, action: "pool_updated" });
+    } catch (error) {
+      console.error("Error updating pool:", error);
+      return json({ success: false, error: "Failed to update product pool" }, { status: 500 });
+    }
+  }
+
   if (actionType === "update_quiz") {
     const title = formData.get("title");
     const description = formData.get("description");
@@ -684,35 +714,51 @@ export const action = async ({ request, params }) => {
       return json({ success: false, error: "Store description is required" }, { status: 400 });
     }
 
-    // Fetch product catalog from Shopify for context
-    let products = [];
-    try {
-      const response = await admin.graphql(`#graphql
-        query getProducts($first: Int!) {
-          products(first: $first, query: "status:active") {
-            edges {
-              node {
-                id
-                title
-                productType
-                tags
-              }
+    // Use the quiz's product/collection pool if set — much better context than full catalog
+    const hasPool = quiz.pool_type && (
+      (quiz.pool_type === "products" && Array.isArray(quiz.product_pool) && quiz.product_pool.length > 0) ||
+      (quiz.pool_type === "collections" && Array.isArray(quiz.collection_pool) && quiz.collection_pool.length > 0)
+    );
+
+    const poolItems = hasPool
+      ? (quiz.pool_type === "products" ? quiz.product_pool : quiz.collection_pool)
+      : [];
+
+    // Fallback: fetch product catalog if no pool set
+    let fallbackProducts = [];
+    if (!hasPool) {
+      try {
+        const response = await admin.graphql(`#graphql
+          query getProducts($first: Int!) {
+            products(first: $first, query: "status:active") {
+              edges { node { title productType tags } }
             }
           }
-        }
-      `, { variables: { first: 50 } });
-      const data = await response.json();
-      products = (data.data?.products?.edges || []).map((e) => ({
-        title: e.node.title,
-        type: e.node.productType,
-        tags: (e.node.tags || []).slice(0, 5),
-      }));
-    } catch (err) {
-      console.error("[AI Quiz Generator] Failed to fetch products:", err);
+        `, { variables: { first: 50 } });
+        const data = await response.json();
+        fallbackProducts = (data.data?.products?.edges || []).map((e) => ({
+          title: e.node.title,
+          type: e.node.productType,
+          tags: (e.node.tags || []).slice(0, 5),
+          description: "",
+        }));
+      } catch (err) {
+        console.error("[AI Quiz Generator] Failed to fetch products:", err);
+      }
     }
 
+    const itemsForContext = hasPool ? poolItems : fallbackProducts;
+    const poolType = quiz.pool_type || "products";
+    const itemLabel = poolType === "collections" ? "collections" : "products";
+
     const openai = getClaudeClient();
-    const systemPrompt = `You are an expert e-commerce quiz designer. Generate product recommendation quizzes.
+
+    const systemPrompt = `You are an expert e-commerce quiz designer. Generate a product recommendation quiz.
+
+${hasPool
+  ? `IMPORTANT: This quiz has a curated ${itemLabel} pool. The questions you generate must help DISTINGUISH which ${itemLabel} from the pool best fits each customer. Each question should reveal a meaningful preference that differentiates between the pool ${itemLabel}.`
+  : "Generate questions that help customers discover the right products for their needs."
+}
 
 Return ONLY valid JSON matching this exact schema:
 {
@@ -725,7 +771,7 @@ Return ONLY valid JSON matching this exact schema:
         {
           "answer_text": "string",
           "action_type": "show_text",
-          "action_data": "string (helpful recommendation message)"
+          "action_data": "string (brief encouraging message for this answer)"
         }
       ]
     }
@@ -736,13 +782,19 @@ Rules:
 - Generate exactly ${questionCount} questions
 - Each question must have 2-4 answers
 - metafield_key must be lowercase with underscores only
-- action_data should be an encouraging message for this answer`;
+- Questions must be distinct — no overlap between them`;
+
+    const poolContext = hasPool
+      ? `\n\n${itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1)} pool (${itemsForContext.length} items — generate questions that differentiate between these):\n${itemsForContext.map((p) => {
+          const parts = [`- ${p.title}`];
+          if (p.description) parts.push(p.description.substring(0, 150));
+          if (p.tags?.length) parts.push(`[${p.tags.slice(0, 5).join(", ")}]`);
+          return parts.join(" | ");
+        }).join("\n")}`
+      : `\n\nProduct catalog (${itemsForContext.length} products):\n${itemsForContext.map((p) => `- ${p.title}${p.type ? ` (${p.type})` : ""}${p.tags?.length ? ` [${p.tags.join(", ")}]` : ""}`).join("\n")}`;
 
     const userPrompt = `Store description: ${storeDescription}
-${quizGoal ? `Quiz goal: ${quizGoal}` : ""}
-
-Product catalog (${products.length} products):
-${products.map((p) => `- ${p.title}${p.type ? ` (${p.type})` : ""}${p.tags.length ? ` [${p.tags.join(", ")}]` : ""}`).join("\n")}
+${quizGoal ? `Quiz goal: ${quizGoal}` : ""}${poolContext}
 
 Generate a product recommendation quiz.`;
 
@@ -879,6 +931,72 @@ export default function QuizBuilder() {
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const [dateRange, setDateRange] = useState(String(analytics?.days || 7));
+
+  // Product pool state
+  const poolFetcher = useFetcher();
+  const [poolType, setPoolType] = useState(quiz?.pool_type || null);
+  const [poolItems, setPoolItems] = useState(
+    quiz?.pool_type === "products"
+      ? (quiz?.product_pool || [])
+      : quiz?.pool_type === "collections"
+      ? (quiz?.collection_pool || [])
+      : []
+  );
+  const isPoolSaving = poolFetcher.state !== "idle";
+
+  const handleSavePool = (type, items) => {
+    const formData = new FormData();
+    formData.append("_action", "update_pool");
+    formData.append("pool_type", type || "");
+    formData.append("pool_json", JSON.stringify(items));
+    poolFetcher.submit(formData, { method: "post" });
+  };
+
+  const handlePoolTypeChange = (newType) => {
+    setPoolType(newType);
+    setPoolItems([]);
+    handleSavePool(newType, []);
+  };
+
+  const handlePickPoolProducts = async () => {
+    const currentIds = poolItems.map((p) => p.id);
+    const selection = await openResourcePicker("product", true, currentIds);
+    if (!selection.length) return;
+    const capped = selection.slice(0, 20);
+    const items = capped.map((s) => ({
+      id: s.id,
+      title: s.title,
+      handle: s.handle || "",
+      description: s.descriptionHtml?.replace(/<[^>]*>/g, "").substring(0, 300) || "",
+      tags: s.tags || [],
+      image: s.images?.[0]?.originalSrc || s.images?.[0]?.url || null,
+      price: s.variants?.[0]?.price || "0",
+    }));
+    setPoolItems(items);
+    handleSavePool("products", items);
+  };
+
+  const handlePickPoolCollections = async () => {
+    const currentIds = poolItems.map((c) => c.id);
+    const selection = await openResourcePicker("collection", true, currentIds);
+    if (!selection.length) return;
+    const capped = selection.slice(0, 10);
+    const items = capped.map((s) => ({
+      id: s.id,
+      title: s.title,
+      handle: s.handle || "",
+      description: "",
+      image: s.image?.originalSrc || s.image?.url || null,
+    }));
+    setPoolItems(items);
+    handleSavePool("collections", items);
+  };
+
+  const handleRemovePoolItem = (itemId) => {
+    const updated = poolItems.filter((i) => i.id !== itemId);
+    setPoolItems(updated);
+    handleSavePool(poolType, updated);
+  };
 
   // AI Generator state
   const aiFetcher = useFetcher();
@@ -1319,6 +1437,102 @@ export default function QuizBuilder() {
                     autoComplete="off"
                   />
 
+                </BlockStack>
+              </Card>
+
+              {/* Product Pool */}
+              <Card>
+                <BlockStack gap="400">
+                  <BlockStack gap="100">
+                    <Text as="h2" variant="headingMd">Product Pool (optional)</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Select products or collections for AI to recommend at quiz completion. Without a pool, each answer shows its own result.
+                    </Text>
+                  </BlockStack>
+
+                  <InlineStack gap="300">
+                    <Button
+                      variant={poolType === "products" ? "primary" : "secondary"}
+                      onClick={() => poolType !== "products" && handlePoolTypeChange("products")}
+                      size="slim"
+                    >
+                      Products {poolType === "products" && poolItems.length > 0 ? `(${poolItems.length}/20)` : ""}
+                    </Button>
+                    <Button
+                      variant={poolType === "collections" ? "primary" : "secondary"}
+                      onClick={() => poolType !== "collections" && handlePoolTypeChange("collections")}
+                      size="slim"
+                    >
+                      Collections {poolType === "collections" && poolItems.length > 0 ? `(${poolItems.length}/10)` : ""}
+                    </Button>
+                    {poolType && (
+                      <Button
+                        variant="plain"
+                        tone="critical"
+                        size="slim"
+                        onClick={() => handlePoolTypeChange(null)}
+                      >
+                        Clear pool
+                      </Button>
+                    )}
+                  </InlineStack>
+
+                  {poolType === "products" && (
+                    <BlockStack gap="300">
+                      <Button onClick={handlePickPoolProducts} disabled={poolItems.length >= 20}>
+                        {poolItems.length === 0 ? "Select products" : "Edit products"}
+                      </Button>
+                      {poolItems.length > 0 && (
+                        <BlockStack gap="200">
+                          {poolItems.map((item) => (
+                            <InlineStack key={item.id} align="space-between" blockAlign="center">
+                              <InlineStack gap="200" blockAlign="center">
+                                {item.image && (
+                                  <img src={item.image} alt={item.title} style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4 }} />
+                                )}
+                                <Text as="span" variant="bodyMd">{item.title}</Text>
+                              </InlineStack>
+                              <Button variant="plain" tone="critical" size="slim" onClick={() => handleRemovePoolItem(item.id)}>
+                                Remove
+                              </Button>
+                            </InlineStack>
+                          ))}
+                        </BlockStack>
+                      )}
+                    </BlockStack>
+                  )}
+
+                  {poolType === "collections" && (
+                    <BlockStack gap="300">
+                      <Button onClick={handlePickPoolCollections} disabled={poolItems.length >= 10}>
+                        {poolItems.length === 0 ? "Select collections" : "Edit collections"}
+                      </Button>
+                      {poolItems.length > 0 && (
+                        <BlockStack gap="200">
+                          {poolItems.map((item) => (
+                            <InlineStack key={item.id} align="space-between" blockAlign="center">
+                              <InlineStack gap="200" blockAlign="center">
+                                {item.image && (
+                                  <img src={item.image} alt={item.title} style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4 }} />
+                                )}
+                                <Text as="span" variant="bodyMd">{item.title}</Text>
+                              </InlineStack>
+                              <Button variant="plain" tone="critical" size="slim" onClick={() => handleRemovePoolItem(item.id)}>
+                                Remove
+                              </Button>
+                            </InlineStack>
+                          ))}
+                        </BlockStack>
+                      )}
+                    </BlockStack>
+                  )}
+
+                  {isPoolSaving && (
+                    <Text as="p" variant="bodySm" tone="subdued">Saving...</Text>
+                  )}
+                  {poolFetcher.data?.action === "pool_updated" && !isPoolSaving && (
+                    <Text as="p" variant="bodySm" tone="success">Pool saved.</Text>
+                  )}
                 </BlockStack>
               </Card>
 
@@ -1873,6 +2087,15 @@ export default function QuizBuilder() {
           <Modal.Section>
             {!aiGeneratedQuiz ? (
               <BlockStack gap="400">
+                {poolType && poolItems.length > 0 ? (
+                  <Text as="p" variant="bodySm" tone="success">
+                    ✓ Using your {poolType} pool ({poolItems.length} items) — AI will generate questions specifically designed to match customers to your selected {poolType}.
+                  </Text>
+                ) : (
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Tip: Add a product pool above first — AI will generate smarter questions tailored to your specific products.
+                  </Text>
+                )}
                 <Text as="p" variant="bodySm" tone="subdued">
                   Describe your store and AI will generate a tailored product recommendation quiz with questions and answers.
                 </Text>
