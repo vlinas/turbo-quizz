@@ -991,14 +991,13 @@ export default function QuizBuilder() {
   const [aiGeneratedQuiz, setAiGeneratedQuiz] = useState(null);
   const [aiLoadingProgress, setAiLoadingProgress] = useState(0);
   const [showAiLoading, setShowAiLoading] = useState(false);
-
-  const isAiGenerating = aiFetcher.state !== "idle";
+  const [aiError, setAiError] = useState(null);
 
   // Animate progress bar while generating
   useEffect(() => {
     if (!showAiLoading) return;
     setAiLoadingProgress(5);
-    const targets = [15, 30, 45, 58, 68, 76, 83, 88, 92, 95];
+    const targets = [15, 28, 40, 52, 62, 71, 78, 84, 89, 93];
     let i = 0;
     const interval = setInterval(() => {
       if (i < targets.length) {
@@ -1007,21 +1006,9 @@ export default function QuizBuilder() {
       } else {
         clearInterval(interval);
       }
-    }, 1800);
+    }, 3000);
     return () => clearInterval(interval);
   }, [showAiLoading]);
-
-  // Capture AI generation result
-  useEffect(() => {
-    if (aiFetcher.data?.action === "ai_generated" && aiFetcher.data?.generatedQuiz) {
-      setAiLoadingProgress(100);
-      setTimeout(() => setShowAiLoading(false), 400);
-      setAiGeneratedQuiz(aiFetcher.data.generatedQuiz);
-    } else if (aiFetcher.data?.error) {
-      setShowAiLoading(false);
-      setAiLoadingProgress(0);
-    }
-  }, [aiFetcher.data]);
 
   // Toast state
   const [toastActive, setToastActive] = useState(false);
@@ -1181,18 +1168,59 @@ export default function QuizBuilder() {
     }
   };
 
-  const handleGenerateWithAi = () => {
+  const handleGenerateWithAi = async () => {
     if (!aiStoreDescription.trim()) return;
-    const formData = new FormData();
-    formData.append("_action", "generate_quiz_ai");
-    formData.append("storeDescription", aiStoreDescription);
-    formData.append("quizGoal", aiQuizGoal);
-    formData.append("questionCount", aiQuestionCount);
     setShowAiModal(false);
     setAiGeneratedQuiz(null);
+    setAiError(null);
     setAiLoadingProgress(0);
     setShowAiLoading(true);
-    aiFetcher.submit(formData, { method: "post" });
+
+    try {
+      const response = await fetch("/api/ai/generate-quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storeDescription: aiStoreDescription,
+          quizGoal: aiQuizGoal,
+          questionCount: aiQuestionCount,
+          pool: poolItems,
+          poolType: poolType || "products",
+        }),
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop(); // keep incomplete line
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const raw = line.slice(6).trim();
+          if (raw === "[DONE]") break;
+          try {
+            const msg = JSON.parse(raw);
+            if (msg.type === "result") {
+              setAiLoadingProgress(100);
+              setTimeout(() => setShowAiLoading(false), 400);
+              setAiGeneratedQuiz(msg.quiz);
+            } else if (msg.type === "error") {
+              setShowAiLoading(false);
+              setAiError(msg.error);
+            }
+            // type === "ping": ignore, progress bar animates on its own
+          } catch {}
+        }
+      }
+    } catch (err) {
+      setShowAiLoading(false);
+      setAiError("Failed to connect. Please try again.");
+    }
   };
 
   const handleApplyAiQuiz = () => {
@@ -1452,8 +1480,8 @@ export default function QuizBuilder() {
                 </BlockStack>
               </Card>
 
-              {/* Product Pool */}
-              <Card>
+              {/* Product Pool — hidden while AI is generating */}
+              {!showAiLoading && <Card>
                 <BlockStack gap="400">
                   <BlockStack gap="100">
                     <Text as="h2" variant="headingMd">Product Pool (optional)</Text>
@@ -1546,7 +1574,7 @@ export default function QuizBuilder() {
                     <Text as="p" variant="bodySm" tone="success">Pool saved.</Text>
                   )}
                 </BlockStack>
-              </Card>
+              </Card>}
 
               {/* AI Loading Card */}
               {showAiLoading && (
@@ -1599,25 +1627,22 @@ export default function QuizBuilder() {
                         </BlockStack>
                       </Box>
                     ))}
-                    {aiFetcher.data?.error && (
-                      <Banner tone="critical">{aiFetcher.data.error}</Banner>
-                    )}
                   </BlockStack>
                 </Card>
               )}
 
               {/* Error card if generation failed */}
-              {aiFetcher.data?.error && !showAiLoading && !aiGeneratedQuiz && (
+              {aiError && !showAiLoading && !aiGeneratedQuiz && (
                 <Banner
                   tone="critical"
                   action={{ content: "Try again", onAction: () => setShowAiModal(true) }}
                 >
-                  {aiFetcher.data.error}
+                  {aiError}
                 </Banner>
               )}
 
-              {/* Questions */}
-              <Card>
+              {/* Questions — hidden while AI is generating */}
+              {!showAiLoading && <Card>
                 <BlockStack gap="400">
                   <InlineStack align="space-between" blockAlign="center">
                     <Text as="h2" variant="headingMd">
@@ -1714,7 +1739,7 @@ export default function QuizBuilder() {
                     </BlockStack>
                   )}
                 </BlockStack>
-              </Card>
+              </Card>}
             </BlockStack>
           </Layout.Section>
 
