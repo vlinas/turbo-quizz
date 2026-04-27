@@ -753,36 +753,17 @@ export const action = async ({ request, params }) => {
 
     const openai = getClaudeClient();
 
-    const systemPrompt = `You are an expert e-commerce quiz designer. Generate a product recommendation quiz.
+    const systemPrompt = `You are an e-commerce quiz designer. Generate a product recommendation quiz as compact JSON.
 
 ${hasPool
-  ? `IMPORTANT: This quiz has a curated ${itemLabel} pool. The questions you generate must help DISTINGUISH which ${itemLabel} from the pool best fits each customer. Each question should reveal a meaningful preference that differentiates between the pool ${itemLabel}.`
-  : "Generate questions that help customers discover the right products for their needs."
+  ? `IMPORTANT: Questions must DISTINGUISH which ${itemLabel} from the pool fits each customer.`
+  : "Generate questions that help customers discover the right products."
 }
 
-Return ONLY valid JSON matching this exact schema:
-{
-  "quiz_title": "string",
-  "questions": [
-    {
-      "question_text": "string",
-      "metafield_key": "string (snake_case, e.g. skin_type)",
-      "answers": [
-        {
-          "answer_text": "string",
-          "action_type": "show_text",
-          "action_data": "string (brief encouraging message for this answer)"
-        }
-      ]
-    }
-  ]
-}
+Return ONLY valid JSON:
+{"quiz_title":"string","questions":[{"question_text":"string","metafield_key":"snake_case","answers":[{"answer_text":"string","action_type":"show_text","action_data":"short message"}]}]}
 
-Rules:
-- Generate exactly ${questionCount} questions
-- Each question must have 2-4 answers
-- metafield_key must be lowercase with underscores only
-- Questions must be distinct — no overlap between them`;
+Rules: exactly ${questionCount} questions, 2-4 answers each, metafield_key lowercase underscores, no overlap between questions. Keep answer_text under 8 words, action_data under 8 words.`;
 
     const poolContext = hasPool
       ? `\n\n${itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1)} pool (${itemsForContext.length} items — generate questions that differentiate between these):\n${itemsForContext.map((p) => {
@@ -801,7 +782,7 @@ Generate a product recommendation quiz.`;
     try {
       const message = await openai.chat.completions.create({
         model: CLAUDE_MODEL,
-        max_completion_tokens: 1200,
+        max_completion_tokens: 1800,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
