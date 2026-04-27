@@ -96,7 +96,10 @@ export default function AiWizard() {
   const [poolType, setPoolType] = useState("products");
   const [poolItems, setPoolItems] = useState([]);
 
-  // Wizard steps: pool-select | generating | review | summary | applying | error
+  // Preferences
+  const [userInstructions, setUserInstructions] = useState("");
+
+  // Wizard steps: pool-select | preferences | generating | review | summary | applying | error
   const [step, setStep] = useState("pool-select");
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState("");
@@ -237,7 +240,7 @@ export default function AiWizard() {
       const response = await fetch("/api/ai/quiz-wizard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pool: poolItems, poolType }),
+        body: JSON.stringify({ pool: poolItems, poolType, userInstructions: userInstructions.trim() }),
       });
 
       const reader = response.body.getReader();
@@ -447,10 +450,104 @@ export default function AiWizard() {
                   )}
                   <Button
                     variant="primary"
-                    onClick={runGeneration}
+                    onClick={() => setStep("preferences")}
                     disabled={poolItems.length < 2}
                   >
-                    Analyze &amp; generate quiz →
+                    Next: Customize →
+                  </Button>
+                </InlineStack>
+              </BlockStack>
+            </Card>
+          </BlockStack>
+        </Page>
+      </Frame>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP: preferences
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (step === "preferences") {
+    return (
+      <Frame>
+        <Page
+          backAction={{ content: "Back", onAction: () => setStep("pool-select") }}
+          title="AI Quiz Wizard"
+          subtitle={quizTitle}
+        >
+          <BlockStack gap="500">
+            <Card>
+              <BlockStack gap="400">
+                <BlockStack gap="100">
+                  <Text as="h2" variant="headingMd">
+                    Step 2: Customize your quiz
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Tell AI anything extra — language, tone, audience, quiz style. Leave blank and AI will decide.
+                  </Text>
+                </BlockStack>
+
+                <TextField
+                  label="Instructions for AI"
+                  value={userInstructions}
+                  onChange={setUserInstructions}
+                  placeholder={`e.g. "Write questions in Lithuanian. Target audience is women aged 25–40. Keep tone casual and friendly. Focus on lifestyle fit rather than technical specs."`}
+                  multiline={5}
+                  autoComplete="off"
+                  helpText="Anything goes — language, audience, tone, number of questions, what to avoid..."
+                />
+
+                <Box
+                  padding="300"
+                  background="bg-surface-secondary"
+                  borderRadius="200"
+                >
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodySm" fontWeight="semibold" tone="subdued">
+                      Quick examples (click to add):
+                    </Text>
+                    <InlineStack gap="200" wrap>
+                      {[
+                        "Write in Lithuanian",
+                        "Write in German",
+                        "Keep tone casual",
+                        "Professional tone",
+                        "Target women 25–40",
+                        "Target men 18–30",
+                        "Focus on lifestyle",
+                        "Focus on technical specs",
+                        "Short, punchy questions",
+                        "Generate 5 questions",
+                      ].map((hint) => (
+                        <Button
+                          key={hint}
+                          size="slim"
+                          variant="secondary"
+                          onClick={() =>
+                            setUserInstructions((prev) =>
+                              prev.trim() ? `${prev.trim()}. ${hint}` : hint
+                            )
+                          }
+                        >
+                          {hint}
+                        </Button>
+                      ))}
+                    </InlineStack>
+                  </BlockStack>
+                </Box>
+
+                <Divider />
+
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {poolItems.length} {itemLabel} selected
+                  </Text>
+                  <Button
+                    variant="primary"
+                    tone="success"
+                    onClick={runGeneration}
+                  >
+                    Generate quiz →
                   </Button>
                 </InlineStack>
               </BlockStack>
@@ -902,7 +999,7 @@ export default function AiWizard() {
                       Change pool
                     </Button>
                     <Button
-                      onClick={runGeneration}
+                      onClick={() => setStep("preferences")}
                       disabled={isApplying}
                     >
                       Regenerate

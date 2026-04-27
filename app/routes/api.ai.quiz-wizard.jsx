@@ -34,7 +34,7 @@ export async function action({ request }) {
     });
   }
 
-  const { pool = [], poolType = "products" } = body;
+  const { pool = [], poolType = "products", userInstructions = "" } = body;
 
   if (!pool || pool.length === 0) {
     return new Response(JSON.stringify({ error: "Pool is required" }), {
@@ -132,7 +132,7 @@ Other rules:
 
         userContentParts.push({
           type: "text",
-          text: `\nGenerate ${numQuestions} questions. Assign product_indices to each answer. Indices are 0 to ${pool.length - 1}. Return ONLY the JSON.`,
+          text: `\nGenerate ${numQuestions} questions. Assign product_indices to each answer. Indices are 0 to ${pool.length - 1}.${userInstructions ? `\n\nMerchant instructions (follow these carefully): ${userInstructions}` : ""} Return ONLY the JSON.`,
         });
 
         const message = await openai.chat.completions.create({
