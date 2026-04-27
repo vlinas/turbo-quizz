@@ -22,6 +22,9 @@ import {
   Modal,
   ResourceList,
   ResourceItem,
+  ProgressBar,
+  Banner,
+  Spinner,
 } from "@shopify/polaris";
 import {
   DeleteIcon,
@@ -986,13 +989,37 @@ export default function QuizBuilder() {
   const [aiQuizGoal, setAiQuizGoal] = useState("");
   const [aiQuestionCount, setAiQuestionCount] = useState("3");
   const [aiGeneratedQuiz, setAiGeneratedQuiz] = useState(null);
+  const [aiLoadingProgress, setAiLoadingProgress] = useState(0);
+  const [showAiLoading, setShowAiLoading] = useState(false);
 
   const isAiGenerating = aiFetcher.state !== "idle";
+
+  // Animate progress bar while generating
+  useEffect(() => {
+    if (!showAiLoading) return;
+    setAiLoadingProgress(5);
+    const targets = [15, 30, 45, 58, 68, 76, 83, 88, 92, 95];
+    let i = 0;
+    const interval = setInterval(() => {
+      if (i < targets.length) {
+        setAiLoadingProgress(targets[i]);
+        i++;
+      } else {
+        clearInterval(interval);
+      }
+    }, 1800);
+    return () => clearInterval(interval);
+  }, [showAiLoading]);
 
   // Capture AI generation result
   useEffect(() => {
     if (aiFetcher.data?.action === "ai_generated" && aiFetcher.data?.generatedQuiz) {
+      setAiLoadingProgress(100);
+      setTimeout(() => setShowAiLoading(false), 400);
       setAiGeneratedQuiz(aiFetcher.data.generatedQuiz);
+    } else if (aiFetcher.data?.error) {
+      setShowAiLoading(false);
+      setAiLoadingProgress(0);
     }
   }, [aiFetcher.data]);
 
@@ -1161,6 +1188,10 @@ export default function QuizBuilder() {
     formData.append("storeDescription", aiStoreDescription);
     formData.append("quizGoal", aiQuizGoal);
     formData.append("questionCount", aiQuestionCount);
+    setShowAiModal(false);
+    setAiGeneratedQuiz(null);
+    setAiLoadingProgress(0);
+    setShowAiLoading(true);
     aiFetcher.submit(formData, { method: "post" });
   };
 
@@ -1516,6 +1547,74 @@ export default function QuizBuilder() {
                   )}
                 </BlockStack>
               </Card>
+
+              {/* AI Loading Card */}
+              {showAiLoading && (
+                <Card>
+                  <BlockStack gap="400">
+                    <InlineStack gap="300" blockAlign="center">
+                      <Spinner size="small" />
+                      <Text as="h2" variant="headingMd">Generating your quiz...</Text>
+                    </InlineStack>
+                    <ProgressBar progress={aiLoadingProgress} size="medium" tone="highlight" animated />
+                    <BlockStack gap="100">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        AI is reviewing your {poolType && poolItems.length > 0 ? `${poolItems.length} ${poolType}` : "store"} and crafting personalized questions.
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        This usually takes 15–30 seconds.
+                      </Text>
+                    </BlockStack>
+                  </BlockStack>
+                </Card>
+              )}
+
+              {/* AI Result Preview Card */}
+              {aiGeneratedQuiz && !showAiLoading && (
+                <Card>
+                  <BlockStack gap="400">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <BlockStack gap="100">
+                        <Text as="h2" variant="headingMd">Quiz ready — "{aiGeneratedQuiz.quiz_title}"</Text>
+                        <Text as="p" variant="bodySm" tone="subdued">{aiGeneratedQuiz.questions.length} questions generated. Review below, then apply.</Text>
+                      </BlockStack>
+                      <InlineStack gap="200">
+                        <Button onClick={() => { setAiGeneratedQuiz(null); setShowAiModal(true); }}>Regenerate</Button>
+                        <Button variant="primary" onClick={handleApplyAiQuiz}>Apply to quiz</Button>
+                      </InlineStack>
+                    </InlineStack>
+                    <Divider />
+                    {aiGeneratedQuiz.questions.map((q, qi) => (
+                      <Box key={qi} padding="300" background="bg-surface-secondary" borderRadius="200">
+                        <BlockStack gap="150">
+                          <Text as="h4" variant="headingSm">Q{qi + 1}: {q.question_text}</Text>
+                          {q.metafield_key && (
+                            <Text as="p" variant="bodySm" tone="subdued">Tag: quiz:{q.metafield_key}</Text>
+                          )}
+                          <InlineStack gap="200" wrap>
+                            {q.answers.map((a, ai2) => (
+                              <Badge key={ai2}>{a.answer_text}</Badge>
+                            ))}
+                          </InlineStack>
+                        </BlockStack>
+                      </Box>
+                    ))}
+                    {aiFetcher.data?.error && (
+                      <Banner tone="critical">{aiFetcher.data.error}</Banner>
+                    )}
+                  </BlockStack>
+                </Card>
+              )}
+
+              {/* Error card if generation failed */}
+              {aiFetcher.data?.error && !showAiLoading && !aiGeneratedQuiz && (
+                <Banner
+                  tone="critical"
+                  action={{ content: "Try again", onAction: () => setShowAiModal(true) }}
+                >
+                  {aiFetcher.data.error}
+                </Banner>
+              )}
 
               {/* Questions */}
               <Card>
@@ -2047,97 +2146,61 @@ export default function QuizBuilder() {
         {/* AI Quiz Generator Modal */}
         <Modal
           open={showAiModal}
-          onClose={() => { setShowAiModal(false); setAiGeneratedQuiz(null); }}
+          onClose={() => { setShowAiModal(false); }}
           title="Generate Quiz with AI"
-          primaryAction={
-            aiGeneratedQuiz
-              ? { content: "Apply to quiz", onAction: handleApplyAiQuiz }
-              : {
-                  content: isAiGenerating ? "Generating..." : "Generate",
-                  onAction: handleGenerateWithAi,
-                  disabled: !aiStoreDescription.trim() || isAiGenerating,
-                  loading: isAiGenerating,
-                }
-          }
+          primaryAction={{
+            content: "Generate",
+            onAction: handleGenerateWithAi,
+            disabled: !aiStoreDescription.trim(),
+          }}
           secondaryActions={[
-            aiGeneratedQuiz
-              ? { content: "Regenerate", onAction: () => { setAiGeneratedQuiz(null); handleGenerateWithAi(); } }
-              : { content: "Cancel", onAction: () => setShowAiModal(false) },
+            { content: "Cancel", onAction: () => setShowAiModal(false) },
           ]}
         >
           <Modal.Section>
-            {!aiGeneratedQuiz ? (
-              <BlockStack gap="400">
-                {poolType && poolItems.length > 0 ? (
-                  <Text as="p" variant="bodySm" tone="success">
-                    ✓ Using your {poolType} pool ({poolItems.length} items) — AI will generate questions specifically designed to match customers to your selected {poolType}.
-                  </Text>
-                ) : (
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    Tip: Add a product pool above first — AI will generate smarter questions tailored to your specific products.
-                  </Text>
-                )}
+            <BlockStack gap="400">
+              {poolType && poolItems.length > 0 ? (
+                <Text as="p" variant="bodySm" tone="success">
+                  ✓ Using your {poolType} pool ({poolItems.length} items) — AI will generate questions designed to match customers to your selected {poolType}.
+                </Text>
+              ) : (
                 <Text as="p" variant="bodySm" tone="subdued">
-                  Describe your store and AI will generate a tailored product recommendation quiz with questions and answers.
+                  Tip: Add a product pool above first — AI will generate smarter questions tailored to your specific products.
                 </Text>
-                <TextField
-                  label="Store description"
-                  value={aiStoreDescription}
-                  onChange={setAiStoreDescription}
-                  placeholder="e.g., We sell premium skincare products for all skin types, focusing on natural ingredients and sustainable packaging."
-                  multiline={3}
-                  autoComplete="off"
-                  requiredIndicator
-                  helpText="Describe what your store sells and who your customers are"
-                />
-                <TextField
-                  label="Quiz goal (optional)"
-                  value={aiQuizGoal}
-                  onChange={setAiQuizGoal}
-                  placeholder="e.g., Help customers find their perfect moisturizer based on skin type"
-                  autoComplete="off"
-                  helpText="What should the quiz help customers discover?"
-                />
-                <Select
-                  label="Number of questions"
-                  options={[
-                    { label: "2 questions", value: "2" },
-                    { label: "3 questions", value: "3" },
-                    { label: "4 questions", value: "4" },
-                    { label: "5 questions", value: "5" },
-                  ]}
-                  value={aiQuestionCount}
-                  onChange={setAiQuestionCount}
-                />
-                {aiFetcher.data?.error && (
-                  <Text as="p" tone="critical">{aiFetcher.data.error}</Text>
-                )}
-              </BlockStack>
-            ) : (
-              <BlockStack gap="400">
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Review the generated quiz below. Click "Apply to quiz" to replace current questions, or "Regenerate" to try again.
-                </Text>
-                <Text as="p" tone="caution" variant="bodySm">
-                  Note: Applying will replace all existing questions in this quiz.
-                </Text>
-                {aiGeneratedQuiz.questions.map((q, qi) => (
-                  <Card key={qi} background="bg-surface-secondary">
-                    <BlockStack gap="200">
-                      <Text as="h4" variant="headingSm">Q{qi + 1}: {q.question_text}</Text>
-                      {q.metafield_key && (
-                        <Text as="p" variant="bodySm" tone="subdued">Tag key: quiz:{q.metafield_key}</Text>
-                      )}
-                      <BlockStack gap="100">
-                        {q.answers.map((a, ai) => (
-                          <Text key={ai} as="p" variant="bodySm">• {a.answer_text}</Text>
-                        ))}
-                      </BlockStack>
-                    </BlockStack>
-                  </Card>
-                ))}
-              </BlockStack>
-            )}
+              )}
+              <Text as="p" variant="bodySm" tone="subdued">
+                Describe your store and AI will generate a tailored product recommendation quiz. Results appear on the page — this usually takes 15–30 seconds.
+              </Text>
+              <TextField
+                label="Store description"
+                value={aiStoreDescription}
+                onChange={setAiStoreDescription}
+                placeholder="e.g., We sell premium skincare products for all skin types, focusing on natural ingredients and sustainable packaging."
+                multiline={3}
+                autoComplete="off"
+                requiredIndicator
+                helpText="Describe what your store sells and who your customers are"
+              />
+              <TextField
+                label="Quiz goal (optional)"
+                value={aiQuizGoal}
+                onChange={setAiQuizGoal}
+                placeholder="e.g., Help customers find their perfect moisturizer based on skin type"
+                autoComplete="off"
+                helpText="What should the quiz help customers discover?"
+              />
+              <Select
+                label="Number of questions"
+                options={[
+                  { label: "2 questions", value: "2" },
+                  { label: "3 questions", value: "3" },
+                  { label: "4 questions", value: "4" },
+                  { label: "5 questions", value: "5" },
+                ]}
+                value={aiQuestionCount}
+                onChange={setAiQuestionCount}
+              />
+            </BlockStack>
           </Modal.Section>
         </Modal>
 
