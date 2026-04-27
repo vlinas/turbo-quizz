@@ -30,18 +30,21 @@ model ShopSettings {
 }
 
 model Quiz {
-  id             Int           @id @default(autoincrement())
-  shop           String
-  quiz_id        Int
-  title          String
-  description    String?
+  id               Int           @id @default(autoincrement())
+  shop             String
+  quiz_id          Int
+  title            String
+  description      String?
   display_on_pages String[]
-  theme_settings Json?
-  created_at     DateTime      @default(now())
-  updated_at     DateTime      @updatedAt
-  deleted_at     DateTime?
-  questions      Question[]
-  quiz_sessions  QuizSession[]
+  theme_settings   Json?
+  pool_type        String?       // "products" | "collections" | null
+  product_pool     Json?         // [{id, title, description, tags, handle, image, price}]
+  collection_pool  Json?         // [{id, title, description, handle, image}]
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
+  deleted_at       DateTime?
+  questions        Question[]
+  quiz_sessions    QuizSession[]
 
   @@unique([shop, quiz_id])
   @@index([shop])

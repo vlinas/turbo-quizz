@@ -37,6 +37,7 @@
     "@shopify/shopify-app-session-storage-prisma": "^3.0.0",
     "isbot": "latest",
     "moment": "^2.30.1",
+    "openai": "^6.34.0",
     "prisma": "^5.8.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

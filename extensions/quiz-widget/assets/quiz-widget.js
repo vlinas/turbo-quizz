@@ -137,15 +137,67 @@
       const wasCompleted = localStorage.getItem(completedKey);
 
       if (wasCompleted) {
+        // Fetch quiz data first to apply custom CSS and theme settings
+        try {
+          const cacheBuster = Date.now();
+          const url = `${this.appUrl}/api/quiz/${this.quizId}?cb=${cacheBuster}`;
+          const response = await fetch(url);
+          const data = await response.json();
+          if (data.success && data.quiz) {
+            this.quiz = data.quiz;
+            if (this.quiz.custom_css) {
+              this.injectCustomCss(this.quiz.custom_css);
+            }
+            if (this.quiz.theme_settings) {
+              this.applyThemeSettings(this.quiz.theme_settings);
+            }
+          }
+        } catch (e) {
+          // Non-critical: styles won't apply but result still shows
+          console.warn('[Quizza] Could not load quiz styles:', e);
+        }
+
         // Show the stored result from previous completion
         this.questionEl.style.display = 'none';
         this.resultEl.style.display = 'block';
-        try {
-          const resultData = JSON.parse(wasCompleted);
-          this.resultContentEl.innerHTML = this.renderActionResult(resultData.actionType, resultData.actionData);
-        } catch (e) {
-          // Fallback for old format (just 'true' string)
-          this.resultContentEl.innerHTML = '<p style="color: #666; font-style: italic;">Quiz already completed.</p>';
+
+        // Check if quiz NOW has a pool (pool may have been added after initial completion)
+        const hasPool = this.quiz && this.quiz.pool_type && (
+          (this.quiz.pool_type === 'products' && this.quiz.product_pool?.length > 0) ||
+          (this.quiz.pool_type === 'collections' && this.quiz.collection_pool?.length > 0)
+        );
+
+        // Parse stored result first to check mode
+        let storedResult = null;
+        try { storedResult = JSON.parse(wasCompleted); } catch (_) {}
+
+        if (storedResult?.actionType === 'ai_hard_assignment') {
+          // Hard-assignment restore: re-render stored aggregated products + personalized copy
+          this.resultContentEl.innerHTML = '';
+          const renderPoolType = storedResult.actionData?.pool_type || this.quiz?.pool_type || 'products';
+          const restoredContext = storedResult.actionData?.answers_context || [];
+          this.renderPoolResult(storedResult.actionData?.products || [], renderPoolType, restoredContext);
+        } else if (hasPool) {
+          // Legacy pool-mode restore: re-fetch from pool match API
+          this.resultContentEl.innerHTML = '<p class="quizza-ai-loading" style="color:#6b7280;font-size:14px;">Loading your recommendations...</p>';
+          this.showResetButton();
+          const pool = this.quiz.pool_type === 'products'
+            ? this.quiz.product_pool
+            : this.quiz.collection_pool;
+          try {
+            const items = await this.fetchPoolMatch([], pool, this.quiz.pool_type);
+            this.resultContentEl.innerHTML = '';
+            this.renderPoolResult(items, this.quiz.pool_type, []);
+          } catch (e) {
+            this.resultContentEl.innerHTML = '';
+            this.renderPoolResult(pool.slice(0, 4), this.quiz.pool_type, []);
+          }
+        } else {
+          try {
+            this.resultContentEl.innerHTML = this.renderActionResult(storedResult?.actionType, storedResult?.actionData);
+          } catch (e) {
+            this.resultContentEl.innerHTML = '<p style="color: #666; font-style: italic;">Quiz already completed.</p>';
+          }
         }
         this.showResetButton();
         return;
@@ -366,18 +418,97 @@
       }
     }
 
+    // Aggregate products from all selected answers for hard-assignment quizzes.
+    // Products appearing in more answers rank higher; returns top 4 deduped by id.
+    aggregateHardAssignmentProducts() {
+      const freq = {};
+      const productMap = {};
+
+      for (const answer of this.answers) {
+        if (!answer || answer.action_type !== 'show_products') continue;
+        const products = answer.action_data?.products || [];
+        for (const p of products) {
+          const id = p.id;
+          if (!id) continue;
+          freq[id] = (freq[id] || 0) + 1;
+          productMap[id] = p;
+        }
+      }
+
+      return Object.entries(freq)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 4)
+        .map(([id]) => productMap[id]);
+    }
+
     async showResult() {
-      // Get the final answer's action data
       const finalAnswer = this.answers[this.currentQuestionIndex];
       const actionData = finalAnswer.action_data;
 
-      // Mark quiz as completed and store result in localStorage
+      // Hard-assignment mode: any selected answer has ai_generated flag
+      const isHardAssignment = this.answers.some(
+        (a) => a && a.action_data?.ai_generated === true
+      );
+
+      const hasPool = !isHardAssignment && this.quiz.pool_type && (
+        (this.quiz.pool_type === 'products' && this.quiz.product_pool?.length > 0) ||
+        (this.quiz.pool_type === 'collections' && this.quiz.collection_pool?.length > 0)
+      );
+
       const completedKey = `quizza_completed_${this.quizId}`;
-      const resultData = {
-        actionType: finalAnswer.action_type,
-        actionData: actionData
-      };
-      localStorage.setItem(completedKey, JSON.stringify(resultData));
+
+      // ── Hard-assignment mode ─────────────────────────────────────────────
+      if (isHardAssignment) {
+        const aggregatedProducts = this.aggregateHardAssignmentProducts();
+        // Use pool_type from action_data (most reliable) then quiz DB field then fallback
+        const renderPoolType =
+          this.answers.find((a) => a?.action_data?.ai_generated)?.action_data?.pool_type ||
+          this.quiz.pool_type ||
+          'products';
+
+        const answersContext = this.quiz.questions.map((q, i) => {
+          const ans = this.answers[i];
+          return ans ? { question: q.question_text, answer: ans.answer_text } : null;
+        }).filter(Boolean);
+
+        localStorage.setItem(completedKey, JSON.stringify({
+          actionType: 'ai_hard_assignment',
+          actionData: {
+            products: aggregatedProducts,
+            pool_type: renderPoolType,
+            answers_context: answersContext, // persisted for personalized copy on restore
+          },
+        }));
+
+        if (this.sessionId) {
+          try {
+            await fetchWithRetry(`${this.appUrl}/api/quiz-sessions`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'complete', session_id: this.sessionId }),
+            });
+            await this.addSessionToCart(this.sessionId);
+          } catch (error) {
+            console.error('[Quizza] Session completion failed after retries:', error);
+          }
+        }
+
+        this.resultContentEl.innerHTML = '';
+        this.renderPoolResult(aggregatedProducts, renderPoolType, answersContext);
+        this.questionEl.style.display = 'none';
+        this.resultEl.style.display = 'block';
+        this.backBtn.style.display = 'none';
+        this.nextBtn.style.display = 'none';
+        if (this.restartBtn) this.restartBtn.style.display = 'none';
+        this.showResetButton();
+        return;
+      }
+
+      // Mark quiz as completed and store result in localStorage
+      localStorage.setItem(completedKey, JSON.stringify({
+        actionType: hasPool ? 'pool_mode' : finalAnswer.action_type,
+        actionData: hasPool ? null : actionData,
+      }));
 
       // Mark session as completed (with retry)
       if (this.sessionId) {
@@ -385,31 +516,295 @@
           await fetchWithRetry(`${this.appUrl}/api/quiz-sessions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'complete',
-              session_id: this.sessionId,
-            }),
+            body: JSON.stringify({ action: 'complete', session_id: this.sessionId }),
           });
-
-          // Add session_id to cart attributes for order attribution
           await this.addSessionToCart(this.sessionId);
         } catch (error) {
           console.error('[Quizza] Session completion failed after retries:', error);
         }
       }
 
-      // Render result based on action type
-      this.resultContentEl.innerHTML = this.renderActionResult(finalAnswer.action_type, actionData);
+      // Pool mode: AI picks from merchant-curated pool based on all answers
+      if (hasPool) {
+        this.resultContentEl.innerHTML = '<p class="quizza-ai-loading" style="color:#6b7280;font-size:14px;">Finding your best matches...</p>';
+        this.questionEl.style.display = 'none';
+        this.resultEl.style.display = 'block';
+        this.backBtn.style.display = 'none';
+        this.nextBtn.style.display = 'none';
+        if (this.restartBtn) this.restartBtn.style.display = 'none';
+        this.showResetButton();
 
-      // Hide question, show result
+        // Run pool match + result copy in parallel
+        const answersContext = this.quiz.questions.map((q, i) => {
+          const ans = this.answers[i];
+          return ans ? { question: q.question_text, answer: ans.answer_text } : null;
+        }).filter(Boolean);
+
+        const pool = this.quiz.pool_type === 'products'
+          ? this.quiz.product_pool
+          : this.quiz.collection_pool;
+
+        const [matchedItems] = await Promise.all([
+          this.fetchPoolMatch(answersContext, pool, this.quiz.pool_type),
+        ]);
+
+        this.resultContentEl.innerHTML = '';
+        this.renderPoolResult(matchedItems, this.quiz.pool_type, answersContext);
+        return;
+      }
+
+      // Legacy per-answer mode
+      this.resultContentEl.innerHTML = this.renderActionResult(finalAnswer.action_type, actionData);
       this.questionEl.style.display = 'none';
       this.resultEl.style.display = 'block';
       this.backBtn.style.display = 'none';
       this.nextBtn.style.display = 'none';
       if (this.restartBtn) this.restartBtn.style.display = 'none';
-
-      // Show reset button for testing
       this.showResetButton();
+      this.addAiEnhancements(finalAnswer.action_type, actionData);
+    }
+
+    async fetchPoolMatch(answersContext, pool, poolType) {
+      try {
+        const response = await fetch(`${this.appUrl}/api/ai/product-match`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answers: answersContext, pool, poolType, maxResults: 4 }),
+        });
+        if (!response.ok) throw new Error('Match failed');
+        const data = await response.json();
+        return data.items || pool.slice(0, 4);
+      } catch (err) {
+        console.error('[Quizza AI] Pool match error:', err);
+        return pool.slice(0, 4);
+      }
+    }
+
+    renderPoolResult(items, poolType, answersContext) {
+      if (!items || items.length === 0) {
+        this.resultContentEl.innerHTML = '<p>No recommendations found.</p>';
+        return;
+      }
+
+      // AI personalized copy placeholder (streams in)
+      const aiCopyEl = document.createElement('div');
+      aiCopyEl.className = 'quizza-ai-copy';
+      aiCopyEl.style.cssText = 'font-size: 15px; line-height: 1.6; color: #374151; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; min-height: 24px;';
+      this.resultContentEl.appendChild(aiCopyEl);
+
+      // Products/collections grid
+      const gridEl = document.createElement('div');
+      gridEl.className = 'quizza-products-result';
+
+      const labelEl = document.createElement('div');
+      labelEl.className = 'quizza-custom-text';
+      labelEl.textContent = poolType === 'collections'
+        ? 'Based on your answers, check out these collections:'
+        : 'Based on your answers, we recommend these products:';
+      gridEl.appendChild(labelEl);
+
+      const grid = document.createElement('div');
+      grid.className = 'quizza-products-grid quizza-grid-cols-2';
+
+      items.forEach((item) => {
+        const card = document.createElement('div');
+        card.className = 'quizza-product-card';
+        const imageUrl = item.image || '';
+        const handle = item.handle || '';
+        const price = item.price || '';
+        const href = poolType === 'collections' ? `/collections/${handle}` : `/products/${handle}`;
+
+        card.innerHTML = `
+          ${imageUrl ? `<img src="${imageUrl}" alt="${item.title}" class="quizza-product-image" />` : ''}
+          <div class="quizza-product-info">
+            <h3 class="quizza-product-title">${item.title}</h3>
+            ${price && poolType !== 'collections' ? `<p class="quizza-product-price">$${price}</p>` : ''}
+            ${handle ? `<a href="${href}" class="quizza-shop-now-btn">Shop Now</a>` : ''}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+
+      gridEl.appendChild(grid);
+      this.resultContentEl.appendChild(gridEl);
+
+      // Stream personalized copy
+      this.streamResultCopy(aiCopyEl, answersContext, items, poolType);
+    }
+
+    async streamResultCopy(targetEl, answersContext, items, poolType) {
+      const products = poolType !== 'collections'
+        ? items.map((p) => ({ title: p.title, price: p.price || '' }))
+        : [];
+
+      try {
+        const response = await fetch(`${this.appUrl}/api/ai/result-copy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            answers: answersContext,
+            products,
+            quizTitle: this.quiz.title || '',
+          }),
+        });
+
+        if (!response.ok || !response.body) { targetEl.remove(); return; }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let aiText = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          for (const line of decoder.decode(value, { stream: true }).split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6).trim();
+            if (data === '[DONE]' || data === '[ERROR]') break;
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.text) { aiText += parsed.text; targetEl.textContent = aiText; }
+            } catch (_) {}
+          }
+        }
+
+        if (!aiText) targetEl.remove();
+      } catch (err) {
+        console.error('[Quizza AI] Result copy error:', err);
+        targetEl.remove();
+      }
+    }
+
+    async addAiEnhancements(actionType, actionData) {
+      // Build answers context from all questions answered
+      const answersContext = this.quiz.questions.map((q, i) => {
+        const ans = this.answers[i];
+        if (!ans) return null;
+        return { question: q.question_text, answer: ans.answer_text };
+      }).filter(Boolean);
+
+      if (answersContext.length === 0) return;
+
+      // Build products list for personalization context
+      let products = [];
+      if (actionType === 'show_products' && actionData.products) {
+        products = actionData.products.map((p) => ({
+          title: p.title,
+          price: p.variants?.edges?.[0]?.node?.price || p.variants?.[0]?.price || '',
+        }));
+      }
+
+      // 1. AI personalized result copy (streaming) - prepended above static result
+      const aiCopyEl = document.createElement('div');
+      aiCopyEl.className = 'quizza-ai-copy';
+      aiCopyEl.style.cssText = 'font-size: 15px; line-height: 1.6; color: #374151; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; min-height: 24px;';
+      this.resultContentEl.prepend(aiCopyEl);
+
+      try {
+        const response = await fetch(`${this.appUrl}/api/ai/result-copy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            answers: answersContext,
+            products,
+            quizTitle: this.quiz.quiz_title || this.quiz.title || '',
+            shop: this.quiz.shop,
+          }),
+        });
+
+        if (response.ok && response.body) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let aiText = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            for (const line of chunk.split('\n')) {
+              if (!line.startsWith('data: ')) continue;
+              const data = line.slice(6).trim();
+              if (data === '[DONE]' || data === '[ERROR]') break;
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.text) {
+                  aiText += parsed.text;
+                  aiCopyEl.textContent = aiText;
+                }
+              } catch (_) {}
+            }
+          }
+
+          if (!aiText) aiCopyEl.remove();
+        } else {
+          aiCopyEl.remove();
+        }
+      } catch (err) {
+        console.error('[Quizza AI] Result copy error:', err);
+        aiCopyEl.remove();
+      }
+
+      // 2. AI semantic product match - only for show_products results
+      if (actionType === 'show_products') {
+        this.addAiProductMatch(answersContext);
+      }
+    }
+
+    async addAiProductMatch(answersContext) {
+      try {
+        const response = await fetch(`${this.appUrl}/api/ai/product-match`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            answers: answersContext,
+            quizId: this.quizId,
+            shop: this.quiz.shop,
+            maxProducts: 4,
+          }),
+        });
+
+        if (!response.ok) return;
+        const data = await response.json();
+
+        if (!data.products || data.products.length === 0) return;
+
+        // Render AI-selected products as "AI Picks for You" section
+        const aiProductsEl = document.createElement('div');
+        aiProductsEl.className = 'quizza-ai-products';
+        aiProductsEl.style.cssText = 'margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb;';
+
+        const heading = document.createElement('p');
+        heading.className = 'quizza-custom-text';
+        heading.textContent = 'AI picks just for you:';
+        aiProductsEl.appendChild(heading);
+
+        const grid = document.createElement('div');
+        grid.className = 'quizza-products-grid quizza-grid-cols-2';
+
+        data.products.forEach((product) => {
+          const card = document.createElement('div');
+          card.className = 'quizza-product-card';
+          const imageUrl = product.image || '';
+          const price = product.price || '';
+          const handle = product.handle || '';
+
+          card.innerHTML = `
+            ${imageUrl ? `<img src="${imageUrl}" alt="${product.title}" class="quizza-product-image" />` : ''}
+            <div class="quizza-product-info">
+              <h3 class="quizza-product-title">${product.title}</h3>
+              ${price ? `<p class="quizza-product-price">$${price}</p>` : ''}
+              ${handle ? `<a href="/products/${handle}" class="quizza-shop-now-btn">Shop Now</a>` : ''}
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+
+        aiProductsEl.appendChild(grid);
+        this.resultContentEl.appendChild(aiProductsEl);
+      } catch (err) {
+        console.error('[Quizza AI] Product match error:', err);
+      }
     }
 
     showResetButton() {
@@ -424,8 +819,8 @@
       if (!resetBtn) {
         resetBtn = document.createElement('button');
         resetBtn.className = 'quizza-reset-btn';
-        resetBtn.textContent = 'Reset Quiz (for testing purposes only)';
-        resetBtn.style.cssText = 'margin-top: 16px; padding: 8px 16px; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 12px; color: #666;';
+        resetBtn.textContent = 'Reset Quiz (testing purposes only)';
+        resetBtn.style.cssText = 'margin-top: 16px; padding: 8px 16px; background: #dc2626; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; color: #fff; font-weight: 600; margin-left: auto; margin-right: auto;';
         resetBtn.addEventListener('click', () => this.resetForTesting());
         this.resultEl.appendChild(resetBtn);
       }
@@ -498,7 +893,7 @@
 
       return `
         <div class="quizza-products-result">
-          <p class="quizza-custom-text">${customText}</p>
+          <div class="quizza-custom-text">${customText}</div>
           <div class="quizza-products-grid quizza-grid-cols-${gridColumns}">
             ${products
               .map((product) => {
@@ -542,7 +937,7 @@
 
       return `
         <div class="quizza-collections-result">
-          <p class="quizza-custom-text">${customText}</p>
+          <div class="quizza-custom-text">${customText}</div>
           <div class="quizza-products-grid quizza-grid-cols-${gridColumns}">
             ${collections
               .map((collection) => {

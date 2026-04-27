@@ -32,6 +32,7 @@ import {
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { getClaudeClient, CLAUDE_MODEL } from "../utils/claude.server";
 
 // Helper functions for Shopify GraphQL
 function toGids(ids) {
@@ -321,6 +322,36 @@ export const action = async ({ request, params }) => {
     }, { status: 404 });
   }
 
+  if (actionType === "update_pool") {
+    const poolType = formData.get("pool_type") || null;
+    const poolJson = formData.get("pool_json") || "[]";
+
+    try {
+      const poolItems = JSON.parse(poolJson);
+      const updateData = {
+        pool_type: poolType,
+        product_pool: null,
+        collection_pool: null,
+      };
+
+      if (poolType === "products") {
+        updateData.product_pool = poolItems;
+      } else if (poolType === "collections") {
+        updateData.collection_pool = poolItems;
+      }
+
+      await prisma.quiz.update({
+        where: { id: quiz.id },
+        data: updateData,
+      });
+
+      return json({ success: true, action: "pool_updated" });
+    } catch (error) {
+      console.error("Error updating pool:", error);
+      return json({ success: false, error: "Failed to update product pool" }, { status: 500 });
+    }
+  }
+
   if (actionType === "update_quiz") {
     const title = formData.get("title");
     const description = formData.get("description");
@@ -403,21 +434,6 @@ export const action = async ({ request, params }) => {
     }
 
     try {
-      // Enforce one-question-per-quiz rule
-      const questionCount = await prisma.question.count({
-        where: {
-          quiz_id: quizId,
-          shop: session.shop,
-        },
-      });
-
-      if (questionCount >= 1) {
-        return json({
-          success: false,
-          error: "Only one question is allowed per quiz. Please edit or delete the existing question.",
-        }, { status: 400 });
-      }
-
       // Build action data for each answer
       const answerCreateData = [];
       for (let i = 0; i < answers.length; i++) {
@@ -671,6 +687,179 @@ export const action = async ({ request, params }) => {
         success: false,
         error: "Failed to delete question",
       }, { status: 500 });
+    }
+  }
+
+  if (actionType === "generate_quiz_ai") {
+    const storeDescription = formData.get("storeDescription");
+    const quizGoal = formData.get("quizGoal") || "";
+    const questionCount = parseInt(formData.get("questionCount") || "3", 10);
+
+    if (!storeDescription) {
+      return json({ success: false, error: "Store description is required" }, { status: 400 });
+    }
+
+    // Use the quiz's product/collection pool if set — much better context than full catalog
+    const hasPool = quiz.pool_type && (
+      (quiz.pool_type === "products" && Array.isArray(quiz.product_pool) && quiz.product_pool.length > 0) ||
+      (quiz.pool_type === "collections" && Array.isArray(quiz.collection_pool) && quiz.collection_pool.length > 0)
+    );
+
+    const poolItems = hasPool
+      ? (quiz.pool_type === "products" ? quiz.product_pool : quiz.collection_pool)
+      : [];
+
+    // Fallback: fetch product catalog if no pool set
+    let fallbackProducts = [];
+    if (!hasPool) {
+      try {
+        const response = await admin.graphql(`#graphql
+          query getProducts($first: Int!) {
+            products(first: $first, query: "status:active") {
+              edges { node { title productType tags } }
+            }
+          }
+        `, { variables: { first: 20 } });
+        const data = await response.json();
+        fallbackProducts = (data.data?.products?.edges || []).map((e) => ({
+          title: e.node.title,
+          type: e.node.productType,
+          tags: (e.node.tags || []).slice(0, 5),
+          description: "",
+        }));
+      } catch (err) {
+        console.error("[AI Quiz Generator] Failed to fetch products:", err);
+      }
+    }
+
+    const itemsForContext = hasPool ? poolItems : fallbackProducts;
+    const poolType = quiz.pool_type || "products";
+    const itemLabel = poolType === "collections" ? "collections" : "products";
+
+    const openai = getClaudeClient();
+
+    const systemPrompt = `You are an e-commerce quiz designer. Generate a product recommendation quiz as compact JSON.
+
+${hasPool
+  ? `IMPORTANT: Questions must DISTINGUISH which ${itemLabel} from the pool fits each customer.`
+  : "Generate questions that help customers discover the right products."
+}
+
+Return ONLY valid JSON:
+{"quiz_title":"string","questions":[{"question_text":"string","metafield_key":"snake_case","answers":[{"answer_text":"string","action_type":"show_text","action_data":"short message"}]}]}
+
+Rules: exactly ${questionCount} questions, 2-4 answers each, metafield_key lowercase underscores, no overlap between questions. Keep answer_text under 8 words, action_data under 8 words.`;
+
+    const poolContext = hasPool
+      ? `\n\n${itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1)} pool (${itemsForContext.length} items — generate questions that differentiate between these):\n${itemsForContext.map((p) => {
+          const parts = [`- ${p.title}`];
+          if (p.description) parts.push(p.description.substring(0, 150));
+          if (p.tags?.length) parts.push(`[${p.tags.slice(0, 5).join(", ")}]`);
+          return parts.join(" | ");
+        }).join("\n")}`
+      : `\n\nProduct catalog (${itemsForContext.length} products):\n${itemsForContext.map((p) => `- ${p.title}${p.type ? ` (${p.type})` : ""}${p.tags?.length ? ` [${p.tags.join(", ")}]` : ""}`).join("\n")}`;
+
+    const userPrompt = `Store description: ${storeDescription}
+${quizGoal ? `Quiz goal: ${quizGoal}` : ""}${poolContext}
+
+Generate a product recommendation quiz.`;
+
+    try {
+      const message = await openai.chat.completions.create({
+        model: CLAUDE_MODEL,
+        max_completion_tokens: 1800,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      });
+
+      let jsonStr = message.choices[0].message.content.trim();
+      const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (fenceMatch) jsonStr = fenceMatch[1].trim();
+
+      const generatedQuiz = JSON.parse(jsonStr);
+      if (!generatedQuiz.questions || !Array.isArray(generatedQuiz.questions)) {
+        throw new Error("Invalid quiz structure");
+      }
+
+      return json({ success: true, action: "ai_generated", generatedQuiz });
+    } catch (err) {
+      console.error("[AI Quiz Generator] Error:", err);
+      return json({ success: false, error: "Failed to generate quiz. Please try again." }, { status: 500 });
+    }
+  }
+
+  if (actionType === "apply_ai_questions") {
+    const questionsJson = formData.get("questionsJson");
+    if (!questionsJson) {
+      return json({ success: false, error: "Questions data is required" }, { status: 400 });
+    }
+
+    let questions;
+    try {
+      questions = JSON.parse(questionsJson);
+    } catch {
+      return json({ success: false, error: "Invalid questions data" }, { status: 400 });
+    }
+
+    try {
+      // Also save pool to quiz (for display + backward compat)
+      const newPoolType = formData.get("poolType");
+      const poolJson = formData.get("poolJson");
+      if (newPoolType && poolJson) {
+        try {
+          const poolItems = JSON.parse(poolJson);
+          const poolUpdate = { pool_type: newPoolType, product_pool: null, collection_pool: null };
+          if (newPoolType === "products") poolUpdate.product_pool = poolItems;
+          else if (newPoolType === "collections") poolUpdate.collection_pool = poolItems;
+          await prisma.quiz.update({ where: { id: quiz.id }, data: poolUpdate });
+        } catch (e) {
+          console.error("[Apply AI] Pool save error:", e);
+        }
+      }
+
+      // Delete existing questions first (fresh AI-generated quiz)
+      const existingQuestions = await prisma.question.findMany({
+        where: { quiz_id: quizId, shop: session.shop },
+        select: { question_id: true },
+      });
+      if (existingQuestions.length > 0) {
+        await prisma.question.deleteMany({
+          where: { quiz_id: quizId, shop: session.shop },
+        });
+      }
+
+      // Create all AI-generated questions
+      for (let qi = 0; qi < questions.length; qi++) {
+        const q = questions[qi];
+        await prisma.question.create({
+          data: {
+            quiz_id: quizId,
+            shop: session.shop,
+            question_text: q.question_text,
+            metafield_key: q.metafield_key || null,
+            order: qi + 1,
+            answers: {
+              create: q.answers.map((a, ai) => ({
+                answer_text: a.answer_text,
+                action_type: a.action_type || "show_text",
+                // Preserve object action_data (e.g. { products: [...], ai_generated: true })
+                action_data:
+                  typeof a.action_data === "object" && a.action_data !== null
+                    ? a.action_data
+                    : { text: typeof a.action_data === "string" ? a.action_data : "" },
+                order: ai + 1,
+              })),
+            },
+          },
+        });
+      }
+
+      return redirect(`/app/quiz/${id}`);
+    } catch (err) {
+      console.error("[Apply AI Questions] Error:", err);
+      return json({ success: false, error: "Failed to apply generated questions." }, { status: 500 });
     }
   }
 
@@ -1140,28 +1329,30 @@ export default function QuizBuilder() {
                     <Text as="h2" variant="headingMd">
                       Questions
                     </Text>
-                    {quiz.questions.length === 0 && (
+                    <InlineStack gap="200">
+                      <Button
+                        onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/ai-wizard`)}
+                        icon={ChatIcon}
+                      >
+                        Generate with AI
+                      </Button>
                       <Button
                         icon={PlusIcon}
                         onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/edit-question/new`)}
                       >
                         Add question
                       </Button>
-                    )}
+                    </InlineStack>
                   </InlineStack>
 
-                  {quiz.questions.length === 0 ? (
+                  {quiz.questions.length === 0 && (
                     <Box padding="400">
-                      <BlockStack gap="200" inlineAlign="center">
-                        <Text as="p" tone="subdued" alignment="center">
-                          No questions yet. Add your first question to get started.
-                        </Text>
-                        <Button onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/edit-question/new`)}>
-                          Add question
-                        </Button>
-                      </BlockStack>
+                      <Text as="p" tone="subdued" alignment="center">
+                        No questions yet. Use "Generate with AI" or "Add question" to get started.
+                      </Text>
                     </Box>
-                  ) : (
+                  )}
+                  {quiz.questions.length > 0 && (
                     <BlockStack gap="400">
                       {quiz.questions.map((question) => (
                         <Card key={question.id} background="bg-surface-secondary">
@@ -1195,24 +1386,60 @@ export default function QuizBuilder() {
                                 const stats = answerStats[answer.answer_id] || { clicks: 0, percentage: "0.0" };
                                 const revenue = answerRevenue[answer.answer_id] || { revenue: 0, orders: 0 };
                                 const currencySymbol = getCurrencySymbol(shopCurrency);
+                                const isAiAnswer = answer.action_data?.ai_generated === true;
+                                const aiProducts = isAiAnswer ? (answer.action_data?.products || []) : [];
                                 return (
                                   <Box key={answer.id} paddingBlock="200">
-                                    <InlineStack align="space-between" blockAlign="center">
-                                      <Text as="span" variant="bodyMd">
-                                        {answer.answer_text}
-                                      </Text>
-                                      <InlineStack gap="300" blockAlign="center">
-                                        <Text as="span" variant="bodySm" tone="subdued">
-                                          {stats.clicks} clicks
-                                        </Text>
-                                        <Badge>{stats.percentage}%</Badge>
-                                        {revenue.orders > 0 && (
-                                          <Badge tone="success">
-                                            {currencySymbol}{revenue.revenue.toFixed(2)} · {revenue.orders} order{revenue.orders !== 1 ? 's' : ''}
-                                          </Badge>
-                                        )}
+                                    <BlockStack gap="100">
+                                      <InlineStack align="space-between" blockAlign="center">
+                                        <InlineStack gap="100" blockAlign="center">
+                                          <Text as="span" variant="bodyMd">
+                                            {answer.answer_text}
+                                          </Text>
+                                          {isAiAnswer && (
+                                            <Badge tone="info" size="small">AI</Badge>
+                                          )}
+                                        </InlineStack>
+                                        <InlineStack gap="300" blockAlign="center">
+                                          <Text as="span" variant="bodySm" tone="subdued">
+                                            {stats.clicks} clicks
+                                          </Text>
+                                          <Badge>{stats.percentage}%</Badge>
+                                          {revenue.orders > 0 && (
+                                            <Badge tone="success">
+                                              {currencySymbol}{revenue.revenue.toFixed(2)} · {revenue.orders} order{revenue.orders !== 1 ? 's' : ''}
+                                            </Badge>
+                                          )}
+                                        </InlineStack>
                                       </InlineStack>
-                                    </InlineStack>
+                                      {/* AI-assigned product thumbnails */}
+                                      {aiProducts.length > 0 && (
+                                        <InlineStack gap="100" wrap>
+                                          {aiProducts.map((p, pi) => (
+                                            <Box
+                                              key={p.id || pi}
+                                              padding="050"
+                                              borderWidth="025"
+                                              borderColor="border"
+                                              borderRadius="100"
+                                            >
+                                              <InlineStack gap="100" blockAlign="center" wrap={false}>
+                                                {p.image ? (
+                                                  <img
+                                                    src={p.image}
+                                                    alt={p.title}
+                                                    style={{ width: 18, height: 18, objectFit: "cover", borderRadius: 2, flexShrink: 0 }}
+                                                  />
+                                                ) : null}
+                                                <Text as="span" variant="bodySm" tone="subdued">
+                                                  {p.title}
+                                                </Text>
+                                              </InlineStack>
+                                            </Box>
+                                          ))}
+                                        </InlineStack>
+                                      )}
+                                    </BlockStack>
                                   </Box>
                                 );
                               })}
@@ -1557,10 +1784,11 @@ export default function QuizBuilder() {
                           </Text>
                         </InlineStack>
                         <TextField
-                          label="Custom text"
+                          label="Header Text (supports HTML)"
                           value={answer.customText}
                           onChange={(value) => updateAnswer(index, "customText", value)}
                           placeholder="Based on your answers, we recommend these products:"
+                          multiline={3}
                         />
                         {answer.previewItems?.length ? (
                           <BlockStack gap="200">
@@ -1603,10 +1831,11 @@ export default function QuizBuilder() {
                           </Text>
                         </InlineStack>
                         <TextField
-                          label="Custom text"
+                          label="Header Text (supports HTML)"
                           value={answer.customText}
                           onChange={(value) => updateAnswer(index, "customText", value)}
                           placeholder="Based on your answers, check out these collections:"
+                          multiline={3}
                         />
                         {answer.previewItems?.length ? (
                           <BlockStack gap="200">

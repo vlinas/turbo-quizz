@@ -135,7 +135,12 @@ export const action = async ({ request, params }) => {
 
     // Build action_data for each answer
     const buildActionData = async (answer) => {
-      const { actionType, actionData, customText, gridColumns } = answer;
+      const { actionType, actionData, customText, gridColumns, ai_generated, raw_action_data } = answer;
+
+      // AI-generated: product assignments are locked — preserve the full action_data object
+      if (ai_generated && raw_action_data) {
+        return raw_action_data;
+      }
 
       if (actionType === "show_text") {
         return { text: actionData || "" };
@@ -317,18 +322,22 @@ const extractAnswerData = (answer) => {
 
   if (action_type === "show_products") {
     const products = action_data?.products || [];
+    const isAiGenerated = action_data?.ai_generated === true;
     return {
       text: answer_text,
       actionType: action_type,
-      actionData: products.map((p) => p.id).join(","),
+      actionData: isAiGenerated ? "" : products.map((p) => p.id).join(","),
       customText: action_data?.custom_text || "",
       gridColumns: action_data?.grid_columns || 2,
       previewItems: products.map((p) => ({
         id: p.id,
         title: p.title,
-        image: p.images?.edges?.[0]?.node?.originalSrc || p.images?.edges?.[0]?.node?.url || p.images?.[0]?.originalSrc || "",
-        price: p.variants?.edges?.[0]?.node?.price || "",
+        // Wizard stores direct image URL; admin stores GraphQL edge format
+        image: p.image || p.images?.edges?.[0]?.node?.originalSrc || p.images?.edges?.[0]?.node?.url || p.images?.[0]?.originalSrc || "",
+        price: p.price || p.variants?.edges?.[0]?.node?.price || "",
       })),
+      ai_generated: isAiGenerated,
+      raw_action_data: isAiGenerated ? action_data : null,
     };
   }
 
@@ -797,6 +806,44 @@ export default function EditQuestionPage() {
                           requiredIndicator
                         />
 
+                        {/* AI-generated answers: locked product assignment */}
+                        {answer.ai_generated ? (
+                          <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+                            <BlockStack gap="200">
+                              <InlineStack gap="200" blockAlign="center">
+                                <Badge tone="info">AI assigned</Badge>
+                                <Text as="span" variant="bodySm" tone="subdued">
+                                  Product recommendations are locked. Edit in the AI Wizard.
+                                </Text>
+                              </InlineStack>
+                              {answer.previewItems?.length > 0 && (
+                                <InlineStack gap="100" wrap>
+                                  {answer.previewItems.map((p, pi) => (
+                                    <Box
+                                      key={p.id || pi}
+                                      padding="100"
+                                      borderWidth="025"
+                                      borderColor="border"
+                                      borderRadius="100"
+                                    >
+                                      <InlineStack gap="100" blockAlign="center" wrap={false}>
+                                        {p.image ? (
+                                          <img
+                                            src={p.image}
+                                            alt={p.title}
+                                            style={{ width: 20, height: 20, objectFit: "cover", borderRadius: 2, flexShrink: 0 }}
+                                          />
+                                        ) : null}
+                                        <Text as="span" variant="bodySm">{p.title}</Text>
+                                      </InlineStack>
+                                    </Box>
+                                  ))}
+                                </InlineStack>
+                              )}
+                            </BlockStack>
+                          </Box>
+                        ) : (
+                        <>
                         <Select
                           label="Result Type"
                           options={actionTypeOptions}
@@ -933,18 +980,21 @@ export default function EditQuestionPage() {
                               </ButtonGroup>
                             </BlockStack>
 
-                            {/* Custom Header Text */}
+                            {/* Custom Header Text (supports HTML) */}
                             <TextField
-                              label="Header Text"
+                              label="Header Text (supports HTML)"
                               value={answer.customText}
                               onChange={(val) => updateAnswer(index, "customText", val)}
                               placeholder="Based on your answers, we recommend:"
                               autoComplete="off"
+                              multiline={3}
                             />
                           </BlockStack>
                         )}
+                        </>
+                        )} {/* end ai_generated ternary */}
 
-                        {/* Preview Button */}
+                        {/* Preview Button — shown for all answers */}
                         <Button
                           variant="plain"
                           onClick={() => setPreviewAnswerIndex(previewAnswerIndex === index ? null : index)}
@@ -1056,9 +1106,10 @@ export default function EditQuestionPage() {
                         {(answers[previewAnswerIndex].actionType === "show_products" ||
                           answers[previewAnswerIndex].actionType === "show_collections") && (
                           <div>
-                            <p style={{ marginBottom: "16px", fontSize: "1.1em" }}>
-                              {answers[previewAnswerIndex].customText || "Based on your answers, we recommend:"}
-                            </p>
+                            <div
+                              style={{ marginBottom: "16px", fontSize: "1.1em" }}
+                              dangerouslySetInnerHTML={{ __html: answers[previewAnswerIndex].customText || "Based on your answers, we recommend:" }}
+                            />
                             <div
                               style={{
                                 display: "grid",
@@ -1073,16 +1124,16 @@ export default function EditQuestionPage() {
                                 <div
                                   key={item.id || i}
                                   style={{
-                                    border: "1px solid rgba(0,0,0,0.1)",
-                                    borderRadius: "8px",
+                                    border: "none",
+                                    borderRadius: "0",
                                     overflow: "hidden",
                                     background: "#fff",
                                   }}
                                 >
                                   <div
                                     style={{
-                                      height: "120px",
-                                      background: item.image ? `url(${item.image}) center/cover` : "#f0f0f0",
+                                      background: item.image ? `url(${item.image}) center/contain no-repeat` : "#f0f0f0",
+                                      aspectRatio: "1",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
@@ -1091,11 +1142,11 @@ export default function EditQuestionPage() {
                                     {!item.image && <Icon source={ImageIcon} tone="subdued" />}
                                   </div>
                                   <div style={{ padding: "12px", textAlign: "center" }}>
-                                    <p style={{ fontWeight: 600, margin: "0 0 8px 0", fontSize: "14px" }}>
+                                    <p style={{ fontWeight: "inherit", margin: "0 0 4px 0", fontSize: "0.85em" }}>
                                       {item.title}
                                     </p>
                                     {item.price && (
-                                      <p style={{ fontWeight: 700, margin: "0 0 8px 0" }}>${item.price}</p>
+                                      <p style={{ fontWeight: 700, margin: "0 0 8px 0", fontSize: "1em" }}>${item.price}</p>
                                     )}
                                     <span
                                       style={{
@@ -1103,7 +1154,7 @@ export default function EditQuestionPage() {
                                         padding: "8px 16px",
                                         background: themeSettings.primaryColor,
                                         color: "#fff",
-                                        borderRadius: "4px",
+                                        borderRadius: "0",
                                         fontSize: "13px",
                                         fontWeight: 600,
                                       }}

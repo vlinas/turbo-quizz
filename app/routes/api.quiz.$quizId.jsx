@@ -290,10 +290,14 @@ export async function loader({ params, request }) {
     // Format response for storefront
     const formattedQuiz = {
       quiz_id: quiz.quiz_id,
+      shop: quiz.shop,
       title: quiz.title,
       description: quiz.description,
       theme_settings: quiz.theme_settings,
       custom_css: shopSettings?.customCss || null,
+      pool_type: quiz.pool_type || null,
+      product_pool: quiz.product_pool || null,
+      collection_pool: quiz.collection_pool || null,
       questions: enrichedQuestions,
     };
 
