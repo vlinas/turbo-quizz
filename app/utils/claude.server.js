@@ -13,4 +13,4 @@ export function getClaudeClient() {
   return _client;
 }
 
-export const CLAUDE_MODEL = "gpt-5-mini";
+export const CLAUDE_MODEL = "gpt-5-nano-2025-08-07";
