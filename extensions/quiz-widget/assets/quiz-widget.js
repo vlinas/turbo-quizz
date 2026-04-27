@@ -172,10 +172,11 @@
         try { storedResult = JSON.parse(wasCompleted); } catch (_) {}
 
         if (storedResult?.actionType === 'ai_hard_assignment') {
-          // Hard-assignment restore: re-render stored aggregated products
+          // Hard-assignment restore: re-render stored aggregated products + personalized copy
           this.resultContentEl.innerHTML = '';
           const renderPoolType = storedResult.actionData?.pool_type || this.quiz?.pool_type || 'products';
-          this.renderPoolResult(storedResult.actionData?.products || [], renderPoolType, []);
+          const restoredContext = storedResult.actionData?.answers_context || [];
+          this.renderPoolResult(storedResult.actionData?.products || [], renderPoolType, restoredContext);
         } else if (hasPool) {
           // Legacy pool-mode restore: re-fetch from pool match API
           this.resultContentEl.innerHTML = '<p class="quizza-ai-loading" style="color:#6b7280;font-size:14px;">Loading your recommendations...</p>';
@@ -459,11 +460,24 @@
       // ── Hard-assignment mode ─────────────────────────────────────────────
       if (isHardAssignment) {
         const aggregatedProducts = this.aggregateHardAssignmentProducts();
-        const renderPoolType = this.quiz.pool_type || 'products';
+        // Use pool_type from action_data (most reliable) then quiz DB field then fallback
+        const renderPoolType =
+          this.answers.find((a) => a?.action_data?.ai_generated)?.action_data?.pool_type ||
+          this.quiz.pool_type ||
+          'products';
+
+        const answersContext = this.quiz.questions.map((q, i) => {
+          const ans = this.answers[i];
+          return ans ? { question: q.question_text, answer: ans.answer_text } : null;
+        }).filter(Boolean);
 
         localStorage.setItem(completedKey, JSON.stringify({
           actionType: 'ai_hard_assignment',
-          actionData: { products: aggregatedProducts, pool_type: renderPoolType },
+          actionData: {
+            products: aggregatedProducts,
+            pool_type: renderPoolType,
+            answers_context: answersContext, // persisted for personalized copy on restore
+          },
         }));
 
         if (this.sessionId) {
@@ -478,11 +492,6 @@
             console.error('[Quizza] Session completion failed after retries:', error);
           }
         }
-
-        const answersContext = this.quiz.questions.map((q, i) => {
-          const ans = this.answers[i];
-          return ans ? { question: q.question_text, answer: ans.answer_text } : null;
-        }).filter(Boolean);
 
         this.resultContentEl.innerHTML = '';
         this.renderPoolResult(aggregatedProducts, renderPoolType, answersContext);

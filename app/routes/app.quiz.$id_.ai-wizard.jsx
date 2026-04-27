@@ -901,6 +901,12 @@ export default function AiWizard() {
                     >
                       Change pool
                     </Button>
+                    <Button
+                      onClick={runGeneration}
+                      disabled={isApplying}
+                    >
+                      Regenerate
+                    </Button>
                     {allQuestions.length > 0 && (
                       <Button
                         onClick={() => {

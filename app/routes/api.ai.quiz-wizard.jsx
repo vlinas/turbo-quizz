@@ -178,6 +178,7 @@ Other rules:
               action_data: {
                 products: assignedProducts,
                 ai_generated: true,
+                pool_type: poolType, // used by widget to pick correct link/label
               },
             };
           }),

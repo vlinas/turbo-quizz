@@ -434,21 +434,6 @@ export const action = async ({ request, params }) => {
     }
 
     try {
-      // Enforce one-question-per-quiz rule
-      const questionCount = await prisma.question.count({
-        where: {
-          quiz_id: quizId,
-          shop: session.shop,
-        },
-      });
-
-      if (questionCount >= 1) {
-        return json({
-          success: false,
-          error: "Only one question is allowed per quiz. Please edit or delete the existing question.",
-        }, { status: 400 });
-      }
-
       // Build action data for each answer
       const answerCreateData = [];
       for (let i = 0; i < answers.length; i++) {
@@ -1351,29 +1336,23 @@ export default function QuizBuilder() {
                       >
                         Generate with AI
                       </Button>
-                      {quiz.questions.length === 0 && (
-                        <Button
-                          icon={PlusIcon}
-                          onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/edit-question/new`)}
-                        >
-                          Add question
-                        </Button>
-                      )}
+                      <Button
+                        icon={PlusIcon}
+                        onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/edit-question/new`)}
+                      >
+                        Add question
+                      </Button>
                     </InlineStack>
                   </InlineStack>
 
-                  {quiz.questions.length === 0 ? (
+                  {quiz.questions.length === 0 && (
                     <Box padding="400">
-                      <BlockStack gap="200" inlineAlign="center">
-                        <Text as="p" tone="subdued" alignment="center">
-                          No questions yet. Add your first question to get started.
-                        </Text>
-                        <Button onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/edit-question/new`)}>
-                          Add question
-                        </Button>
-                      </BlockStack>
+                      <Text as="p" tone="subdued" alignment="center">
+                        No questions yet. Use "Generate with AI" or "Add question" to get started.
+                      </Text>
                     </Box>
-                  ) : (
+                  )}
+                  {quiz.questions.length > 0 && (
                     <BlockStack gap="400">
                       {quiz.questions.map((question) => (
                         <Card key={question.id} background="bg-surface-secondary">
