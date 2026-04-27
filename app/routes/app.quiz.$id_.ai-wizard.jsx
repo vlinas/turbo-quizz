@@ -22,53 +22,82 @@ import {
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
+// ── ProductChips ─────────────────────────────────────────────────────────────
+function ProductChips({ products }) {
+  if (!products || products.length === 0) return null;
+  return (
+    <InlineStack gap="100" wrap>
+      {products.map((p, i) => (
+        <Box
+          key={p.id || i}
+          padding="100"
+          borderWidth="025"
+          borderColor="border"
+          borderRadius="100"
+          background="bg-surface"
+        >
+          <InlineStack gap="100" blockAlign="center" wrap={false}>
+            {p.image ? (
+              <img
+                src={p.image}
+                alt={p.title}
+                style={{
+                  width: 20,
+                  height: 20,
+                  objectFit: "cover",
+                  borderRadius: 3,
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  background: "#e8e8e8",
+                  borderRadius: 3,
+                  flexShrink: 0,
+                }}
+              />
+            )}
+            <Text as="span" variant="bodySm">
+              {p.title}
+            </Text>
+          </InlineStack>
+        </Box>
+      ))}
+    </InlineStack>
+  );
+}
+
+// ── Loader ───────────────────────────────────────────────────────────────────
 export async function loader({ params, request }) {
   const { session } = await authenticate.admin(request);
   const quizId = parseInt(params.id, 10);
 
-  if (isNaN(quizId)) {
-    throw redirect("/app");
-  }
+  if (isNaN(quizId)) throw redirect("/app");
 
   const quiz = await prisma.quiz.findFirst({
     where: { quiz_id: quizId, shop: session.shop, deleted_at: null },
   });
 
-  if (!quiz) {
-    throw redirect("/app");
-  }
+  if (!quiz) throw redirect("/app");
 
-  const hasPool =
-    quiz.pool_type &&
-    ((quiz.pool_type === "products" &&
-      Array.isArray(quiz.product_pool) &&
-      quiz.product_pool.length > 0) ||
-      (quiz.pool_type === "collections" &&
-        Array.isArray(quiz.collection_pool) &&
-        quiz.collection_pool.length > 0));
-
-  if (!hasPool) {
-    throw redirect(`/app/quiz/${quizId}`);
-  }
-
-  const pool =
-    quiz.pool_type === "products" ? quiz.product_pool : quiz.collection_pool;
-
-  return json({
-    quizId: quiz.quiz_id,
-    quizTitle: quiz.title,
-    poolType: quiz.pool_type,
-    pool,
-  });
+  return json({ quizId: quiz.quiz_id, quizTitle: quiz.title });
 }
 
-// Steps: generating | review | summary | applying | error
+// ── Component ────────────────────────────────────────────────────────────────
 export default function AiWizard() {
-  const { quizId, quizTitle, poolType, pool } = useLoaderData();
+  const { quizId, quizTitle } = useLoaderData();
   const navigate = useNavigate();
   const applyFetcher = useFetcher();
 
-  const [step, setStep] = useState("generating");
+  // Pool selection state
+  const [poolType, setPoolType] = useState("products");
+  const [poolItems, setPoolItems] = useState([]);
+
+  // Wizard steps: pool-select | generating | review | summary | applying | error
+  const [step, setStep] = useState("pool-select");
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState("");
   const [catalogAnalysis, setCatalogAnalysis] = useState("");
@@ -81,16 +110,89 @@ export default function AiWizard() {
 
   const itemLabel = poolType === "collections" ? "collections" : "products";
 
-  // Start generation on mount
-  useEffect(() => {
-    runGeneration();
-  }, []);
+  // ── Resource picker helpers ───────────────────────────────────────────────
+  const handlePickProducts = async () => {
+    const currentIds = poolItems.map((p) => p.id);
+    try {
+      if (
+        typeof window !== "undefined" &&
+        window.shopify &&
+        typeof window.shopify.resourcePicker === "function"
+      ) {
+        const result = await window.shopify.resourcePicker({
+          type: "product",
+          multiple: true,
+          selectionIds: currentIds,
+        });
+        if (result?.selection?.length) {
+          const capped = result.selection.slice(0, 20);
+          setPoolItems(
+            capped.map((s) => ({
+              id: s.id,
+              title: s.title,
+              handle: s.handle || "",
+              description:
+                s.descriptionHtml
+                  ?.replace(/<[^>]*>/g, "")
+                  .substring(0, 300) || "",
+              tags: s.tags || [],
+              image:
+                s.images?.[0]?.originalSrc || s.images?.[0]?.url || null,
+              price: s.variants?.[0]?.price || "0",
+            }))
+          );
+        }
+      }
+    } catch (e) {
+      console.error("Resource picker error:", e);
+    }
+  };
 
-  // Progress animation while generating
+  const handlePickCollections = async () => {
+    const currentIds = poolItems.map((c) => c.id);
+    try {
+      if (
+        typeof window !== "undefined" &&
+        window.shopify &&
+        typeof window.shopify.resourcePicker === "function"
+      ) {
+        const result = await window.shopify.resourcePicker({
+          type: "collection",
+          multiple: true,
+          selectionIds: currentIds,
+        });
+        if (result?.selection?.length) {
+          const capped = result.selection.slice(0, 10);
+          setPoolItems(
+            capped.map((s) => ({
+              id: s.id,
+              title: s.title,
+              handle: s.handle || "",
+              description: "",
+              image: s.image?.originalSrc || s.image?.url || null,
+            }))
+          );
+        }
+      }
+    } catch (e) {
+      console.error("Resource picker error:", e);
+    }
+  };
+
+  const handleRemovePoolItem = (id) => {
+    setPoolItems((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  const handlePoolTypeChange = (type) => {
+    setPoolType(type);
+    setPoolItems([]);
+  };
+
+  // ── Progress animation ────────────────────────────────────────────────────
   useEffect(() => {
     if (step !== "generating") return;
     const steps = [
-      { p: 8, msg: `Reading your ${pool.length} ${itemLabel}...` },
+      { p: 8, msg: `Reading your ${poolItems.length} ${itemLabel}...` },
       { p: 20, msg: "Reviewing product images..." },
       { p: 35, msg: "Analyzing descriptions and tags..." },
       { p: 50, msg: "Identifying key differences..." },
@@ -112,17 +214,17 @@ export default function AiWizard() {
       }
     }, 2800);
     return () => clearInterval(interval);
-  }, [step, pool.length, itemLabel]);
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Redirect after successful apply
+  // ── Apply redirect watcher ────────────────────────────────────────────────
   useEffect(() => {
     if (applyFetcher.data?.success === false) {
       setToastActive(true);
       setStep("summary");
     }
-    // On success the action redirects, no need to handle here
   }, [applyFetcher.data]);
 
+  // ── Generation ────────────────────────────────────────────────────────────
   const runGeneration = async () => {
     setStep("generating");
     setError(null);
@@ -135,7 +237,7 @@ export default function AiWizard() {
       const response = await fetch("/api/ai/quiz-wizard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pool, poolType }),
+        body: JSON.stringify({ pool: poolItems, poolType }),
       });
 
       const reader = response.body.getReader();
@@ -178,6 +280,7 @@ export default function AiWizard() {
     }
   };
 
+  // ── Review step actions ───────────────────────────────────────────────────
   const keepCurrent = () => {
     const q = editingQuestion ?? allQuestions[currentIdx];
     setKeptQuestions((prev) => [...prev, q]);
@@ -198,11 +301,14 @@ export default function AiWizard() {
     }
   };
 
+  // ── Apply to quiz ─────────────────────────────────────────────────────────
   const applyQuestions = () => {
     if (keptQuestions.length === 0) return;
     const formData = new FormData();
     formData.append("_action", "apply_ai_questions");
     formData.append("questionsJson", JSON.stringify(keptQuestions));
+    formData.append("poolType", poolType);
+    formData.append("poolJson", JSON.stringify(poolItems));
     applyFetcher.submit(formData, {
       method: "post",
       action: `/app/quiz/${quizId}`,
@@ -210,12 +316,159 @@ export default function AiWizard() {
     setStep("applying");
   };
 
-  // ── STEP: generating ────────────────────────────────────────────────────────
-  if (step === "generating") {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP: pool-select
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (step === "pool-select") {
+    const maxItems = poolType === "products" ? 20 : 10;
     return (
       <Frame>
         <Page
           backAction={{ content: "Back to quiz", url: `/app/quiz/${quizId}` }}
+          title="AI Quiz Wizard"
+          subtitle={quizTitle}
+        >
+          <BlockStack gap="500">
+            <Card>
+              <BlockStack gap="400">
+                <BlockStack gap="100">
+                  <Text as="h2" variant="headingMd">
+                    Step 1: Select your {itemLabel}
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Choose the {itemLabel} for this quiz. AI will analyze their
+                    images, descriptions, and tags to create personalized quiz
+                    questions. Each answer will recommend specific {itemLabel}{" "}
+                    based on the customer's choices.
+                  </Text>
+                </BlockStack>
+
+                {/* Products / Collections toggle */}
+                <InlineStack gap="200">
+                  <Button
+                    variant={poolType === "products" ? "primary" : "secondary"}
+                    onClick={() =>
+                      poolType !== "products" && handlePoolTypeChange("products")
+                    }
+                    size="slim"
+                  >
+                    Products
+                  </Button>
+                  <Button
+                    variant={
+                      poolType === "collections" ? "primary" : "secondary"
+                    }
+                    onClick={() =>
+                      poolType !== "collections" &&
+                      handlePoolTypeChange("collections")
+                    }
+                    size="slim"
+                  >
+                    Collections
+                  </Button>
+                </InlineStack>
+
+                {/* Picker button */}
+                <Button
+                  onClick={
+                    poolType === "products"
+                      ? handlePickProducts
+                      : handlePickCollections
+                  }
+                  disabled={poolItems.length >= maxItems}
+                >
+                  {poolItems.length === 0
+                    ? `Select ${itemLabel}`
+                    : `Edit ${itemLabel} (${poolItems.length}/${maxItems} selected)`}
+                </Button>
+
+                {/* Selected items list */}
+                {poolItems.length > 0 && (
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {poolItems.length} {itemLabel} selected
+                    </Text>
+                    {poolItems.map((item) => (
+                      <InlineStack
+                        key={item.id}
+                        align="space-between"
+                        blockAlign="center"
+                      >
+                        <InlineStack gap="200" blockAlign="center">
+                          {item.image ? (
+                            <img
+                              src={item.image}
+                              alt={item.title}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                objectFit: "cover",
+                                borderRadius: 4,
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: 32,
+                                height: 32,
+                                background: "#e8e8e8",
+                                borderRadius: 4,
+                              }}
+                            />
+                          )}
+                          <Text as="span" variant="bodyMd">
+                            {item.title}
+                          </Text>
+                        </InlineStack>
+                        <Button
+                          variant="plain"
+                          tone="critical"
+                          size="slim"
+                          onClick={() => handleRemovePoolItem(item.id)}
+                        >
+                          Remove
+                        </Button>
+                      </InlineStack>
+                    ))}
+                  </BlockStack>
+                )}
+
+                <Divider />
+
+                <InlineStack align="space-between" blockAlign="center">
+                  {poolItems.length < 2 ? (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Select at least 2 {itemLabel} to continue.
+                    </Text>
+                  ) : (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {poolItems.length} {itemLabel} ready for analysis
+                    </Text>
+                  )}
+                  <Button
+                    variant="primary"
+                    onClick={runGeneration}
+                    disabled={poolItems.length < 2}
+                  >
+                    Analyze &amp; generate quiz →
+                  </Button>
+                </InlineStack>
+              </BlockStack>
+            </Card>
+          </BlockStack>
+        </Page>
+      </Frame>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP: generating
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (step === "generating") {
+    return (
+      <Frame>
+        <Page
+          backAction={{ content: "Cancel", url: `/app/quiz/${quizId}` }}
           title="AI Quiz Wizard"
           subtitle={quizTitle}
         >
@@ -263,11 +516,16 @@ export default function AiWizard() {
             {/* Pool thumbnails */}
             <Card>
               <BlockStack gap="300">
-                <Text as="p" variant="bodySm" fontWeight="semibold" tone="subdued">
-                  {pool.length} {itemLabel} being analyzed
+                <Text
+                  as="p"
+                  variant="bodySm"
+                  fontWeight="semibold"
+                  tone="subdued"
+                >
+                  {poolItems.length} {itemLabel} being analyzed
                 </Text>
                 <InlineStack gap="300" wrap>
-                  {pool.map((item) => (
+                  {poolItems.map((item) => (
                     <Box
                       key={item.id}
                       borderWidth="025"
@@ -305,33 +563,36 @@ export default function AiWizard() {
     );
   }
 
-  // ── STEP: review ────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP: review
+  // ═══════════════════════════════════════════════════════════════════════════
   if (step === "review") {
     const question = allQuestions[currentIdx];
     if (!question) return null;
     const displayQ = editingQuestion ?? question;
     const isLast = currentIdx === allQuestions.length - 1;
-    const progressPct = Math.round(((currentIdx) / allQuestions.length) * 100);
+    const progressPct = Math.round(
+      (currentIdx / allQuestions.length) * 100
+    );
 
     return (
       <Frame>
         <Page
           backAction={{ content: "Cancel wizard", url: `/app/quiz/${quizId}` }}
           title="AI Quiz Wizard"
-          subtitle={`${quizTitle} · Question ${currentIdx + 1} of ${allQuestions.length}`}
+          subtitle={`${quizTitle} · Question ${currentIdx + 1} of ${
+            allQuestions.length
+          }`}
         >
           <BlockStack gap="400">
-            {/* Progress bar */}
             <ProgressBar progress={progressPct} size="small" />
 
-            {/* Analysis banner — show only on first question */}
             {catalogAnalysis && currentIdx === 0 && (
               <Banner title="AI catalog analysis" tone="info">
                 <Text as="p">{catalogAnalysis}</Text>
               </Banner>
             )}
 
-            {/* Main question card */}
             <Card>
               <BlockStack gap="500">
                 {/* Header */}
@@ -344,7 +605,7 @@ export default function AiWizard() {
                   </Text>
                 </InlineStack>
 
-                {/* Question text — editable or display */}
+                {/* Question text */}
                 {editingQuestion ? (
                   <TextField
                     label="Question text"
@@ -372,9 +633,15 @@ export default function AiWizard() {
                     borderRadius="200"
                   >
                     <InlineStack gap="200" blockAlign="start" wrap={false}>
-                      <Text as="span" variant="bodyMd">💡</Text>
+                      <Text as="span" variant="bodyMd">
+                        💡
+                      </Text>
                       <BlockStack gap="100">
-                        <Text as="p" variant="bodySm" fontWeight="semibold">
+                        <Text
+                          as="p"
+                          variant="bodySm"
+                          fontWeight="semibold"
+                        >
                           Why AI chose this question
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
@@ -385,47 +652,66 @@ export default function AiWizard() {
                   </Box>
                 )}
 
-                {/* Answers */}
+                {/* Answers — each with editable text + locked product chips */}
                 <BlockStack gap="200">
                   <Text as="p" variant="bodyMd" fontWeight="semibold">
                     Answer options
                   </Text>
-                  {editingQuestion ? (
-                    <TextField
-                      label="Answers (one per line)"
-                      labelHidden
-                      value={editingQuestion.answers
-                        .map((a) => a.answer_text)
-                        .join("\n")}
-                      onChange={(val) => {
-                        const texts = val
-                          .split("\n")
-                          .map((t) => t.trimStart())
-                          .filter((t) => t.length > 0);
-                        setEditingQuestion((prev) => ({
-                          ...prev,
-                          answers: texts.map((text, i) => ({
-                            ...(prev.answers[i] || {
-                              action_type: "show_text",
-                              action_data: "",
-                            }),
-                            answer_text: text,
-                          })),
-                        }));
-                      }}
-                      multiline={5}
-                      autoComplete="off"
-                      helpText="One answer per line. Min 2, max 4."
-                    />
-                  ) : (
-                    <InlineStack gap="200" wrap>
-                      {displayQ.answers.map((a, i) => (
-                        <Badge key={i} size="large">
-                          {a.answer_text}
-                        </Badge>
-                      ))}
-                    </InlineStack>
-                  )}
+                  <BlockStack gap="200">
+                    {displayQ.answers.map((a, i) => (
+                      <Box
+                        key={i}
+                        padding="300"
+                        background="bg-surface-secondary"
+                        borderRadius="200"
+                      >
+                        <BlockStack gap="200">
+                          {editingQuestion ? (
+                            <TextField
+                              label={`Answer ${i + 1}`}
+                              value={
+                                editingQuestion.answers[i]?.answer_text || ""
+                              }
+                              onChange={(val) =>
+                                setEditingQuestion((prev) => ({
+                                  ...prev,
+                                  answers: prev.answers.map((ans, j) =>
+                                    j === i
+                                      ? { ...ans, answer_text: val }
+                                      : ans
+                                  ),
+                                }))
+                              }
+                              autoComplete="off"
+                            />
+                          ) : (
+                            <Text
+                              as="p"
+                              variant="bodyMd"
+                              fontWeight="semibold"
+                            >
+                              {a.answer_text}
+                            </Text>
+                          )}
+                          {/* Product chips — always locked/read-only */}
+                          {a.action_data?.products?.length > 0 && (
+                            <BlockStack gap="100">
+                              <Text
+                                as="span"
+                                variant="bodySm"
+                                tone="subdued"
+                              >
+                                Recommends:
+                              </Text>
+                              <ProductChips
+                                products={a.action_data.products}
+                              />
+                            </BlockStack>
+                          )}
+                        </BlockStack>
+                      </Box>
+                    ))}
+                  </BlockStack>
                 </BlockStack>
 
                 <Divider />
@@ -477,10 +763,15 @@ export default function AiWizard() {
               </BlockStack>
             </Card>
 
-            {/* Mini-map of all questions */}
+            {/* Mini-map */}
             <Card>
               <BlockStack gap="200">
-                <Text as="p" variant="bodySm" fontWeight="semibold" tone="subdued">
+                <Text
+                  as="p"
+                  variant="bodySm"
+                  fontWeight="semibold"
+                  tone="subdued"
+                >
                   Overview
                 </Text>
                 {allQuestions.map((q, i) => {
@@ -521,7 +812,9 @@ export default function AiWizard() {
     );
   }
 
-  // ── STEP: summary / applying ─────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP: summary | applying
+  // ═══════════════════════════════════════════════════════════════════════════
   if (step === "summary" || step === "applying") {
     const isApplying = step === "applying";
     return (
@@ -551,7 +844,8 @@ export default function AiWizard() {
                       No questions kept
                     </Text>
                     <Banner tone="warning">
-                      You skipped all questions. Go back to review or regenerate.
+                      You skipped all questions. Go back to review or
+                      regenerate.
                     </Banner>
                   </>
                 ) : (
@@ -561,22 +855,35 @@ export default function AiWizard() {
                       {keptQuestions.length !== 1 ? "s" : ""} ready to apply
                     </Text>
                     <BlockStack gap="300">
-                      {keptQuestions.map((q, i) => (
+                      {keptQuestions.map((q, qi) => (
                         <Box
-                          key={i}
+                          key={qi}
                           padding="400"
                           background="bg-surface-secondary"
                           borderRadius="200"
                         >
-                          <BlockStack gap="200">
+                          <BlockStack gap="300">
                             <Text as="h4" variant="headingSm">
-                              {i + 1}. {q.question_text}
+                              {qi + 1}. {q.question_text}
                             </Text>
-                            <InlineStack gap="100" wrap>
+                            <BlockStack gap="200">
                               {q.answers.map((a, ai) => (
-                                <Badge key={ai}>{a.answer_text}</Badge>
+                                <BlockStack key={ai} gap="100">
+                                  <Text
+                                    as="p"
+                                    variant="bodySm"
+                                    fontWeight="semibold"
+                                  >
+                                    {a.answer_text}
+                                  </Text>
+                                  {a.action_data?.products?.length > 0 && (
+                                    <ProductChips
+                                      products={a.action_data.products}
+                                    />
+                                  )}
+                                </BlockStack>
                               ))}
-                            </InlineStack>
+                            </BlockStack>
                           </BlockStack>
                         </Box>
                       ))}
@@ -589,12 +896,12 @@ export default function AiWizard() {
                 <InlineStack align="space-between" blockAlign="center">
                   <InlineStack gap="200">
                     <Button
-                      onClick={runGeneration}
+                      onClick={() => setStep("pool-select")}
                       disabled={isApplying}
                     >
-                      Regenerate
+                      Change pool
                     </Button>
-                    {keptQuestions.length > 0 && (
+                    {allQuestions.length > 0 && (
                       <Button
                         onClick={() => {
                           setStep("review");
@@ -624,7 +931,9 @@ export default function AiWizard() {
     );
   }
 
-  // ── STEP: error ─────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP: error
+  // ═══════════════════════════════════════════════════════════════════════════
   return (
     <Frame>
       <Page
@@ -634,7 +943,10 @@ export default function AiWizard() {
         <Banner
           tone="critical"
           title="Analysis failed"
-          action={{ content: "Try again", onAction: runGeneration }}
+          action={{
+            content: "Try again",
+            onAction: () => setStep("pool-select"),
+          }}
         >
           {error || "Something went wrong. Please try again."}
         </Banner>

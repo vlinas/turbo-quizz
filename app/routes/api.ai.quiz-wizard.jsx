@@ -1,6 +1,6 @@
 import { getClaudeClient } from "../utils/claude.server";
 
-// Use vision-capable model for wizard — analyzes product images + text
+// Vision-capable model for wizard — analyzes product images + text
 const WIZARD_MODEL = "gpt-4o";
 
 const corsHeaders = {
@@ -34,7 +34,7 @@ export async function action({ request }) {
     });
   }
 
-  const { pool = [], poolType = "products", questionCount } = body;
+  const { pool = [], poolType = "products" } = body;
 
   if (!pool || pool.length === 0) {
     return new Response(JSON.stringify({ error: "Pool is required" }), {
@@ -63,64 +63,65 @@ export async function action({ request }) {
       try {
         const openai = getClaudeClient();
         const itemLabel = poolType === "collections" ? "collections" : "products";
+        const numQuestions = Math.min(5, Math.max(3, Math.ceil(pool.length / 3)));
 
-        // Auto-calculate question count based on pool size
-        const numQuestions = questionCount || Math.min(5, Math.max(3, Math.ceil(pool.length / 3)));
+        const systemPrompt = `You are an expert e-commerce quiz designer. Analyze the merchant's ${itemLabel} and create a product recommendation quiz where each answer directly maps to specific ${itemLabel}.
 
-        const systemPrompt = `You are an expert e-commerce quiz designer. Your job is to analyze a merchant's ${itemLabel} and create the ideal product recommendation quiz.
-
-You will receive ${itemLabel} with titles, descriptions, tags, prices, and images. Study them carefully to understand:
-- What categories/types exist
-- What differentiates them (use case, customer profile, price point, style, ingredients, etc.)
-- What customer preferences map to each ${itemLabel.slice(0, -1)}
+Study the ${itemLabel} carefully — their images, descriptions, tags, prices — to understand:
+- What categories/use-cases/customer profiles exist
+- What differentiates them
+- Which ${itemLabel} belong together vs. apart
 
 Return ONLY valid JSON with this exact structure:
 {
-  "analysis": "2-3 sentence plain-English overview of the catalog. What you found, what the key differentiators are.",
+  "analysis": "2-3 sentence plain English overview: what you found, key differentiators, customer segments.",
   "questions": [
     {
-      "question_text": "A clear, friendly customer-facing question",
+      "question_text": "Clear, friendly customer-facing question",
       "metafield_key": "snake_case_key",
-      "reasoning": "1-2 sentences: which specific ${itemLabel} this question differentiates and why it matters for recommendations",
+      "reasoning": "1-2 sentences: which ${itemLabel} this question separates and why",
       "answers": [
         {
-          "answer_text": "Short, clear answer option",
-          "action_type": "show_text",
-          "action_data": "Short encouraging message shown to customer when they pick this"
+          "answer_text": "Short answer option",
+          "product_indices": [0, 2]
         }
       ]
     }
   ]
 }
 
-Rules:
+CRITICAL RULES for product_indices:
+- product_indices contains indices (0-based) into the ${itemLabel} pool
+- Each answer MUST have 1-3 product_indices
+- Different answers should map to DIFFERENT ${itemLabel} (some overlap is OK)
+- ALL pool ${itemLabel} must appear in at least one answer across the quiz
+- Indices must be valid: 0 to ${pool.length - 1}
+- Choose indices that genuinely match the answer choice
+
+Other rules:
 - Generate exactly ${numQuestions} questions
 - Each question must have 3-4 answers
-- Questions must cover DIFFERENT dimensions — no overlap
+- Questions cover DIFFERENT dimensions — no overlap
 - metafield_key: lowercase letters and underscores only
-- Each question should meaningfully narrow down which ${itemLabel} to recommend
-- Answers should feel natural and customer-friendly, not technical
 - No markdown, no explanation outside the JSON`;
 
-        // Build vision-capable message content
-        // Include images for up to 8 items (detail:low = ~85 tokens each)
+        // Build vision-capable message with images
         const userContentParts = [
           {
             type: "text",
-            text: `Analyze these ${pool.length} ${itemLabel} and create a product recommendation quiz:\n`,
+            text: `Analyze these ${pool.length} ${itemLabel} (indices 0-${pool.length - 1}) and create a product recommendation quiz:\n`,
           },
         ];
 
         pool.forEach((item, i) => {
-          const parts = [];
-          parts.push(`\n[${i + 1}] ${item.title}`);
-          if (item.price && item.price !== "0") parts.push(`Price: $${item.price}`);
-          if (item.description) parts.push(`Description: ${item.description.substring(0, 250)}`);
+          const parts = [`[${i}] ${item.title}`];
+          if (item.price && item.price !== "0") parts.push(`$${item.price}`);
+          if (item.description) parts.push(item.description.substring(0, 200));
           if (item.tags?.length) parts.push(`Tags: ${item.tags.join(", ")}`);
 
           userContentParts.push({ type: "text", text: parts.join(" | ") });
 
-          // Include image if available (limit to first 8 to control token cost)
+          // Include image (limit to 8, detail:low = ~85 tokens each)
           if (item.image && i < 8) {
             userContentParts.push({
               type: "image_url",
@@ -131,7 +132,7 @@ Rules:
 
         userContentParts.push({
           type: "text",
-          text: `\nNow generate the quiz JSON (${numQuestions} questions) that best differentiates between these ${itemLabel}.`,
+          text: `\nGenerate ${numQuestions} questions. Assign product_indices to each answer. Indices are 0 to ${pool.length - 1}. Return ONLY the JSON.`,
         });
 
         const message = await openai.chat.completions.create({
@@ -149,7 +150,7 @@ Rules:
         let rawContent = choice.message.content?.trim() || "";
 
         console.log("[Quiz Wizard] finish_reason:", choice.finish_reason);
-        console.log("[Quiz Wizard] raw (first 400):", rawContent.substring(0, 400));
+        console.log("[Quiz Wizard] raw (first 500):", rawContent.substring(0, 500));
 
         // Strip markdown fences
         const fenceMatch = rawContent.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -161,12 +162,32 @@ Rules:
           throw new Error("Invalid quiz structure from model");
         }
 
-        // Send analysis first so UI can show it while we send the rest
+        // Map product_indices → actual product objects in action_data
+        const processedQuestions = result.questions.map((q) => ({
+          question_text: q.question_text,
+          metafield_key: q.metafield_key,
+          reasoning: q.reasoning,
+          answers: q.answers.map((a) => {
+            const assignedProducts = (a.product_indices || [])
+              .filter((i) => typeof i === "number" && i >= 0 && i < pool.length)
+              .map((i) => pool[i]);
+
+            return {
+              answer_text: a.answer_text,
+              action_type: "show_products",
+              action_data: {
+                products: assignedProducts,
+                ai_generated: true,
+              },
+            };
+          }),
+        }));
+
         if (result.analysis) {
           send({ type: "analysis", text: result.analysis });
         }
 
-        send({ type: "result", quiz: result });
+        send({ type: "result", quiz: { ...result, questions: processedQuestions } });
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
       } catch (err) {
         clearInterval(heartbeat);

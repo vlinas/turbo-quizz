@@ -167,8 +167,17 @@
           (this.quiz.pool_type === 'collections' && this.quiz.collection_pool?.length > 0)
         );
 
-        if (hasPool) {
-          // Re-render pool result — show top products from pool (no answers context on restore)
+        // Parse stored result first to check mode
+        let storedResult = null;
+        try { storedResult = JSON.parse(wasCompleted); } catch (_) {}
+
+        if (storedResult?.actionType === 'ai_hard_assignment') {
+          // Hard-assignment restore: re-render stored aggregated products
+          this.resultContentEl.innerHTML = '';
+          const renderPoolType = storedResult.actionData?.pool_type || this.quiz?.pool_type || 'products';
+          this.renderPoolResult(storedResult.actionData?.products || [], renderPoolType, []);
+        } else if (hasPool) {
+          // Legacy pool-mode restore: re-fetch from pool match API
           this.resultContentEl.innerHTML = '<p class="quizza-ai-loading" style="color:#6b7280;font-size:14px;">Loading your recommendations...</p>';
           this.showResetButton();
           const pool = this.quiz.pool_type === 'products'
@@ -179,14 +188,12 @@
             this.resultContentEl.innerHTML = '';
             this.renderPoolResult(items, this.quiz.pool_type, []);
           } catch (e) {
-            // Fallback: show first 4 pool items directly
             this.resultContentEl.innerHTML = '';
             this.renderPoolResult(pool.slice(0, 4), this.quiz.pool_type, []);
           }
         } else {
           try {
-            const resultData = JSON.parse(wasCompleted);
-            this.resultContentEl.innerHTML = this.renderActionResult(resultData.actionType, resultData.actionData);
+            this.resultContentEl.innerHTML = this.renderActionResult(storedResult?.actionType, storedResult?.actionData);
           } catch (e) {
             this.resultContentEl.innerHTML = '<p style="color: #666; font-style: italic;">Quiz already completed.</p>';
           }
@@ -410,16 +417,85 @@
       }
     }
 
+    // Aggregate products from all selected answers for hard-assignment quizzes.
+    // Products appearing in more answers rank higher; returns top 4 deduped by id.
+    aggregateHardAssignmentProducts() {
+      const freq = {};
+      const productMap = {};
+
+      for (const answer of this.answers) {
+        if (!answer || answer.action_type !== 'show_products') continue;
+        const products = answer.action_data?.products || [];
+        for (const p of products) {
+          const id = p.id;
+          if (!id) continue;
+          freq[id] = (freq[id] || 0) + 1;
+          productMap[id] = p;
+        }
+      }
+
+      return Object.entries(freq)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 4)
+        .map(([id]) => productMap[id]);
+    }
+
     async showResult() {
       const finalAnswer = this.answers[this.currentQuestionIndex];
       const actionData = finalAnswer.action_data;
-      const hasPool = this.quiz.pool_type && (
+
+      // Hard-assignment mode: any selected answer has ai_generated flag
+      const isHardAssignment = this.answers.some(
+        (a) => a && a.action_data?.ai_generated === true
+      );
+
+      const hasPool = !isHardAssignment && this.quiz.pool_type && (
         (this.quiz.pool_type === 'products' && this.quiz.product_pool?.length > 0) ||
         (this.quiz.pool_type === 'collections' && this.quiz.collection_pool?.length > 0)
       );
 
-      // Mark quiz as completed and store result in localStorage
       const completedKey = `quizza_completed_${this.quizId}`;
+
+      // ── Hard-assignment mode ─────────────────────────────────────────────
+      if (isHardAssignment) {
+        const aggregatedProducts = this.aggregateHardAssignmentProducts();
+        const renderPoolType = this.quiz.pool_type || 'products';
+
+        localStorage.setItem(completedKey, JSON.stringify({
+          actionType: 'ai_hard_assignment',
+          actionData: { products: aggregatedProducts, pool_type: renderPoolType },
+        }));
+
+        if (this.sessionId) {
+          try {
+            await fetchWithRetry(`${this.appUrl}/api/quiz-sessions`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'complete', session_id: this.sessionId }),
+            });
+            await this.addSessionToCart(this.sessionId);
+          } catch (error) {
+            console.error('[Quizza] Session completion failed after retries:', error);
+          }
+        }
+
+        const answersContext = this.quiz.questions.map((q, i) => {
+          const ans = this.answers[i];
+          return ans ? { question: q.question_text, answer: ans.answer_text } : null;
+        }).filter(Boolean);
+
+        this.resultContentEl.innerHTML = '';
+        this.renderPoolResult(aggregatedProducts, renderPoolType, answersContext);
+        this.questionEl.style.display = 'none';
+        this.resultEl.style.display = 'block';
+        this.backBtn.style.display = 'none';
+        this.nextBtn.style.display = 'none';
+        if (this.restartBtn) this.restartBtn.style.display = 'none';
+        this.showResetButton();
+        return;
+      }
+
+      // Mark quiz as completed and store result in localStorage
       localStorage.setItem(completedKey, JSON.stringify({
         actionType: hasPool ? 'pool_mode' : finalAnswer.action_type,
         actionData: hasPool ? null : actionData,

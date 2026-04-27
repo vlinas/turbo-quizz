@@ -1,5 +1,5 @@
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useNavigate, useSubmit, useActionData, Outlet, useMatches, useFetcher } from "@remix-run/react";
+import { useLoaderData, useNavigate, useSubmit, useActionData, Outlet, useMatches } from "@remix-run/react";
 import { useState, useCallback, useEffect } from "react";
 import {
   Page,
@@ -819,6 +819,21 @@ Generate a product recommendation quiz.`;
     }
 
     try {
+      // Also save pool to quiz (for display + backward compat)
+      const newPoolType = formData.get("poolType");
+      const poolJson = formData.get("poolJson");
+      if (newPoolType && poolJson) {
+        try {
+          const poolItems = JSON.parse(poolJson);
+          const poolUpdate = { pool_type: newPoolType, product_pool: null, collection_pool: null };
+          if (newPoolType === "products") poolUpdate.product_pool = poolItems;
+          else if (newPoolType === "collections") poolUpdate.collection_pool = poolItems;
+          await prisma.quiz.update({ where: { id: quiz.id }, data: poolUpdate });
+        } catch (e) {
+          console.error("[Apply AI] Pool save error:", e);
+        }
+      }
+
       // Delete existing questions first (fresh AI-generated quiz)
       const existingQuestions = await prisma.question.findMany({
         where: { quiz_id: quizId, shop: session.shop },
@@ -844,7 +859,11 @@ Generate a product recommendation quiz.`;
               create: q.answers.map((a, ai) => ({
                 answer_text: a.answer_text,
                 action_type: a.action_type || "show_text",
-                action_data: { text: a.action_data || "" },
+                // Preserve object action_data (e.g. { products: [...], ai_generated: true })
+                action_data:
+                  typeof a.action_data === "object" && a.action_data !== null
+                    ? a.action_data
+                    : { text: typeof a.action_data === "string" ? a.action_data : "" },
                 order: ai + 1,
               })),
             },
@@ -912,72 +931,6 @@ export default function QuizBuilder() {
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const [dateRange, setDateRange] = useState(String(analytics?.days || 7));
-
-  // Product pool state
-  const poolFetcher = useFetcher();
-  const [poolType, setPoolType] = useState(quiz?.pool_type || null);
-  const [poolItems, setPoolItems] = useState(
-    quiz?.pool_type === "products"
-      ? (quiz?.product_pool || [])
-      : quiz?.pool_type === "collections"
-      ? (quiz?.collection_pool || [])
-      : []
-  );
-  const isPoolSaving = poolFetcher.state !== "idle";
-
-  const handleSavePool = (type, items) => {
-    const formData = new FormData();
-    formData.append("_action", "update_pool");
-    formData.append("pool_type", type || "");
-    formData.append("pool_json", JSON.stringify(items));
-    poolFetcher.submit(formData, { method: "post" });
-  };
-
-  const handlePoolTypeChange = (newType) => {
-    setPoolType(newType);
-    setPoolItems([]);
-    handleSavePool(newType, []);
-  };
-
-  const handlePickPoolProducts = async () => {
-    const currentIds = poolItems.map((p) => p.id);
-    const selection = await openResourcePicker("product", true, currentIds);
-    if (!selection.length) return;
-    const capped = selection.slice(0, 20);
-    const items = capped.map((s) => ({
-      id: s.id,
-      title: s.title,
-      handle: s.handle || "",
-      description: s.descriptionHtml?.replace(/<[^>]*>/g, "").substring(0, 300) || "",
-      tags: s.tags || [],
-      image: s.images?.[0]?.originalSrc || s.images?.[0]?.url || null,
-      price: s.variants?.[0]?.price || "0",
-    }));
-    setPoolItems(items);
-    handleSavePool("products", items);
-  };
-
-  const handlePickPoolCollections = async () => {
-    const currentIds = poolItems.map((c) => c.id);
-    const selection = await openResourcePicker("collection", true, currentIds);
-    if (!selection.length) return;
-    const capped = selection.slice(0, 10);
-    const items = capped.map((s) => ({
-      id: s.id,
-      title: s.title,
-      handle: s.handle || "",
-      description: "",
-      image: s.image?.originalSrc || s.image?.url || null,
-    }));
-    setPoolItems(items);
-    handleSavePool("collections", items);
-  };
-
-  const handleRemovePoolItem = (itemId) => {
-    const updated = poolItems.filter((i) => i.id !== itemId);
-    setPoolItems(updated);
-    handleSavePool(poolType, updated);
-  };
 
   // Toast state
   const [toastActive, setToastActive] = useState(false);
@@ -1384,102 +1337,6 @@ export default function QuizBuilder() {
                 </BlockStack>
               </Card>
 
-              {/* Product Pool */}
-              <Card>
-                <BlockStack gap="400">
-                  <BlockStack gap="100">
-                    <Text as="h2" variant="headingMd">Product Pool (optional)</Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Select products or collections for AI to recommend at quiz completion. Without a pool, each answer shows its own result.
-                    </Text>
-                  </BlockStack>
-
-                  <InlineStack gap="300">
-                    <Button
-                      variant={poolType === "products" ? "primary" : "secondary"}
-                      onClick={() => poolType !== "products" && handlePoolTypeChange("products")}
-                      size="slim"
-                    >
-                      Products {poolType === "products" && poolItems.length > 0 ? `(${poolItems.length}/20)` : ""}
-                    </Button>
-                    <Button
-                      variant={poolType === "collections" ? "primary" : "secondary"}
-                      onClick={() => poolType !== "collections" && handlePoolTypeChange("collections")}
-                      size="slim"
-                    >
-                      Collections {poolType === "collections" && poolItems.length > 0 ? `(${poolItems.length}/10)` : ""}
-                    </Button>
-                    {poolType && (
-                      <Button
-                        variant="plain"
-                        tone="critical"
-                        size="slim"
-                        onClick={() => handlePoolTypeChange(null)}
-                      >
-                        Clear pool
-                      </Button>
-                    )}
-                  </InlineStack>
-
-                  {poolType === "products" && (
-                    <BlockStack gap="300">
-                      <Button onClick={handlePickPoolProducts} disabled={poolItems.length >= 20}>
-                        {poolItems.length === 0 ? "Select products" : "Edit products"}
-                      </Button>
-                      {poolItems.length > 0 && (
-                        <BlockStack gap="200">
-                          {poolItems.map((item) => (
-                            <InlineStack key={item.id} align="space-between" blockAlign="center">
-                              <InlineStack gap="200" blockAlign="center">
-                                {item.image && (
-                                  <img src={item.image} alt={item.title} style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4 }} />
-                                )}
-                                <Text as="span" variant="bodyMd">{item.title}</Text>
-                              </InlineStack>
-                              <Button variant="plain" tone="critical" size="slim" onClick={() => handleRemovePoolItem(item.id)}>
-                                Remove
-                              </Button>
-                            </InlineStack>
-                          ))}
-                        </BlockStack>
-                      )}
-                    </BlockStack>
-                  )}
-
-                  {poolType === "collections" && (
-                    <BlockStack gap="300">
-                      <Button onClick={handlePickPoolCollections} disabled={poolItems.length >= 10}>
-                        {poolItems.length === 0 ? "Select collections" : "Edit collections"}
-                      </Button>
-                      {poolItems.length > 0 && (
-                        <BlockStack gap="200">
-                          {poolItems.map((item) => (
-                            <InlineStack key={item.id} align="space-between" blockAlign="center">
-                              <InlineStack gap="200" blockAlign="center">
-                                {item.image && (
-                                  <img src={item.image} alt={item.title} style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4 }} />
-                                )}
-                                <Text as="span" variant="bodyMd">{item.title}</Text>
-                              </InlineStack>
-                              <Button variant="plain" tone="critical" size="slim" onClick={() => handleRemovePoolItem(item.id)}>
-                                Remove
-                              </Button>
-                            </InlineStack>
-                          ))}
-                        </BlockStack>
-                      )}
-                    </BlockStack>
-                  )}
-
-                  {isPoolSaving && (
-                    <Text as="p" variant="bodySm" tone="subdued">Saving...</Text>
-                  )}
-                  {poolFetcher.data?.action === "pool_updated" && !isPoolSaving && (
-                    <Text as="p" variant="bodySm" tone="success">Pool saved.</Text>
-                  )}
-                </BlockStack>
-              </Card>
-
               {/* Questions */}
               <Card>
                 <BlockStack gap="400">
@@ -1491,7 +1348,6 @@ export default function QuizBuilder() {
                       <Button
                         onClick={() => navigate(`/app/quiz/${quiz.quiz_id}/ai-wizard`)}
                         icon={ChatIcon}
-                        disabled={!poolItems || poolItems.length === 0}
                       >
                         Generate with AI
                       </Button>
@@ -1551,24 +1407,60 @@ export default function QuizBuilder() {
                                 const stats = answerStats[answer.answer_id] || { clicks: 0, percentage: "0.0" };
                                 const revenue = answerRevenue[answer.answer_id] || { revenue: 0, orders: 0 };
                                 const currencySymbol = getCurrencySymbol(shopCurrency);
+                                const isAiAnswer = answer.action_data?.ai_generated === true;
+                                const aiProducts = isAiAnswer ? (answer.action_data?.products || []) : [];
                                 return (
                                   <Box key={answer.id} paddingBlock="200">
-                                    <InlineStack align="space-between" blockAlign="center">
-                                      <Text as="span" variant="bodyMd">
-                                        {answer.answer_text}
-                                      </Text>
-                                      <InlineStack gap="300" blockAlign="center">
-                                        <Text as="span" variant="bodySm" tone="subdued">
-                                          {stats.clicks} clicks
-                                        </Text>
-                                        <Badge>{stats.percentage}%</Badge>
-                                        {revenue.orders > 0 && (
-                                          <Badge tone="success">
-                                            {currencySymbol}{revenue.revenue.toFixed(2)} · {revenue.orders} order{revenue.orders !== 1 ? 's' : ''}
-                                          </Badge>
-                                        )}
+                                    <BlockStack gap="100">
+                                      <InlineStack align="space-between" blockAlign="center">
+                                        <InlineStack gap="100" blockAlign="center">
+                                          <Text as="span" variant="bodyMd">
+                                            {answer.answer_text}
+                                          </Text>
+                                          {isAiAnswer && (
+                                            <Badge tone="info" size="small">AI</Badge>
+                                          )}
+                                        </InlineStack>
+                                        <InlineStack gap="300" blockAlign="center">
+                                          <Text as="span" variant="bodySm" tone="subdued">
+                                            {stats.clicks} clicks
+                                          </Text>
+                                          <Badge>{stats.percentage}%</Badge>
+                                          {revenue.orders > 0 && (
+                                            <Badge tone="success">
+                                              {currencySymbol}{revenue.revenue.toFixed(2)} · {revenue.orders} order{revenue.orders !== 1 ? 's' : ''}
+                                            </Badge>
+                                          )}
+                                        </InlineStack>
                                       </InlineStack>
-                                    </InlineStack>
+                                      {/* AI-assigned product thumbnails */}
+                                      {aiProducts.length > 0 && (
+                                        <InlineStack gap="100" wrap>
+                                          {aiProducts.map((p, pi) => (
+                                            <Box
+                                              key={p.id || pi}
+                                              padding="050"
+                                              borderWidth="025"
+                                              borderColor="border"
+                                              borderRadius="100"
+                                            >
+                                              <InlineStack gap="100" blockAlign="center" wrap={false}>
+                                                {p.image ? (
+                                                  <img
+                                                    src={p.image}
+                                                    alt={p.title}
+                                                    style={{ width: 18, height: 18, objectFit: "cover", borderRadius: 2, flexShrink: 0 }}
+                                                  />
+                                                ) : null}
+                                                <Text as="span" variant="bodySm" tone="subdued">
+                                                  {p.title}
+                                                </Text>
+                                              </InlineStack>
+                                            </Box>
+                                          ))}
+                                        </InlineStack>
+                                      )}
+                                    </BlockStack>
                                   </Box>
                                 );
                               })}
