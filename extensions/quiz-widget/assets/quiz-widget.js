@@ -160,12 +160,36 @@
         // Show the stored result from previous completion
         this.questionEl.style.display = 'none';
         this.resultEl.style.display = 'block';
-        try {
-          const resultData = JSON.parse(wasCompleted);
-          this.resultContentEl.innerHTML = this.renderActionResult(resultData.actionType, resultData.actionData);
-        } catch (e) {
-          // Fallback for old format (just 'true' string)
-          this.resultContentEl.innerHTML = '<p style="color: #666; font-style: italic;">Quiz already completed.</p>';
+
+        // Check if quiz NOW has a pool (pool may have been added after initial completion)
+        const hasPool = this.quiz && this.quiz.pool_type && (
+          (this.quiz.pool_type === 'products' && this.quiz.product_pool?.length > 0) ||
+          (this.quiz.pool_type === 'collections' && this.quiz.collection_pool?.length > 0)
+        );
+
+        if (hasPool) {
+          // Re-render pool result — show top products from pool (no answers context on restore)
+          this.resultContentEl.innerHTML = '<p class="quizza-ai-loading" style="color:#6b7280;font-size:14px;">Loading your recommendations...</p>';
+          this.showResetButton();
+          const pool = this.quiz.pool_type === 'products'
+            ? this.quiz.product_pool
+            : this.quiz.collection_pool;
+          try {
+            const items = await this.fetchPoolMatch([], pool, this.quiz.pool_type);
+            this.resultContentEl.innerHTML = '';
+            this.renderPoolResult(items, this.quiz.pool_type, []);
+          } catch (e) {
+            // Fallback: show first 4 pool items directly
+            this.resultContentEl.innerHTML = '';
+            this.renderPoolResult(pool.slice(0, 4), this.quiz.pool_type, []);
+          }
+        } else {
+          try {
+            const resultData = JSON.parse(wasCompleted);
+            this.resultContentEl.innerHTML = this.renderActionResult(resultData.actionType, resultData.actionData);
+          } catch (e) {
+            this.resultContentEl.innerHTML = '<p style="color: #666; font-style: italic;">Quiz already completed.</p>';
+          }
         }
         this.showResetButton();
         return;
