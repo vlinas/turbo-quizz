@@ -34,7 +34,7 @@ export async function action({ request }) {
     });
   }
 
-  const { pool = [], poolType = "products", userInstructions = "" } = body;
+  const { pool = [], poolType = "products", userInstructions = "", extraInstructions = "" } = body;
 
   if (!pool || pool.length === 0) {
     return new Response(JSON.stringify({ error: "Pool is required" }), {
@@ -114,25 +114,46 @@ Other rules:
         ];
 
         pool.forEach((item, i) => {
-          const parts = [`[${i}] ${item.title}`];
-          if (item.price && item.price !== "0") parts.push(`$${item.price}`);
-          if (item.description) parts.push(item.description.substring(0, 200));
-          if (item.tags?.length) parts.push(`Tags: ${item.tags.join(", ")}`);
-
-          userContentParts.push({ type: "text", text: parts.join(" | ") });
-
-          // Include image (limit to 8, detail:low = ~85 tokens each)
-          if (item.image && i < 8) {
-            userContentParts.push({
-              type: "image_url",
-              image_url: { url: item.image, detail: "low" },
-            });
+          if (poolType === "collections" && Array.isArray(item.products) && item.products.length > 0) {
+            // Enriched collection — summarise its products for AI
+            const productSummary = item.products
+              .slice(0, 12)
+              .map((p) => {
+                let s = p.title;
+                if (p.price && p.price !== "0") s += ` ($${parseFloat(p.price).toFixed(0)})`;
+                return s;
+              })
+              .join(", ");
+            const allTags = [...new Set(item.products.flatMap((p) => p.tags || []))].slice(0, 10);
+            const parts = [
+              `[${i}] ${item.title}`,
+              `${item.products.length} products: ${productSummary}`,
+            ];
+            if (allTags.length) parts.push(`Common tags: ${allTags.join(", ")}`);
+            userContentParts.push({ type: "text", text: parts.join(" | ") });
+            if (item.image && i < 8) {
+              userContentParts.push({ type: "image_url", image_url: { url: item.image, detail: "low" } });
+            }
+          } else {
+            // Product (or unenriched collection)
+            const parts = [`[${i}] ${item.title}`];
+            if (item.price && item.price !== "0") parts.push(`$${item.price}`);
+            if (item.description) parts.push(item.description.substring(0, 200));
+            if (item.tags?.length) parts.push(`Tags: ${item.tags.join(", ")}`);
+            userContentParts.push({ type: "text", text: parts.join(" | ") });
+            if (item.image && i < 8) {
+              userContentParts.push({ type: "image_url", image_url: { url: item.image, detail: "low" } });
+            }
           }
         });
 
+        const instructionParts = [];
+        if (userInstructions) instructionParts.push(`Merchant instructions: ${userInstructions}`);
+        if (extraInstructions) instructionParts.push(`Additional changes requested: ${extraInstructions}`);
+
         userContentParts.push({
           type: "text",
-          text: `\nGenerate ${numQuestions} questions. Assign product_indices to each answer. Indices are 0 to ${pool.length - 1}.${userInstructions ? `\n\nMerchant instructions (follow these carefully): ${userInstructions}` : ""} Return ONLY the JSON.`,
+          text: `\nGenerate ${numQuestions} questions. Assign product_indices to each answer. Indices are 0 to ${pool.length - 1}.${instructionParts.length ? `\n\n${instructionParts.join("\n")}` : ""} Return ONLY the JSON.`,
         });
 
         const message = await openai.chat.completions.create({

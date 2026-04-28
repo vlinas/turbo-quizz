@@ -1,6 +1,6 @@
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useNavigate, useFetcher } from "@remix-run/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Page,
   Card,
@@ -91,13 +91,18 @@ export default function AiWizard() {
   const { quizId, quizTitle } = useLoaderData();
   const navigate = useNavigate();
   const applyFetcher = useFetcher();
+  const enrichFetcher = useFetcher();
 
   // Pool selection state
   const [poolType, setPoolType] = useState("products");
   const [poolItems, setPoolItems] = useState([]);
+  const [enriching, setEnriching] = useState(false);
 
   // Preferences
   const [userInstructions, setUserInstructions] = useState("");
+
+  // Regenerate feedback (summary step)
+  const [regenerateFeedback, setRegenerateFeedback] = useState("");
 
   // Wizard steps: pool-select | preferences | generating | review | summary | applying | error
   const [step, setStep] = useState("pool-select");
@@ -166,21 +171,33 @@ export default function AiWizard() {
         });
         if (result?.selection?.length) {
           const capped = result.selection.slice(0, 10);
-          setPoolItems(
-            capped.map((s) => ({
-              id: s.id,
-              title: s.title,
-              handle: s.handle || "",
-              description: "",
-              image: s.image?.originalSrc || s.image?.url || null,
-            }))
-          );
+          // Set basic info immediately, then enrich with product data
+          const basic = capped.map((s) => ({
+            id: s.id,
+            title: s.title,
+            handle: s.handle || "",
+            description: "",
+            image: s.image?.originalSrc || s.image?.url || null,
+          }));
+          setPoolItems(basic);
+          setEnriching(true);
+          const fd = new FormData();
+          fd.append("collectionIds", JSON.stringify(basic.map((c) => c.id)));
+          enrichFetcher.submit(fd, { method: "post", action: "/app/api/collections-enrich" });
         }
       }
     } catch (e) {
       console.error("Resource picker error:", e);
     }
   };
+
+  // When enrichment data arrives, update poolItems with product details
+  useEffect(() => {
+    if (enrichFetcher.data?.collections) {
+      setPoolItems(enrichFetcher.data.collections);
+      setEnriching(false);
+    }
+  }, [enrichFetcher.data]);
 
   const handleRemovePoolItem = (id) => {
     setPoolItems((prev) => prev.filter((i) => i.id !== id));
@@ -228,7 +245,7 @@ export default function AiWizard() {
   }, [applyFetcher.data]);
 
   // ── Generation ────────────────────────────────────────────────────────────
-  const runGeneration = async () => {
+  const runGeneration = async (extraInstructions = "") => {
     setStep("generating");
     setError(null);
     setAllQuestions([]);
@@ -240,7 +257,12 @@ export default function AiWizard() {
       const response = await fetch("/api/ai/quiz-wizard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pool: poolItems, poolType, userInstructions: userInstructions.trim() }),
+        body: JSON.stringify({
+          pool: poolItems,
+          poolType,
+          userInstructions: userInstructions.trim(),
+          extraInstructions: extraInstructions.trim(),
+        }),
       });
 
       const reader = response.body.getReader();
@@ -372,18 +394,28 @@ export default function AiWizard() {
                 </InlineStack>
 
                 {/* Picker button */}
-                <Button
-                  onClick={
-                    poolType === "products"
-                      ? handlePickProducts
-                      : handlePickCollections
-                  }
-                  disabled={poolItems.length >= maxItems}
-                >
-                  {poolItems.length === 0
-                    ? `Select ${itemLabel}`
-                    : `Edit ${itemLabel} (${poolItems.length}/${maxItems} selected)`}
-                </Button>
+                <InlineStack gap="200" blockAlign="center">
+                  <Button
+                    onClick={
+                      poolType === "products"
+                        ? handlePickProducts
+                        : handlePickCollections
+                    }
+                    disabled={poolItems.length >= maxItems || enriching}
+                  >
+                    {poolItems.length === 0
+                      ? `Select ${itemLabel}`
+                      : `Edit ${itemLabel} (${poolItems.length}/${maxItems} selected)`}
+                  </Button>
+                  {enriching && (
+                    <InlineStack gap="100" blockAlign="center">
+                      <Spinner size="small" />
+                      <Text as="span" variant="bodySm" tone="subdued">
+                        Loading product details…
+                      </Text>
+                    </InlineStack>
+                  )}
+                </InlineStack>
 
                 {/* Selected items list */}
                 {poolItems.length > 0 && (
@@ -451,7 +483,8 @@ export default function AiWizard() {
                   <Button
                     variant="primary"
                     onClick={() => setStep("preferences")}
-                    disabled={poolItems.length < 2}
+                    disabled={poolItems.length < 2 || enriching}
+                    loading={enriching}
                   >
                     Next: Customize →
                   </Button>
@@ -508,8 +541,9 @@ export default function AiWizard() {
                     </Text>
                     <InlineStack gap="200" wrap>
                       {[
-                        "Write in Lithuanian",
                         "Write in German",
+                        "Write in French",
+                        "Write in Spanish",
                         "Keep tone casual",
                         "Professional tone",
                         "Target women 25–40",
@@ -990,6 +1024,23 @@ export default function AiWizard() {
 
                 <Divider />
 
+                {/* Regenerate with feedback */}
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                    Want changes?
+                  </Text>
+                  <TextField
+                    label="Tell AI what to adjust"
+                    labelHidden
+                    value={regenerateFeedback}
+                    onChange={setRegenerateFeedback}
+                    placeholder="e.g., Make questions shorter, avoid technical jargon, focus more on price range..."
+                    multiline={2}
+                    autoComplete="off"
+                    disabled={isApplying}
+                  />
+                </BlockStack>
+
                 <InlineStack align="space-between" blockAlign="center">
                   <InlineStack gap="200">
                     <Button
@@ -999,10 +1050,18 @@ export default function AiWizard() {
                       Change pool
                     </Button>
                     <Button
-                      onClick={() => setStep("preferences")}
+                      onClick={() => {
+                        const feedback = regenerateFeedback.trim();
+                        setRegenerateFeedback("");
+                        if (feedback) {
+                          runGeneration(feedback);
+                        } else {
+                          setStep("preferences");
+                        }
+                      }}
                       disabled={isApplying}
                     >
-                      Regenerate
+                      {regenerateFeedback.trim() ? "Regenerate with changes" : "Regenerate"}
                     </Button>
                     {allQuestions.length > 0 && (
                       <Button
@@ -1019,6 +1078,7 @@ export default function AiWizard() {
                   </InlineStack>
                   <Button
                     variant="primary"
+                    tone="success"
                     onClick={applyQuestions}
                     disabled={keptQuestions.length === 0 || isApplying}
                     loading={isApplying}
