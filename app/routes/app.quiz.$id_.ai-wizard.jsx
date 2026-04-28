@@ -579,7 +579,7 @@ export default function AiWizard() {
                   <Button
                     variant="primary"
                     tone="success"
-                    onClick={runGeneration}
+                    onClick={() => runGeneration()}
                   >
                     Generate quiz →
                   </Button>
