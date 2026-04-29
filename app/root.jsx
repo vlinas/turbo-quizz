@@ -33,7 +33,7 @@ export default function App() {
               (function(){
               var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
               s1.async=true;
-              s1.src='https://embed.tawk.to/692efa2e2273851989deda3b/1jbfo2h86';
+              s1.src='https://embed.tawk.to/69f1d0ab214e0d1c316beb5d/1jnc9e7u4';
               s1.charset='UTF-8';
               s1.setAttribute('crossorigin','*');
               s0.parentNode.insertBefore(s1,s0);
