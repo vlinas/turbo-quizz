@@ -157,6 +157,22 @@ export const action = async ({ request, params }) => {
       }
 
       if (actionType === "show_collections") {
+        // Use previewItems directly so merchant-edited title/image is preserved.
+        // If previewItems not available (edge case), fall back to Shopify fetch.
+        const previewItems = answer.previewItems || [];
+        if (previewItems.length > 0) {
+          return {
+            collections: previewItems.slice(0, 3).map((item) => ({
+              id: item.id,
+              title: item.title || "",
+              handle: item.handle || "",
+              image: item.image ? { url: item.image, originalSrc: item.image } : null,
+            })),
+            custom_text: customText || "Based on your answers, check out these collections:",
+            grid_columns: gridColumns || 2,
+          };
+        }
+        // Fallback: fetch from Shopify
         const ids = (actionData || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 3);
         const gids = toCollectionGids(ids);
         const nodes = await fetchNodesByIds(gids, admin);
@@ -435,6 +451,17 @@ export default function EditQuestionPage() {
     setAnswers((prev) => {
       const newAnswers = [...prev];
       newAnswers[index] = { ...newAnswers[index], [field]: value };
+      return newAnswers;
+    });
+  };
+
+  // Update title or image on a specific previewItem
+  const updatePreviewItem = (answerIndex, itemIndex, field, value) => {
+    setAnswers((prev) => {
+      const newAnswers = [...prev];
+      const newItems = [...(newAnswers[answerIndex].previewItems || [])];
+      newItems[itemIndex] = { ...newItems[itemIndex], [field]: value };
+      newAnswers[answerIndex] = { ...newAnswers[answerIndex], previewItems: newItems };
       return newAnswers;
     });
   };
@@ -923,30 +950,53 @@ export default function EditQuestionPage() {
                               </Text>
                             </InlineStack>
 
-                            {/* Preview Items */}
+                            {/* Preview Items — editable title + image per item */}
                             {answer.previewItems?.length > 0 && (
-                              <InlineStack gap="200" wrap={false}>
-                                {answer.previewItems.map((item) => (
-                                  <Box key={item.id} padding="200" background="bg-surface-secondary" borderRadius="200">
-                                    <BlockStack gap="100" inlineAlign="center">
-                                      {item.image ? (
-                                        <img
-                                          src={item.image}
-                                          alt={item.title}
-                                          style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4 }}
-                                        />
-                                      ) : (
-                                        <div style={{ width: 48, height: 48, background: "#eee", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                          <Icon source={ImageIcon} tone="subdued" />
-                                        </div>
-                                      )}
-                                      <Text as="span" variant="bodySm" truncate>
-                                        {item.title?.substring(0, 12) || "Item"}
-                                      </Text>
-                                    </BlockStack>
+                              <BlockStack gap="200">
+                                {answer.previewItems.map((item, itemIndex) => (
+                                  <Box key={item.id || itemIndex} padding="300" background="bg-surface-secondary" borderRadius="200">
+                                    <InlineStack gap="300" blockAlign="start" wrap={false}>
+                                      {/* Image preview */}
+                                      <div style={{ flexShrink: 0 }}>
+                                        {item.image ? (
+                                          <img
+                                            src={item.image}
+                                            alt={item.title}
+                                            style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6 }}
+                                          />
+                                        ) : (
+                                          <div style={{ width: 56, height: 56, background: "#e0e0e0", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                            <Icon source={ImageIcon} tone="subdued" />
+                                          </div>
+                                        )}
+                                      </div>
+                                      {/* Editable fields */}
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <BlockStack gap="150">
+                                          <TextField
+                                            label="Display title"
+                                            labelHidden
+                                            value={item.title || ""}
+                                            onChange={(val) => updatePreviewItem(index, itemIndex, "title", val)}
+                                            autoComplete="off"
+                                            placeholder="Display title"
+                                            size="slim"
+                                          />
+                                          <TextField
+                                            label="Image URL"
+                                            labelHidden
+                                            value={item.image || ""}
+                                            onChange={(val) => updatePreviewItem(index, itemIndex, "image", val)}
+                                            autoComplete="off"
+                                            placeholder="https://... (paste image URL)"
+                                            size="slim"
+                                          />
+                                        </BlockStack>
+                                      </div>
+                                    </InlineStack>
                                   </Box>
                                 ))}
-                              </InlineStack>
+                              </BlockStack>
                             )}
 
                             {/* Grid Columns */}
